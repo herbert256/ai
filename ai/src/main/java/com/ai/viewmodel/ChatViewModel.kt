@@ -26,10 +26,11 @@ class ChatViewModel(private val appViewModel: AppViewModel) {
         messages: List<ChatMessage>,
         sessionParams: ChatParameters,
         baseUrl: String? = null,
-        webSearchTool: Boolean = false,
+        webSearchTool: Boolean? = null,
         reasoningEffort: String? = null,
         context: android.content.Context? = null,
-        knowledgeBaseIds: List<String> = emptyList()
+        knowledgeBaseIds: List<String> = emptyList(),
+        onUsage: (TokenUsage) -> Unit = {}
     ): Flow<String> {
         AppLog.d("Chat", "sendChatMessageStream ${service.id}/$model msgs=${messages.size} kbs=${knowledgeBaseIds.size} web=$webSearchTool reasoning=$reasoningEffort")
         // sessionParams is the source of truth for this turn — agent
@@ -38,12 +39,15 @@ class ChatViewModel(private val appViewModel: AppViewModel) {
         // chats pass UiState.chatParameters explicitly. The earlier
         // global-uiState read silently shadowed all three with
         // whatever the last configure-on-the-fly chat had set.
-        val withWeb = if (webSearchTool && !sessionParams.webSearchTool) sessionParams.copy(webSearchTool = true) else sessionParams
+        val withWeb = sessionParams.copy(webSearchTool = webSearchTool ?: sessionParams.webSearchTool)
         // Per-turn reasoning override, when supplied. Empty string clears
         // back to "no hint"; null leaves whatever the chat-screen pulldown
         // sent last time (which is also its initial value from the
         // configure-on-the-fly Parameters preset).
         val params = if (reasoningEffort != null) withWeb.copy(reasoningEffort = reasoningEffort.ifBlank { null }) else withWeb
+        if (service == AppService.LOCAL && context != null) {
+            return sendLocalLlmStream(context, model, messages, knowledgeBaseIds, params)
+        }
         // RAG retrieval lives inside the cold flow (on Dispatchers.IO)
         // so the embedding call doesn't run on the caller's main-scope
         // coroutine. Pre-RAG path also runs on IO so the SSE
@@ -54,18 +58,19 @@ class ChatViewModel(private val appViewModel: AppViewModel) {
         // because reader.readLine() blocked the UI dispatcher thread.
         return if (knowledgeBaseIds.isNotEmpty() && context != null) {
             flow {
+                appViewModel.repository.chatConfigurationError(service, model, params)?.let { throw IllegalArgumentException(it) }
                 val withRag = messagesWithRag(context, knowledgeBaseIds, messages)
                 emitAll(appViewModel.repository.sendChatStream(
                     service = service, apiKey = apiKey, model = model,
                     messages = withRag, params = params,
-                    baseUrl = baseUrl
+                    baseUrl = baseUrl, onUsage = onUsage
                 ))
             }.flowOn(Dispatchers.IO)
         } else {
             appViewModel.repository.sendChatStream(
                 service = service, apiKey = apiKey, model = model,
                 messages = messages, params = params,
-                baseUrl = baseUrl
+                baseUrl = baseUrl, onUsage = onUsage
             ).flowOn(Dispatchers.IO)
         }
     }
@@ -88,20 +93,16 @@ class ChatViewModel(private val appViewModel: AppViewModel) {
             return messages
         }
         AppLog.d("Chat.RAG", "retrieving for kbs=${knowledgeBaseIds.joinToString(",")} queryLen=${lastUser.length}")
-        val hits = runCatching {
+        val hits = try {
             val retrieved = KnowledgeService.retrieve(context, appViewModel.repository, appViewModel.uiState.value.aiSettings,
                 knowledgeBaseIds, lastUser)
             recordRagEmbeddingUsage(context, knowledgeBaseIds, lastUser)
             retrieved
-        }.onFailure { e ->
-            // Surface retrieval failures (network, auth, dim mismatch,
-            // embedder model not available) instead of silently
-            // falling back to "no context" — without the log a user
-            // sees a perfectly good chat reply and never knows the
-            // attached KB didn't contribute.
-            AppLog.w("Chat.RAG",
-                "Retrieval failed for kbs=$knowledgeBaseIds: ${e.javaClass.simpleName}: ${e.message}")
-        }.getOrDefault(emptyList())
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            throw IllegalStateException("Knowledge retrieval failed. Retry or detach the knowledge base: ${e.message}", e)
+        }
         AppLog.d("Chat.RAG", "retrieved ${hits.size} hit(s)")
         if (hits.isEmpty()) return messages
         val ctx = KnowledgeService.formatContextBlock(hits)
@@ -135,16 +136,14 @@ class ChatViewModel(private val appViewModel: AppViewModel) {
         appViewModel.settingsPrefs.updateUsageStatsAsync(
             service,
             kb.embedderModel,
-            inputTokens,
-            0,
-            inputTokens,
+            TokenUsage(inputTokens, 0, estimated = true),
             kind = "chat/rag"
         )
     }
 
     /**
      * Send a chat message for dual chat with explicit ChatParameters.
-     * Throws on error.
+     * Returns provider usage even for an unusable response; transport failures throw.
      */
     suspend fun sendDualChatMessage(
         service: AppService,
@@ -152,29 +151,24 @@ class ChatViewModel(private val appViewModel: AppViewModel) {
         model: String,
         messages: List<ChatMessage>,
         params: ChatParameters
-    ): String {
-        AppLog.d("Chat", "sendDualChatMessage ${service.id}/$model msgs=${messages.size}")
-        val response = appViewModel.repository.sendChatResponse(
-            service = service, apiKey = apiKey, model = model,
-            messages = messages, params = params
-        )
-        val text = response.analysis ?: throw Exception(response.error ?: "No response content")
-        val usage = response.tokenUsage
-        if (usage != null && usage.totalTokens > 0) {
-            appViewModel.settingsPrefs.updateUsageStatsAsync(service, model, usage, kind = "Dual chat")
-        } else {
-            val inputTokens = messages.sumOf { AppViewModel.estimateTokens(it.content) }
-            val outputTokens = AppViewModel.estimateTokens(text)
-            appViewModel.settingsPrefs.updateUsageStatsAsync(
-                service,
-                model,
-                inputTokens,
-                outputTokens,
-                inputTokens + outputTokens,
-                kind = "Dual chat"
-            )
+    ): AnalysisResponse {
+        if (service == AppService.LOCAL) {
+            val answer = StringBuilder()
+            sendLocalLlmStream(appViewModel.getApplication(), model, messages, params = params).collect { answer.append(it) }
+            return AnalysisResponse(service, answer.toString(), null, TokenUsage(
+                messages.sumOf { AppViewModel.estimateTokens(it.content) },
+                AppViewModel.estimateTokens(answer.toString()), estimated = true
+            ))
         }
-        return text
+        val response = appViewModel.repository.sendChatResponse(
+            service = service, apiKey = apiKey, model = model, messages = messages, params = params
+        ).withoutThinkSections()
+        val usage = response.tokenUsage ?: response.analysis?.let { text ->
+            TokenUsage(messages.sumOf { AppViewModel.estimateTokens(it.content) }, AppViewModel.estimateTokens(text), estimated = true)
+        }
+        // The session accounts once after delivery, or recovers a completed
+        // trace if cancellation prevents this result from reaching the caller.
+        return response.copy(tokenUsage = usage)
     }
 
     /**
@@ -189,8 +183,12 @@ class ChatViewModel(private val appViewModel: AppViewModel) {
         context: Context,
         modelName: String,
         messages: List<ChatMessage>,
-        knowledgeBaseIds: List<String> = emptyList()
+        knowledgeBaseIds: List<String> = emptyList(),
+        params: ChatParameters = ChatParameters()
     ): Flow<String> = flow {
+        appViewModel.repository.chatConfigurationError(AppService.LOCAL, modelName, params)?.let {
+            throw IllegalArgumentException(it)
+        }
         val withRag = if (knowledgeBaseIds.isNotEmpty()) messagesWithRag(context, knowledgeBaseIds, messages) else messages
         // Most chat-tuned local models (Gemma, Phi, Llama) accept a
         // system prefix but require the chat-template wrapper, which
@@ -212,7 +210,7 @@ class ChatViewModel(private val appViewModel: AppViewModel) {
             }
             append("Assistant: ")
         }
-        val out = LocalLlm.generate(context, modelName, prompt)
+        val out = LocalLlm.generate(context, modelName, prompt, params.forParameterValidation())
             ?: throw IllegalStateException("Local LLM \"$modelName\" failed — verify it loaded in Housekeeping → Local LLMs.")
         emit(cleanLocalChatOutput(out))
     }.flowOn(Dispatchers.IO)
@@ -228,19 +226,11 @@ class ChatViewModel(private val appViewModel: AppViewModel) {
     /**
      * Record usage statistics for streaming chat (call after stream completes).
      */
-    suspend fun recordChatStatistics(
-        service: AppService,
-        model: String,
-        inputTokens: Int,
-        outputTokens: Int
-    ) {
-        appViewModel.settingsPrefs.updateUsageStatsAsync(
-            service,
-            model,
-            inputTokens,
-            outputTokens,
-            inputTokens + outputTokens,
-            kind = "Chat"
-        )
+    suspend fun recordChatStatistics(service: AppService, model: String, usage: TokenUsage, kind: String) {
+        if (service != AppService.LOCAL) {
+            kotlinx.coroutines.withContext(Dispatchers.IO) { PricingCache.ensureLoadedBlocking(appViewModel.getApplication()) }
+            appViewModel.settingsPrefs.updateUsageStatsAsync(service, model, usage, kind = kind)
+            kotlinx.coroutines.withContext(Dispatchers.IO) { appViewModel.settingsPrefs.flushUsageStats() }
+        }
     }
 }

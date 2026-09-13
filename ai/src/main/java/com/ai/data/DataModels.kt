@@ -54,7 +54,10 @@ data class ChatMessage(
     val timestamp: Long = System.currentTimeMillis(),
     val imageBase64: String? = null,
     val imageMime: String? = null,
-    val id: String? = java.util.UUID.randomUUID().toString()
+    val id: String? = java.util.UUID.randomUUID().toString(),
+    val traceFilename: String? = null,
+    /** Kept outside content so diagnostics never become model instructions. */
+    val interruption: String? = null
 )
 
 /**
@@ -82,8 +85,36 @@ data class ChatParameters(
      *  the chat session screen sets this per-turn via the 🧠 pulldown
      *  next to the web-search chip. Only injected at dispatch when
      *  LiteLLM reports the model supports reasoning. */
-    val reasoningEffort: String? = null
+    val reasoningEffort: String? = null,
+    val stopSequences: List<String>? = null,
+    val seed: Int? = null,
+    val responseFormatJson: Boolean = false
 )
+
+internal fun AgentParameters.toChatParameters() = ChatParameters(
+    systemPrompt = systemPrompt.orEmpty(), temperature = temperature, maxTokens = maxTokens,
+    topP = topP, topK = topK, frequencyPenalty = frequencyPenalty, presencePenalty = presencePenalty,
+    searchEnabled = searchEnabled, returnCitations = returnCitations, searchRecency = searchRecency,
+    webSearchTool = webSearchTool, reasoningEffort = reasoningEffort, stopSequences = stopSequences,
+    seed = seed, responseFormatJson = responseFormatJson
+)
+
+/** Call-time prices and full provider usage survive reopening and price edits. */
+data class ChatCallRecord(
+    val providerId: String,
+    val model: String,
+    val kind: String,
+    val usage: TokenUsage,
+    val costUsd: Double,
+    val traceFilename: String? = null
+)
+
+internal fun chatCallRecord(context: android.content.Context, provider: AppService, model: String, kind: String, usage: TokenUsage, trace: String? = null): ChatCallRecord {
+    if (provider == AppService.LOCAL) return ChatCallRecord(provider.id, model, kind, usage, 0.0, trace)
+    PricingCache.ensureLoadedBlocking(context)
+    val costs = PricingCache.computeInOutCost(usage, PricingCache.lookupPricing(provider, model))
+    return ChatCallRecord(provider.id, model, kind, usage, costs.first + costs.second, trace)
+}
 
 /**
  * A saved chat session with all messages.
@@ -110,7 +141,13 @@ data class ChatSession(
      *  `chat_title` internal prompt after the first assistant
      *  response. Blank for sessions saved before this field
      *  existed — display sites fall back to [preview]. */
-    val title: String = ""
+    val title: String = "",
+    val agentId: String? = null,
+    /** No credentials; resumed agent chats resolve their current key by identity. */
+    val endpointUrl: String? = null,
+    /** Call-time usage and prices; version 0 identifies histories without a ledger. */
+    val calls: List<ChatCallRecord> = emptyList(),
+    val usageLedgerVersion: Int = 0
 ) {
     val preview: String
         get() = messages.firstOrNull { it.role == "user" }?.content?.take(50) ?: "Empty chat"

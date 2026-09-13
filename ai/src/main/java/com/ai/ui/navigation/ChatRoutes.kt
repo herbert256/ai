@@ -60,7 +60,10 @@ internal fun NavGraphBuilder.chatRoutes(
                 // as a configure-on-the-fly chat that picked the
                 // synthetic LOCAL provider, so the standard
                 // AI_CHAT_SESSION composable handles routing.
-                onNavigateToLocalLlmChat = { model -> navController.navigate(NavRoutes.aiChatSession("LOCAL", model)) },
+                onNavigateToLocalLlmChat = { model ->
+                    appViewModel.setChatParameters(ChatParameters())
+                    navController.navigate(NavRoutes.aiChatSession(AppService.LOCAL.id, model))
+                },
                 onNavigateToDualChat = { navController.navigate(NavRoutes.AI_DUAL_CHAT_SETUP) },
                 onStartWithPhoto = { mime, b64 ->
                     // Stage the photo for the chat session screen at
@@ -86,14 +89,7 @@ internal fun NavGraphBuilder.chatRoutes(
 
             if (agent != null) {
                 val resolvedParams = uiState.aiSettings.resolveAgentParameters(agent)
-                val chatParams = ChatParameters(
-                    temperature = resolvedParams.temperature, maxTokens = resolvedParams.maxTokens,
-                    topP = resolvedParams.topP, topK = resolvedParams.topK,
-                    frequencyPenalty = resolvedParams.frequencyPenalty, presencePenalty = resolvedParams.presencePenalty,
-                    systemPrompt = resolvedParams.systemPrompt ?: "", searchEnabled = resolvedParams.searchEnabled,
-                    returnCitations = resolvedParams.returnCitations, searchRecency = resolvedParams.searchRecency,
-                    webSearchTool = resolvedParams.webSearchTool, reasoningEffort = resolvedParams.reasoningEffort
-                )
+                val chatParams = resolvedParams.toChatParameters()
                 val endpointUrl = uiState.aiSettings.getEffectiveEndpointUrlForAgent(agent)
                 val customBaseUrl = if (endpointUrl != agent.provider.baseUrl) endpointUrl else null
                 val effectiveApiKey = uiState.aiSettings.getEffectiveApiKeyForAgent(agent)
@@ -103,8 +99,9 @@ internal fun NavGraphBuilder.chatRoutes(
                 ChatSessionScreen(
                     provider = agent.provider, model = effectiveModel, parameters = chatParams,
                     userName = uiState.generalSettings.userName, onNavigateBack = safePopBack, onNavigateHome = navigateHome,
-                    onSendMessageStream = { messages, webSearch, reasoning, kbs -> chatViewModel.sendChatMessageStream(agent.provider, effectiveApiKey, effectiveModel, messages, sessionParams = chatParams, baseUrl = customBaseUrl, webSearchTool = webSearch, reasoningEffort = reasoning, context = agentChatContext, knowledgeBaseIds = kbs) },
-                    onRecordStatistics = { inp, out -> chatViewModel.recordChatStatistics(agent.provider, effectiveModel, inp, out) },
+                    onSendMessageStream = { messages, webSearch, reasoning, kbs, usage -> chatViewModel.sendChatMessageStream(agent.provider, effectiveApiKey, effectiveModel, messages, sessionParams = chatParams, baseUrl = customBaseUrl, webSearchTool = webSearch, reasoningEffort = reasoning, context = agentChatContext, knowledgeBaseIds = kbs, onUsage = usage) },
+                    onRecordStatistics = chatViewModel::recordChatStatistics,
+                    agentId = agent.id, endpointUrl = customBaseUrl,
                     aiSettings = uiState.aiSettings,
                     repository = appViewModel.repository,
                     isVisionCapable = uiState.aiSettings.isVisionCapable(agent.provider, effectiveModel),
@@ -173,29 +170,14 @@ internal fun NavGraphBuilder.chatRoutes(
                 ChatSessionScreen(
                     provider = provider, model = model, parameters = uiState.chatParameters,
                     userName = uiState.generalSettings.userName, onNavigateBack = safePopBack, onNavigateHome = navigateHome,
-                    // LOCAL routes through MediaPipe LLM Inference; the
-                    // remote streaming protocol (web-search / reasoning
-                    // params) doesn't apply, so we just forward the
-                    // turn list to LocalLlm.generate via
-                    // ChatViewModel.sendLocalLlmStream. The chat screen
-                    // calls this with its current ChatSession.knowledgeBaseIds
-                    // attached as the trailing argument (4th
-                    // parameter) — see ChatScreens.kt for the wiring.
-                    onSendMessageStream = if (isLocal) {
-                        { messages, _, _, kbs -> chatViewModel.sendLocalLlmStream(context, model, messages, kbs) }
-                    } else {
-                        { messages, webSearch, reasoning, kbs ->
+                    // The shared entry point also validates per-turn controls for Local.
+                    onSendMessageStream = { messages, webSearch, reasoning, kbs, usage ->
                             chatViewModel.sendChatMessageStream(provider, apiKey, model, messages,
                                 sessionParams = uiState.chatParameters,
                                 webSearchTool = webSearch, reasoningEffort = reasoning,
-                                context = context, knowledgeBaseIds = kbs)
-                        }
+                                context = context, knowledgeBaseIds = kbs, onUsage = usage)
                     },
-                    onRecordStatistics = if (isLocal) {
-                        { _, _ -> /* no remote billing for local */ }
-                    } else {
-                        { inp, out -> chatViewModel.recordChatStatistics(provider, model, inp, out) }
-                    },
+                    onRecordStatistics = chatViewModel::recordChatStatistics,
                     aiSettings = uiState.aiSettings,
                     repository = appViewModel.repository,
                     isVisionCapable = !isLocal && uiState.aiSettings.isVisionCapable(provider, model),
@@ -234,28 +216,24 @@ internal fun NavGraphBuilder.chatRoutes(
             if (!sessionLoaded) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
             } else if (session != null) {
-                val apiKey = uiState.aiSettings.getApiKey(session.provider)
+                val savedAgent = session.agentId?.let { id -> uiState.aiSettings.agents.find { it.id == id && it.provider == session.provider } }
+                val apiKey = savedAgent?.let { uiState.aiSettings.getEffectiveApiKeyForAgent(it) } ?: uiState.aiSettings.getApiKey(session.provider)
                 val sessionContext = LocalContext.current
                 val isLocalSession = session.provider.id == AppService.LOCAL.id
                 ChatSessionScreen(
                     provider = session.provider, model = session.model, parameters = session.parameters,
                     userName = uiState.generalSettings.userName, initialMessages = session.messages, sessionId = session.id,
                     onNavigateBack = safePopBack, onNavigateHome = navigateHome,
-                    onSendMessageStream = if (isLocalSession) {
-                        { messages, _, _, kbs -> chatViewModel.sendLocalLlmStream(sessionContext, session.model, messages, kbs) }
-                    } else {
-                        { messages, webSearch, reasoning, kbs ->
-                            chatViewModel.sendChatMessageStream(session.provider, apiKey, session.model, messages,
-                                sessionParams = session.parameters,
+                    onSendMessageStream = { messages, webSearch, reasoning, kbs, usage ->
+                            if (session.agentId != null && savedAgent == null) kotlinx.coroutines.flow.flow {
+                                throw IllegalStateException("This chat's agent is no longer available. Restore the agent before continuing.")
+                            } else chatViewModel.sendChatMessageStream(session.provider, apiKey, session.model, messages,
+                                sessionParams = session.parameters, baseUrl = session.endpointUrl,
                                 webSearchTool = webSearch, reasoningEffort = reasoning,
-                                context = sessionContext, knowledgeBaseIds = kbs)
-                        }
+                                context = sessionContext, knowledgeBaseIds = kbs, onUsage = usage)
                     },
-                    onRecordStatistics = if (isLocalSession) {
-                        { _, _ -> /* no remote billing for local */ }
-                    } else {
-                        { inp, out -> chatViewModel.recordChatStatistics(session.provider, session.model, inp, out) }
-                    },
+                    onRecordStatistics = chatViewModel::recordChatStatistics,
+                    agentId = session.agentId, endpointUrl = session.endpointUrl,
                     aiSettings = uiState.aiSettings,
                     repository = appViewModel.repository,
                     isVisionCapable = !isLocalSession && uiState.aiSettings.isVisionCapable(session.provider, session.model),

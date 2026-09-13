@@ -88,6 +88,11 @@ passes supported temperature/top-p fields. Gemini maps JSON to
 `generationConfig.responseMimeType=application/json`. Its other fields use
 camelCase. Mistral maps seed to `random_seed`; Anthropic uses `stop_sequences`.
 The same number is not a calibrated cross-model randomness or quality score.
+
+Chat's reasoning control distinguishes **Default** (omit the hint) from explicit
+**None** where supported. Gemini 2.5 Flash maps `none` to
+`generationConfig.thinkingConfig.thinkingBudget=0`; omitting this field leaves the
+provider default active. Models that cannot disable thinking reject `none`.
 Even temperature zero or a seed does not guarantee identical outputs.
 
 Token limits can include hidden reasoning. Explicit caps are preserved; Claude
@@ -278,9 +283,15 @@ source of truth, `data/DataModels.kt`), set when the chat is configured:
 
 At send time (`sendChatMessageStream`) the only extra layer is per-turn: the 🌐
 web-search and 🧠 reasoning toggles overlay the session params
-(`copy(webSearchTool = true)` when web-search is on and the session didn't already
-have it; `copy(reasoningEffort = …)`, where an empty string clears back to "no
-hint"). Otherwise the session params are sent as-is.
+(`webSearchTool` can explicitly enable or disable an inherited setting; an empty
+reasoning string clears the hint). Otherwise the session parameters are preserved.
+
+Chat, Dual Chat, and report refinement use the same `AgentParameters.toChatParameters()`
+conversion, including seed, stop sequences, JSON mode, and reasoning effort. The
+provider dispatch uses the same request builder and validation as reports. Unsupported
+controls are rejected rather than dropped. Malformed numeric input on the configuration
+screen keeps the user on that screen with an error. An untouched system-prompt field
+inherits the parameter preset; editing or explicitly clearing it overrides that preset.
 
 The two per-turn toggles are screen state seeded from the session params
 (`useWebSearch` / `reasoningEffort` in `ui/chat/ChatScreens.kt`), held in

@@ -62,6 +62,8 @@ fun ChatParametersScreen(
 ) {
     BackHandler { onNavigateBack() }
 
+    var parameterError by rememberSaveable { mutableStateOf<String?>(null) }
+    var systemPromptEdited by rememberSaveable { mutableStateOf(false) }
     var systemPrompt by rememberSaveable { mutableStateOf("") }
     var selectedSystemPromptId by rememberSaveable { mutableStateOf<String?>(null) }
     var selectedParametersIds by rememberSaveable { mutableStateOf<List<String>>(emptyList()) }
@@ -79,7 +81,7 @@ fun ChatParametersScreen(
     if (showParamsDialog) {
         com.ai.ui.shared.ParametersSelectScreen(
             aiSettings = aiSettings, selectedIds = selectedParametersIds,
-            onConfirm = { selectedParametersIds = it },
+            onConfirm = { selectedParametersIds = it; returnCitations = aiSettings.mergeParameters(it)?.returnCitations ?: true },
             onBack = { showParamsDialog = false }, onNavigateHome = onNavigateHome
         )
         return
@@ -89,7 +91,8 @@ fun ChatParametersScreen(
             aiSettings = aiSettings, selectedId = selectedSystemPromptId,
             onSelect = { id ->
                 selectedSystemPromptId = id
-                if (id != null) systemPrompt = aiSettings.getSystemPromptById(id)?.prompt ?: systemPrompt
+                systemPrompt = id?.let { aiSettings.getSystemPromptById(it)?.prompt }.orEmpty()
+                systemPromptEdited = true
             },
             onBack = { showSystemPromptDialog = false }, onNavigateHome = onNavigateHome
         )
@@ -110,11 +113,11 @@ fun ChatParametersScreen(
             // System-prompt / parameters preset selectors now live on the
             // bottom-bar 🎭 / 🌡️ icons (wired on the TitleBar above).
             OutlinedTextField(
-                value = systemPrompt, onValueChange = { systemPrompt = it; selectedSystemPromptId = null },
+                value = systemPrompt, onValueChange = { systemPrompt = it; selectedSystemPromptId = null; systemPromptEdited = true },
                 label = { Text("System prompt") }, modifier = Modifier.fillMaxWidth(),
                 minLines = 3, maxLines = 5, colors = AppColors.outlinedFieldColors()
             )
-            OutlinedTextField(value = temperature, onValueChange = { temperature = it }, label = { Text("Temperature (0.0 - 2.0)") }, modifier = Modifier.fillMaxWidth(), singleLine = true, colors = AppColors.outlinedFieldColors())
+            OutlinedTextField(value = temperature, onValueChange = { temperature = it }, label = { Text("Temperature (${temperatureRangeForProvider(provider).min} - ${temperatureRangeForProvider(provider).max})") }, modifier = Modifier.fillMaxWidth(), singleLine = true, colors = AppColors.outlinedFieldColors())
             OutlinedTextField(value = maxTokens, onValueChange = { maxTokens = it }, label = { Text("Max tokens") }, modifier = Modifier.fillMaxWidth(), singleLine = true, colors = AppColors.outlinedFieldColors())
             OutlinedTextField(value = topP, onValueChange = { topP = it }, label = { Text("Top P (0.0 - 1.0)") }, modifier = Modifier.fillMaxWidth(), singleLine = true, colors = AppColors.outlinedFieldColors())
             OutlinedTextField(value = topK, onValueChange = { topK = it }, label = { Text("Top K") }, modifier = Modifier.fillMaxWidth(), singleLine = true, colors = AppColors.outlinedFieldColors())
@@ -122,10 +125,8 @@ fun ChatParametersScreen(
             OutlinedTextField(value = presencePenalty, onValueChange = { presencePenalty = it }, label = { Text("Presence penalty (-2.0 - 2.0)") }, modifier = Modifier.fillMaxWidth(), singleLine = true, colors = AppColors.outlinedFieldColors())
 
             // Web search lives on the chat session screen as a per-turn 🌐
-            // chip — removed from this setup screen so the user only has
-            // one place to toggle it. Parameter presets can still flip
-            // searchEnabled on; the runtime chip is OR'd with it at send
-            // time.
+            // chip. Its explicit value overrides the preset's webSearchTool;
+            // the separate provider-specific searchEnabled flag stays distinct.
             Row(modifier = Modifier.fillMaxWidth().clickable { returnCitations = !returnCitations }, verticalAlignment = Alignment.CenterVertically) {
                 Checkbox(checked = returnCitations, onCheckedChange = { returnCitations = it })
                 Spacer(modifier = Modifier.width(8.dp)); Text("Return citations")
@@ -135,29 +136,32 @@ fun ChatParametersScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
+        parameterError?.let { Text(it, color = AppColors.DangerAccent, fontSize = 12.sp) }
         OutlinedButton(
             onClick = {
-                val presetParams = aiSettings.mergeParameters(selectedParametersIds)
-                val resolvedSp = selectedSystemPromptId?.let { aiSettings.getSystemPromptById(it)?.prompt } ?: systemPrompt
-                onStartChat(
-                    ChatParameters(
-                        systemPrompt = resolvedSp,
-                        // Comma→dot before parse: the Decimal keyboard offers a
-                        // comma on comma-decimal locales (nl-NL) and toFloatOrNull
-                        // is dot-only, so "0,7" would silently drop the value.
-                        temperature = temperature.replace(',', '.').toFloatOrNull() ?: presetParams?.temperature,
-                        maxTokens = maxTokens.toIntOrNull() ?: presetParams?.maxTokens,
-                        topP = topP.replace(',', '.').toFloatOrNull() ?: presetParams?.topP,
-                        topK = topK.toIntOrNull() ?: presetParams?.topK,
-                        frequencyPenalty = frequencyPenalty.replace(',', '.').toFloatOrNull() ?: presetParams?.frequencyPenalty,
-                        presencePenalty = presencePenalty.replace(',', '.').toFloatOrNull() ?: presetParams?.presencePenalty,
-                        searchEnabled = presetParams?.searchEnabled == true,
-                        returnCitations = returnCitations && (presetParams?.returnCitations != false),
-                        searchRecency = searchRecency.takeIf { it.isNotBlank() } ?: presetParams?.searchRecency,
-                        webSearchTool = presetParams?.webSearchTool == true,
-                        reasoningEffort = presetParams?.reasoningEffort
-                    )
+                val floats = listOf("Temperature" to temperature, "Top P" to topP, "Frequency penalty" to frequencyPenalty, "Presence penalty" to presencePenalty)
+                val ints = listOf("Max tokens" to maxTokens, "Top K" to topK)
+                val malformed = floats.firstOrNull { (_, v) -> v.isNotBlank() && v.replace(',', '.').toFloatOrNull()?.isFinite() != true }?.first
+                    ?: ints.firstOrNull { (_, v) -> v.isNotBlank() && v.toIntOrNull() == null }?.first
+                if (malformed != null) {
+                    parameterError = "$malformed must be a valid number"
+                    return@OutlinedButton
+                }
+                val preset = (aiSettings.mergeParameters(selectedParametersIds) ?: AgentParameters()).toChatParameters()
+                val params = preset.copy(
+                    systemPrompt = selectedSystemPromptId?.let { aiSettings.getSystemPromptById(it)?.prompt }
+                        ?: if (systemPromptEdited) systemPrompt else preset.systemPrompt,
+                    temperature = temperature.replace(',', '.').toFloatOrNull() ?: preset.temperature,
+                    maxTokens = maxTokens.toIntOrNull() ?: preset.maxTokens,
+                    topP = topP.replace(',', '.').toFloatOrNull() ?: preset.topP,
+                    topK = topK.toIntOrNull() ?: preset.topK,
+                    frequencyPenalty = frequencyPenalty.replace(',', '.').toFloatOrNull() ?: preset.frequencyPenalty,
+                    presencePenalty = presencePenalty.replace(',', '.').toFloatOrNull() ?: preset.presencePenalty,
+                    returnCitations = returnCitations,
+                    searchRecency = searchRecency.takeIf { it.isNotBlank() } ?: preset.searchRecency
                 )
+                parameterError = AnalysisRepository().reportParameterError(provider, model, params.forParameterValidation())
+                if (parameterError == null) onStartChat(params)
             },
             modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedButtonColors()
         ) { Text("Start Chat", fontSize = 16.sp, maxLines = 1, softWrap = false) }
@@ -244,8 +248,8 @@ fun ChatSessionScreen(
     userName: String,
     onNavigateBack: () -> Unit,
     onNavigateHome: () -> Unit,
-    onSendMessageStream: (List<ChatMessage>, Boolean, String?, List<String>) -> Flow<String>,
-    onRecordStatistics: suspend (Int, Int) -> Unit,
+    onSendMessageStream: (List<ChatMessage>, Boolean, String?, List<String>, (TokenUsage) -> Unit) -> Flow<String>,
+    onRecordStatistics: suspend (AppService, String, TokenUsage, String) -> Unit,
     aiSettings: Settings,
     /** Repository used for the background `chat_title` AI call. Threaded
      *  through from AppNavHost so the screen can fire a single-shot
@@ -254,6 +258,8 @@ fun ChatSessionScreen(
     repository: AnalysisRepository,
     initialMessages: List<ChatMessage> = emptyList(),
     sessionId: String? = null,
+    agentId: String? = null,
+    endpointUrl: String? = null,
     isVisionCapable: Boolean = false,
     onNavigateToTraceFile: (String) -> Unit = {},
     /** Optional pre-fill for the input box, threaded through from
@@ -296,7 +302,10 @@ fun ChatSessionScreen(
     // below). Everything below now seeds from this single object; a short spinner
     // shows until the IO load resolves. See audit chat bugs 1 + 2.
     val sessionLoad = produceState<Pair<Boolean, ChatSession?>>(false to null, currentSessionId) {
-        val loaded = withContext(Dispatchers.IO) { ChatHistoryManager.loadSession(currentSessionId) }
+        val loaded = withContext(Dispatchers.IO) {
+            PricingCache.ensureLoadedBlocking(context)
+            ChatHistoryManager.loadSession(currentSessionId)
+        }
         value = true to loaded
     }
     val (sessionLoaded, persistedSession) = sessionLoad.value
@@ -340,17 +349,14 @@ fun ChatSessionScreen(
     var error by rememberSaveable { mutableStateOf<String?>(null) }
     var isStreaming by remember { mutableStateOf(false) }
     val streamingContentState = remember { mutableStateOf("") }
-    // Accumulate per-turn token counts rather than a baked-in cost sum so the
-    // running total is always priced at the CURRENT pricing tier. This fixes
-    // the cold-pricing window: turns that completed before PricingCache primed
-    // used to stay frozen at default rates in the accumulator; now they re-price
-    // once `pricing` recomputes (matching DualChatScreen's convention).
-    val initialTokenTotals = remember(currentSessionId) {
-        estimatePersistedChatTokenTotals(initialMessagesForSession)
+    val createdAt = remember(currentSessionId) { persistedSession?.createdAt ?: System.currentTimeMillis() }
+    var savedAt by remember(currentSessionId) { mutableLongStateOf(persistedSession?.updatedAt ?: createdAt) }
+    var calls by remember(currentSessionId) { mutableStateOf(persistedSession?.calls.orEmpty()) }
+    // Pre-ledger chats keep an explicitly estimated legacy subtotal.
+    val legacyTokens = remember(currentSessionId) {
+        if (persistedSession?.usageLedgerVersion != 1 && persistedSession?.calls.orEmpty().isEmpty()) estimatePersistedChatTokenTotals(initialMessagesForSession) else 0 to 0
     }
-    var totalInputTokens by remember(currentSessionId) { mutableIntStateOf(initialTokenTotals.first) }
-    var totalOutputTokens by remember(currentSessionId) { mutableIntStateOf(initialTokenTotals.second) }
-    var totalCostHasUpperBoundEstimate by remember(currentSessionId) { mutableStateOf(false) }
+    var turnJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
     // (mime, base64) of an image attached to the next user message.
     // rememberSaveable via a Saver so a rotation / process-recreation
     // between picking the image and tapping Send doesn't drop it.
@@ -421,7 +427,7 @@ fun ChatSessionScreen(
     }
     var moderationError by rememberSaveable { mutableStateOf<String?>(null) }
     var isModerating by remember { mutableStateOf(false) }
-    var sendInFlight by rememberSaveable { mutableStateOf(false) }
+    var sendInFlight by remember { mutableStateOf(false) }
 
     // Conditional outer BackHandler — disabled while the moderation
     // picker overlay or the flagged-input dialog is up so back-press
@@ -453,20 +459,13 @@ fun ChatSessionScreen(
     // stayed at $0.00 for the entire session even after the catalog
     // finished loading. Same pattern as DualChatScreen.
     val pricing = remember(provider, model, pricingTick) { PricingCache.getPricing(context, provider, model) }
-    // Running cost in cents, always priced at the current tier (re-derives when
-    // pricing primes or token totals change).
-    val totalCost by remember(pricing) {
-        derivedStateOf {
-            (totalInputTokens * pricing.promptPrice + totalOutputTokens * pricing.completionPrice) * 100
-        }
+    val legacyCost = remember(currentSessionId, pricing) {
+        if (provider == AppService.LOCAL) 0.0 else (legacyTokens.first * pricing.promptPrice + legacyTokens.second * pricing.completionPrice)
     }
-    val totalCostSubject = when {
-        totalCost <= 0.0 -> null
-        totalCostHasUpperBoundEstimate && totalCost < 0.01 -> "≤0.01c"
-        totalCostHasUpperBoundEstimate -> "≤%.2fc".format(Locale.US, totalCost)
-        totalCost < 0.01 -> "<0.01c"
-        else -> "%.2fc".format(Locale.US, totalCost)
-    }
+    val totalCost = (calls.sumOf { it.costUsd } + legacyCost) * 100
+    val costEstimated = legacyCost > 0 || calls.any { it.usage.estimated }
+    val totalCostSubject = if (totalCost <= 0.0) null else
+        (if (costEstimated) "≈" else "") + if (totalCost < 0.01) "<0.01" else "%.2f".format(Locale.US, totalCost)
 
     // persistedSession is loaded once, off-main, at the top of this composable.
     // Read the persisted pinned flag once on entry so subsequent saves
@@ -512,8 +511,18 @@ fun ChatSessionScreen(
         // atomic file write off the main thread — a large image-heavy
         // session JSON write otherwise blocks the UI on every send /
         // system-prompt change / pin-or-KB toggle.
-        val session = ChatSession(id = currentSessionId, provider = provider, model = model, messages = msgs, parameters = persistedParams, updatedAt = System.currentTimeMillis(), pinned = pinned, knowledgeBaseIds = attachedKnowledgeBaseIds, title = sessionTitle)
-        scope.launch(Dispatchers.IO) { ChatHistoryManager.saveSession(session) }
+        savedAt = maxOf(System.currentTimeMillis(), savedAt + 1)
+        val legacyCall = if (legacyTokens.first + legacyTokens.second > 0 && calls.none { it.kind == "Legacy estimate" }) {
+            listOf(ChatCallRecord(provider.id, model, "Legacy estimate",
+                TokenUsage(legacyTokens.first, legacyTokens.second, estimated = true), legacyCost))
+        } else emptyList()
+        val session = ChatSession(id = currentSessionId, provider = provider, model = model, messages = msgs,
+            parameters = persistedParams, createdAt = createdAt, updatedAt = savedAt, pinned = pinned,
+            knowledgeBaseIds = attachedKnowledgeBaseIds, title = sessionTitle,
+            agentId = agentId ?: persistedSession?.agentId, endpointUrl = endpointUrl ?: persistedSession?.endpointUrl,
+            calls = legacyCall + calls, usageLedgerVersion = 1)
+        ChatHistoryManager.saveSessionAsync(session) { error = "Chat could not be saved. Free device storage and try again." }
+
     }
 
     LaunchedEffect(useWebSearch, reasoningEffort) {
@@ -575,7 +584,7 @@ fun ChatSessionScreen(
             emptyMap()
         } else {
             withContext(Dispatchers.IO) {
-                val all = com.ai.data.ApiTracer.getTraceFiles().filter { it.model == model }
+                val all = com.ai.data.ApiTracer.getTraceFiles().filter { it.model == model && (it.category == null || it.category.equals("Chat", ignoreCase = true)) }
                 val scoped = all.filter { it.reportId == currentSessionId }
                 val legacy = all.filter { it.reportId == null }
                 val candidates = scoped.ifEmpty { legacy }
@@ -586,9 +595,11 @@ fun ChatSessionScreen(
                         if (msg.role == "user") {
                             null
                         } else {
-                            val filename = candidates
-                                .minByOrNull { kotlin.math.abs(it.timestamp - msg.timestamp) }
-                                ?.filename
+                            val turnStarted = displayMessages.take(index).lastOrNull { it.role == "user" }?.timestamp
+                            val filename = turnStarted?.let { start ->
+                                candidates.filter { it.timestamp in (start - 2_000)..(msg.timestamp + 1_000) }
+                                    .maxByOrNull { it.timestamp }?.filename
+                            }
                             filename?.let { chatMessageListKey(msg, index) to it }
                         }
                     }.toMap()
@@ -645,87 +656,65 @@ fun ChatSessionScreen(
         val sentReasoning = reasoningEffort
         val sentKbIds = attachedKnowledgeBaseIds
         val sentMessages = messages
-        // Add LiteLLM-reported tool_use overhead when web-search is on so
-        // the client-side cost estimate isn't 5–10× under the actual bill
-        // for tool-using turns (Claude with web_search adds ~3-4k system
-        // tokens; the conversation text alone misses that). Chat streaming
-        // exposes text chunks only, not a final "tool actually ran" flag, so
-        // this is an upper-bound estimate and the title cost gets a ≤ prefix.
-        val toolOverhead = if (sentWebSearch) (PricingCache.liteLLMToolUseOverhead(provider, model) ?: 0) else 0
-        val inputTokens = messages.sumOf { AppViewModel.estimateTokens(it.content) } + toolOverhead
-        val inputTokensAreUpperBound = toolOverhead > 0
-
-        scope.launch {
+        turnJob = scope.launch {
             isStreaming = true; streamingContentState.value = ""
             val sb = StringBuilder()
+            val filter = ReportAnswerFilter()
+            val usageRef = java.util.concurrent.atomic.AtomicReference<TokenUsage?>()
+            val traceSink = java.util.concurrent.atomic.AtomicReference<String?>()
+            var interruption: String? = null
+            var completed = false
+            val isFirstAssistantTurn = messages.none { it.role == "assistant" }
             try {
-                // Tag chat traces with this session's id (reportId slot) so the
-                // per-bubble 🐞 lookup can filter to THIS session's traces — a
-                // model-name + closest-timestamp match alone pulled in traces
-                // from other chat sessions using the same model.
-                com.ai.data.withTracerTags(reportId = currentSessionId, category = "Chat") {
-                    onSendMessageStream(sentMessages, sentWebSearch, sentReasoning, sentKbIds).collect { chunk -> sb.append(chunk); streamingContentState.value = sb.toString() }
-                }
-                // Build the saved message and token count from the local
-                // StringBuilder that actually accumulated the chunks, not from
-                // the mutable UI state (which the finally block clears) — these
-                // can diverge if an exception lands between append and assign.
-                val finalContent = sb.toString()
-                val assistantMsg = ChatMessage(role = "assistant", content = finalContent)
-                val isFirstAssistantTurn = messages.none { it.role == "assistant" }
-                messages = messages + assistantMsg
-                saveSession(messages)
-                val outputTokens = AppViewModel.estimateTokens(finalContent)
-                totalInputTokens += inputTokens
-                totalOutputTokens += outputTokens
-                if (inputTokensAreUpperBound) totalCostHasUpperBoundEstimate = true
-                onRecordStatistics(inputTokens, outputTokens)
-                // After the very first assistant response, kick off a
-                // background DeepSeek call (chat_title internal prompt)
-                // to replace the 10-word default with a short
-                // AI-generated title. Silent on failure — the default
-                // stays. Subsequent turns don't re-trigger.
-                if (isFirstAssistantTurn) {
-                    val firstUser = sentMessages.firstOrNull { it.role == "user" }?.content.orEmpty()
-                    kickOffChatTitleGeneration(
-                        context = context,
-                        scope = scope,
-                        repository = repository,
-                        aiSettings = aiSettings,
-                        userPrompt = firstUser,
-                        assistantResponse = assistantMsg.content,
-                        onTitleResolved = { newTitle ->
-                            sessionTitle = newTitle
-                            saveSession(messages)
-                        },
-                        onUsageResolved = { inputTokens, outputTokens ->
-                            totalInputTokens += inputTokens
-                            totalOutputTokens += outputTokens
-                            onRecordStatistics(inputTokens, outputTokens)
+                withTracerTags(reportId = currentSessionId, category = "Chat") {
+                    withTraceFilenameSink(traceSink) {
+                        onSendMessageStream(sentMessages.map { if (it.role == "assistant") it.copy(content = stripThinkSections(it.content)) else it },
+                            sentWebSearch, sentReasoning, sentKbIds, { usageRef.set(it) }).collect { chunk ->
+                            sb.append(filter.append(chunk)); streamingContentState.value = sb.toString()
                         }
-                    )
+                    }
                 }
+                sb.append(filter.finish())
+                if (sb.isBlank()) throw IllegalStateException("No final answer content returned")
+                completed = true
             } catch (e: kotlinx.coroutines.CancellationException) {
-                // User left the screen / closed the app. Don't persist a
-                // "[Stream interrupted]" line into the saved session — the
-                // partial chunks weren't really an error from the user's
-                // perspective. Re-throw so structured cancellation works.
+                interruption = "Stopped before completion"
                 throw e
             } catch (e: Exception) {
-                error = e.message ?: "Streaming error"
-                if (sb.isNotEmpty()) {
-                    val partialContent = sb.toString()
-                    messages = messages + ChatMessage(role = "assistant", content = "$partialContent\n\n[Stream interrupted: ${e.message}]")
-                    saveSession(messages)
-                    val outputTokens = AppViewModel.estimateTokens(partialContent)
-                    totalInputTokens += inputTokens
-                    totalOutputTokens += outputTokens
-                    if (inputTokensAreUpperBound) totalCostHasUpperBoundEstimate = true
-                    onRecordStatistics(inputTokens, outputTokens)
-                }
+                interruption = e.message ?: "Streaming error"
+                error = interruption
             } finally {
-                isStreaming = false; streamingContentState.value = ""
-                sendInFlight = false
+                // Once a provider returned usage, account for it even on a failed
+                // or cancelled turn. A partial answer stays visible, with its
+                // status stored separately from the next request's content.
+                withContext(kotlinx.coroutines.NonCancellable) {
+                    val usage = usageRef.get() ?: if (sb.isNotBlank()) TokenUsage(
+                        sentMessages.sumOf { AppViewModel.estimateTokens(it.content) },
+                        AppViewModel.estimateTokens(sb.toString()), estimated = true
+                    ) else null
+                    if (usage != null) {
+                        val call = withContext(Dispatchers.IO) { chatCallRecord(context, provider, model, "Chat", usage, traceSink.get()) }
+                        calls = calls + call
+                        onRecordStatistics(provider, model, usage.copy(traceFile = traceSink.get()), "Chat")
+                    }
+                    if (sb.isNotBlank()) messages = messages + ChatMessage(role = "assistant", content = sb.toString().trim(),
+                        traceFilename = traceSink.get(), interruption = interruption)
+                    if (sb.isBlank() && interruption != null) messages = messages.map {
+                        if (it.id == userMessage.id) it.copy(interruption = interruption) else it
+                    }
+                    saveSession(messages)
+                    isStreaming = false; streamingContentState.value = ""; sendInFlight = false
+                }
+            }
+            if (completed && isFirstAssistantTurn) {
+                kickOffChatTitleGeneration(context, scope, repository, aiSettings, currentSessionId,
+                    sentMessages.firstOrNull { it.role == "user" }?.content.orEmpty(), sb.toString(),
+                    onTitleResolved = { sessionTitle = it; saveSession(messages) },
+                    onUsageResolved = { service, titleModel, usage ->
+                        calls = calls + withContext(Dispatchers.IO) { chatCallRecord(context, service, titleModel, "Chat title", usage, usage.traceFile) }
+                        onRecordStatistics(service, titleModel, usage, "Chat title")
+                        saveSession(messages)
+                    })
             }
         }
     }
@@ -830,12 +819,7 @@ fun ChatSessionScreen(
                 modifier = Modifier
                     .clickable {
                         pinned = !pinned
-                        // Touch the persisted record so the hub picks up the
-                        // new state without waiting for the next message save.
-                        // setSessionPinned does a load+rewrite, so push it off
-                        // the main thread.
-                        val newPinned = pinned
-                        scope.launch(Dispatchers.IO) { ChatHistoryManager.setSessionPinned(currentSessionId, newPinned) }
+                        if (messages.any { it.role == "user" }) saveSession(messages)
                     }
                     .padding(horizontal = 8.dp, vertical = 2.dp)
             )
@@ -885,7 +869,7 @@ fun ChatSessionScreen(
                         ChatMessageBubble(
                             message = msg,
                             userName = userName,
-                            traceFilename = traceFilenameByMessageKey[chatMessageListKey(msg, idx)],
+                            traceFilename = msg.traceFilename ?: traceFilenameByMessageKey[chatMessageListKey(msg, idx)],
                             onNavigateToTraceFile = onNavigateToTraceFile
                         )
                     }
@@ -907,8 +891,9 @@ fun ChatSessionScreen(
             }
         }
 
-        if (error != null) {
-            Text(error!!, color = AppColors.DangerAccent, fontSize = 12.sp, modifier = Modifier.padding(vertical = 4.dp))
+        val currentInterruption = error ?: messages.lastOrNull()?.interruption
+        if (currentInterruption != null) {
+            Text(currentInterruption, color = AppColors.DangerAccent, fontSize = 12.sp, modifier = Modifier.padding(vertical = 4.dp))
         }
 
         Spacer(modifier = Modifier.height(8.dp))
@@ -927,11 +912,10 @@ fun ChatSessionScreen(
             // Reasoning-effort pulldown — only on models that LiteLLM /
             // models.dev say support it (or whose id matches a known
             // reasoning family). The chip shows 🧠 + current level
-            // ("none" when unset). Tapping opens a small menu with
-            // none / low / medium / high.
+            // ("Default" when unset), with explicit None on supported models.
             if (supportsReasoning) {
                 Box {
-                    val levelLabel = if (reasoningEffort.isBlank()) "none"
+                    val levelLabel = if (reasoningEffort.isBlank()) "Default"
                         else reasoningEffort.replaceFirstChar { it.uppercase() }
                     FilterChip(
                         selected = reasoningEffort.isNotBlank(),
@@ -956,7 +940,10 @@ fun ChatSessionScreen(
                         val perModelLevels = aiSettings.getProvider(provider)
                             .modelCapabilities[model]?.reasoningEffortLevels
                         val effortValues = perModelLevels ?: listOf("low", "medium", "high")
-                        val options = listOf("" to "None") + effortValues.map { v ->
+                        val explicitNone = provider.apiFormat == ApiFormat.GOOGLE && model.startsWith("gemini-2.5-flash") ||
+                            provider.id == "OpenAI" && Regex("^gpt-5\\.[124](?:-|$)").containsMatchIn(model)
+                        val levels = if (explicitNone) (listOf("none") + effortValues).distinct() else effortValues
+                        val options = listOf("" to "Default") + levels.map { v ->
                             v to v.replaceFirstChar { it.uppercase() }
                         }
                         options.forEach { (value, label) ->
@@ -1045,10 +1032,10 @@ fun ChatSessionScreen(
                 maxLines = 4, colors = AppColors.outlinedFieldColors()
             )
             OutlinedButton(
-                onClick = { if ((userInput.isNotBlank() || attachedImage != null) && !isStreaming && !isModerating && !sendInFlight) trySend(userInput.trim()) },
-                enabled = (userInput.isNotBlank() || attachedImage != null) && !isStreaming && !isModerating && !sendInFlight,
+                onClick = { if (isStreaming) turnJob?.cancel() else if (!sendInFlight) trySend(userInput.trim()) },
+                enabled = isStreaming || ((userInput.isNotBlank() || attachedImage != null) && !isModerating && !sendInFlight),
                 colors = AppColors.outlinedButtonColors()
-            ) { Text("Send", maxLines = 1, softWrap = false) }
+            ) { Text(if (isStreaming) "Stop" else "Send", maxLines = 1, softWrap = false) }
         }
     }
 
@@ -1193,6 +1180,7 @@ private fun ChatMessageBubble(
             if (message.content.isNotBlank()) {
                 Text(message.content, fontSize = 14.sp, color = AppColors.TextPrimary)
             }
+            message.interruption?.let { Text(it, fontSize = 12.sp, color = AppColors.WarningAccent) }
         }
     }
 }
@@ -1282,10 +1270,11 @@ private fun kickOffChatTitleGeneration(
     scope: kotlinx.coroutines.CoroutineScope,
     repository: AnalysisRepository,
     aiSettings: Settings,
+    sessionId: String,
     userPrompt: String,
     assistantResponse: String,
     onTitleResolved: (String) -> Unit,
-    onUsageResolved: suspend (Int, Int) -> Unit
+    onUsageResolved: suspend (AppService, String, TokenUsage) -> Unit
 ) {
     val prompt = aiSettings.internalPrompts.firstOrNull {
         it.category == "internal" && it.name.equals("chat-title", ignoreCase = true)
@@ -1299,20 +1288,16 @@ private fun kickOffChatTitleGeneration(
         .replace("@PROMPT@", userPrompt)
         .replace("@RESPONSE@", assistantResponse)
     scope.launch(Dispatchers.IO) {
-        com.ai.data.withTraceCategory("Chat title") {
+        com.ai.data.withTracerTags(reportId = sessionId, category = "Chat title") {
             runCatching {
                 val baseUrl = aiSettings.getEffectiveEndpointUrlForAgent(agent)
                 val response = repository.analyzeWithAgent(
                     agent, "", resolved, AgentParameters(),
                     null, context, baseUrl
                 )
-                if (response.error == null) {
-                    response.tokenUsage?.let { usage ->
-                        val inputTokens = usage.inputTokens + usage.cachedInputTokens + usage.cacheCreationTokens
-                        val outputTokens = usage.outputTokens + usage.reasoningTokens
-                        if (inputTokens > 0 || outputTokens > 0) {
-                            withContext(Dispatchers.Main) { onUsageResolved(inputTokens, outputTokens) }
-                        }
+                response.tokenUsage?.let { usage ->
+                    withContext(kotlinx.coroutines.NonCancellable + Dispatchers.Main) {
+                        onUsageResolved(agent.provider, agent.model, usage)
                     }
                 }
                 val raw = response.analysis?.trim().orEmpty()

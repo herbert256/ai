@@ -83,8 +83,8 @@ private data class DualMessage(
 )
 
 /** Saver that lets the dual-chat conversation survive a rotation /
- *  process recreation. Each message flattens to five entries, so the
- *  list flattens to a 5N array — Bundle has a practical ~1 MB ceiling
+ *  process recreation. Each message flattens to DUAL_MSG_STRIDE entries.
+ *  Bundle has a practical ~1 MB ceiling
  *  so a very long high-content session may hit the limit; the previous
  *  in-memory-only state lost everything regardless, so this is strict
  *  improvement. */
@@ -174,14 +174,7 @@ private fun loadStringList(prefs: android.content.SharedPreferences, key: String
 
 internal fun resolveParamsIds(aiSettings: Settings, ids: List<String>): ChatParameters {
     val merged = aiSettings.mergeParameters(ids) ?: return ChatParameters()
-    return ChatParameters(
-        temperature = merged.temperature, maxTokens = merged.maxTokens,
-        topP = merged.topP, topK = merged.topK,
-        frequencyPenalty = merged.frequencyPenalty, presencePenalty = merged.presencePenalty,
-        systemPrompt = merged.systemPrompt ?: "", searchEnabled = merged.searchEnabled,
-        returnCitations = merged.returnCitations, searchRecency = merged.searchRecency,
-        webSearchTool = merged.webSearchTool, reasoningEffort = merged.reasoningEffort
-    )
+    return merged.toChatParameters()
 }
 
 // ===== Setup Screen =====
@@ -473,38 +466,21 @@ fun DualChatSessionScreen(
     var chatJob by remember { mutableStateOf<Job?>(null) }
     var extraChatsText by rememberSaveable { mutableStateOf("10") }
 
-    // Cost tracking — rememberSaveable so the counters survive a recomposition
-    // that restores `messages` from the Saver while the run continues; plain
-    // remember reset them to 0, desyncing the displayed cost (audit chat#24).
-    var model1InputTokens by rememberSaveable { mutableIntStateOf(0) }
-    var model1OutputTokens by rememberSaveable { mutableIntStateOf(0) }
-    var model2InputTokens by rememberSaveable { mutableIntStateOf(0) }
-    var model2OutputTokens by rememberSaveable { mutableIntStateOf(0) }
-    // Recompute pricing whenever PricingCache fully primes (its
-    // preloadCompleted flag flips). Without that, an unkeyed
-    // remember{} latched DEFAULT_PRICING on first composition during
-    // the cold-load window, and dual chat showed $0.00 cost banners
-    // for the entire session even after the catalog finished loading.
-    val pricingTick = com.ai.ui.shared.resumeRefreshTick()
-    val pricing1 = remember(config.model1Provider, config.model1Name, pricingTick) {
-        PricingCache.getPricing(context, config.model1Provider, config.model1Name)
-    }
-    val pricing2 = remember(config.model2Provider, config.model2Name, pricingTick) {
-        PricingCache.getPricing(context, config.model2Provider, config.model2Name)
-    }
-    // Key the derivedStateOf on the pricing objects — an unkeyed remember{}
-    // captured the FIRST (cold) pricing and never re-priced after PricingCache
-    // primed, freezing the cost rows (audit chat#26).
-    val model1Cost by remember(pricing1) { derivedStateOf { (model1InputTokens * pricing1.promptPrice + model1OutputTokens * pricing1.completionPrice) * 100 } }
-    val model2Cost by remember(pricing2) { derivedStateOf { (model2InputTokens * pricing2.promptPrice + model2OutputTokens * pricing2.completionPrice) * 100 } }
-    val totalCost by remember(pricing1, pricing2) { derivedStateOf { model1Cost + model2Cost } }
+    var model1Cost by rememberSaveable { mutableDoubleStateOf(0.0) }
+    var model2Cost by rememberSaveable { mutableDoubleStateOf(0.0) }
+    var hasEstimatedCost by rememberSaveable { mutableStateOf(false) }
+    val totalCost = model1Cost + model2Cost
+    var started by rememberSaveable { mutableStateOf(false) }
 
     fun buildMessagesForModel(modelIndex: Int): List<ChatMessage> {
         val result = mutableListOf<ChatMessage>()
-        val sp = if (modelIndex == 1) config.model1SystemPrompt else config.model2SystemPrompt
+        val sp = if (modelIndex == 1) config.model1SystemPrompt.ifBlank { config.model1Params.systemPrompt }
+            else config.model2SystemPrompt.ifBlank { config.model2Params.systemPrompt }
         if (sp.isNotBlank()) result.add(ChatMessage(role = "system", content = sp))
-        for (msg in messages) {
-            result.add(ChatMessage(role = if (msg.modelIndex == modelIndex) "assistant" else "user", content = msg.content))
+        if (modelIndex == 1) result.add(ChatMessage(role = "user", content = config.firstPrompt.replace("%subject%", config.subject)))
+        messages.forEachIndexed { index, msg ->
+            val content = if (modelIndex == 2 && index == 0) config.secondPrompt.replace("%answer%", msg.content) else msg.content
+            result.add(ChatMessage(role = if (msg.modelIndex == modelIndex) "assistant" else "user", content = content))
         }
         return result
     }
@@ -521,50 +497,40 @@ fun DualChatSessionScreen(
         val loopJob = scope.launch(start = CoroutineStart.LAZY) {
             try {
                 while (currentInteraction < targetInteractions) {
-                    // Model 1's turn
-                    thinkingModel = 1
-                    val m1Messages = buildMessagesForModel(1).toMutableList()
-                    if (messages.isEmpty()) {
-                        m1Messages.add(ChatMessage(role = "user", content = config.firstPrompt.replace("%subject%", config.subject)))
-                    }
-                    val apiKey1 = aiSettings.getApiKey(config.model1Provider)
-                    // Tag per individual API call rather than wrapping the whole
-                    // multi-turn loop: the tags are process-global, so holding
-                    // them across every suspending network call let traces from
-                    // other screens (a normal chat started after navigating away
-                    // before this loop's finally ran) get tagged with the
-                    // dual-chat sessionId/category.
-                    val traceSink1 = java.util.concurrent.atomic.AtomicReference<String?>()
-                    val response1 = com.ai.data.withTracerTags(reportId = sessionId, category = "Dual chat") {
-                        com.ai.data.withTraceFilenameSink(traceSink1) {
-                            chatViewModel.sendDualChatMessage(config.model1Provider, apiKey1, config.model1Name, m1Messages, config.model1Params)
+                    // The last persisted answer determines the missing turn.
+                    // Stopping after model 1 must never repeat model 1.
+                    val next = if (messages.lastOrNull()?.modelIndex == 1) 2 else 1
+                    thinkingModel = next
+                    val provider = if (next == 1) config.model1Provider else config.model2Provider
+                    val model = if (next == 1) config.model1Name else config.model2Name
+                    val params = if (next == 1) config.model1Params else config.model2Params
+                    val traceSink = java.util.concurrent.atomic.AtomicReference<String?>()
+                    var response: AnalysisResponse? = null
+                    try {
+                        response = withTracerTags(reportId = sessionId, category = "Dual chat") {
+                            withTraceFilenameSink(traceSink) {
+                                chatViewModel.sendDualChatMessage(provider, aiSettings.getApiKey(provider), model, buildMessagesForModel(next), params)
+                            }
+                        }
+                    } finally {
+                        withContext(kotlinx.coroutines.NonCancellable) {
+                            val usage = response?.tokenUsage ?: if (response == null) withContext(Dispatchers.IO) {
+                                ReportStorage.completedUsageForInterruptedCall(sessionId, provider, model, traceSink.get())
+                            } else null
+                            usage?.let {
+                                val call = withContext(Dispatchers.IO) { chatCallRecord(context, provider, model, "Dual chat", it, traceSink.get()) }
+                                chatViewModel.recordChatStatistics(provider, model, it, "Dual chat")
+                                if (next == 1) model1Cost += call.costUsd * 100 else model2Cost += call.costUsd * 100
+                                hasEstimatedCost = hasEstimatedCost || it.estimated
+                            }
+                            response?.takeIf { it.error == null }?.analysis?.takeIf { it.isNotBlank() }?.let { content ->
+                                appendMessage(DualMessage(next, content, provider.id, model, traceFilename = traceSink.get()))
+                                if (next == 2) currentInteraction++
+                            }
                         }
                     }
-                    val inTokens1 = m1Messages.sumOf { AppViewModel.estimateTokens(it.content) }
-                    val outTokens1 = AppViewModel.estimateTokens(response1)
-                    model1InputTokens += inTokens1; model1OutputTokens += outTokens1
-                    appendMessage(DualMessage(1, response1, config.model1Provider.id, config.model1Name, traceFilename = traceSink1.get()))
-
-                    // Model 2's turn
-                    thinkingModel = 2
-                    val m2Messages = buildMessagesForModel(2).toMutableList()
-                    if (currentInteraction == 0 && m2Messages.lastOrNull()?.role == "user") {
-                        val last = m2Messages.removeAt(m2Messages.lastIndex)
-                        m2Messages.add(ChatMessage(role = "user", content = config.secondPrompt.replace("%answer%", last.content)))
-                    }
-                    val apiKey2 = aiSettings.getApiKey(config.model2Provider)
-                    val traceSink2 = java.util.concurrent.atomic.AtomicReference<String?>()
-                    val response2 = com.ai.data.withTracerTags(reportId = sessionId, category = "Dual chat") {
-                        com.ai.data.withTraceFilenameSink(traceSink2) {
-                            chatViewModel.sendDualChatMessage(config.model2Provider, apiKey2, config.model2Name, m2Messages, config.model2Params)
-                        }
-                    }
-                    val inTokens2 = m2Messages.sumOf { AppViewModel.estimateTokens(it.content) }
-                    val outTokens2 = AppViewModel.estimateTokens(response2)
-                    model2InputTokens += inTokens2; model2OutputTokens += outTokens2
-                    appendMessage(DualMessage(2, response2, config.model2Provider.id, config.model2Name, traceFilename = traceSink2.get()))
-
-                    currentInteraction++
+                    if (response?.error != null) throw IllegalStateException(response.error)
+                    if (response?.analysis.isNullOrBlank()) throw IllegalStateException("No final answer content returned")
                 }
             } catch (_: CancellationException) {
                 // User stopped
@@ -584,7 +550,10 @@ fun DualChatSessionScreen(
     }
 
     DisposableEffect(Unit) { onDispose { chatJob?.cancel() } }
-    LaunchedEffect(Unit) { startChatLoop() }
+    LaunchedEffect(Unit) {
+        if (!started) { started = true; startChatLoop() }
+        else if (!isRunning) isStopped = true
+    }
     // Auto-scroll once recomposition has committed the appended message,
     // rather than reading messages.size immediately after the state mutation
     // inside the send loop (where the index could momentarily lag).
@@ -614,6 +583,7 @@ fun DualChatSessionScreen(
         }
 
         Spacer(modifier = Modifier.height(4.dp))
+        if (hasEstimatedCost) Text("Cost includes estimated usage", fontSize = 12.sp, color = AppColors.TextTertiary)
         Text("Interaction $currentInteraction / $targetInteractions — Subject: ${config.subject}", fontSize = 12.sp, color = AppColors.TextTertiary)
         Spacer(modifier = Modifier.height(8.dp))
 
@@ -658,12 +628,16 @@ fun DualChatSessionScreen(
                     // withTracerTags finally, which restores the
                     // previous tag pair. No manual clear needed.
                     chatJob?.cancel()
-                    isRunning = false; isStopped = true; thinkingModel = null
                 },
                 modifier = Modifier.fillMaxWidth(),
                 colors = ButtonDefaults.buttonColors(containerColor = AppColors.DangerAccent)
             ) { Text("Stop", maxLines = 1, softWrap = false) }
         } else if (isStopped) {
+            if (currentInteraction < targetInteractions) {
+                OutlinedButton(onClick = { startChatLoop() }, modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedButtonColors()) {
+                    Text("Resume unfinished round")
+                }
+            }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 OutlinedTextField(
                     value = extraChatsText,
@@ -724,7 +698,7 @@ fun DualChatSessionScreen(
 private fun CostLabel(name: String, costCents: Double, color: Color) {
     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.widthIn(max = 100.dp)) {
         Text(name, fontSize = 10.sp, color = color, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        Text(String.format(java.util.Locale.US, "%.4f c", costCents), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = color, fontFamily = FontFamily.Monospace)
+        Text(String.format(java.util.Locale.US, "%.4f", costCents), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = color, fontFamily = FontFamily.Monospace)
     }
 }
 

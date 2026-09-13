@@ -427,6 +427,7 @@ data class ClaudeError(val type: String?, val message: String?)
 
 data class GeminiPart(
     val text: String? = null,
+    val thought: Boolean? = null,
     @SerializedName("inline_data") val inlineData: GeminiInlineData? = null
 )
 

@@ -1,0 +1,410 @@
+[
+  {
+    "test": "Audit Chat 01 Groq controls",
+    "provider": "Groq",
+    "model": "openai/gpt-oss-20b",
+    "expected": "complete",
+    "httpCalls": 1,
+    "httpStatuses": [
+      200
+    ],
+    "answerPresent": true,
+    "lastInterruption": null,
+    "ledgerCalls": 1,
+    "ledgerCostUsd": 2.985e-05,
+    "usageChecks": 1,
+    "wireControls": {
+      "max_tokens": 512,
+      "model": "openai/gpt-oss-20b",
+      "response_format": {
+        "type": "json_object"
+      },
+      "seed": 17,
+      "stop": [
+        "END_AUDIT"
+      ],
+      "stream": true,
+      "stream_options": {
+        "include_usage": true
+      },
+      "temperature": 0.2,
+      "top_p": 0.9
+    }
+  },
+  {
+    "test": "Audit Chat 02 Google controls",
+    "provider": "Google",
+    "model": "gemini-2.5-flash",
+    "expected": "complete",
+    "httpCalls": 2,
+    "httpStatuses": [
+      200,
+      200
+    ],
+    "answerPresent": true,
+    "lastInterruption": null,
+    "ledgerCalls": 2,
+    "ledgerCostUsd": 0.0002222,
+    "usageChecks": 2,
+    "wireControls": {
+      "generationConfig": {
+        "maxOutputTokens": 512,
+        "responseMimeType": "application/json",
+        "seed": 17,
+        "stopSequences": [
+          "END_AUDIT"
+        ],
+        "temperature": 0.2,
+        "thinkingConfig": {
+          "thinkingBudget": 0
+        },
+        "topK": 20,
+        "topP": 0.9
+      }
+    }
+  },
+  {
+    "test": "Audit Chat 03 OpenAI JSON",
+    "provider": "OpenAI",
+    "model": "gpt-5.4-mini",
+    "expected": "complete",
+    "httpCalls": 1,
+    "httpStatuses": [
+      200
+    ],
+    "answerPresent": true,
+    "lastInterruption": null,
+    "ledgerCalls": 1,
+    "ledgerCostUsd": 0.0001065,
+    "usageChecks": 1,
+    "wireControls": {
+      "max_output_tokens": 256,
+      "model": "gpt-5.4-mini",
+      "reasoning": {
+        "effort": "none"
+      },
+      "stream": true,
+      "temperature": 0.2,
+      "text": {
+        "format": {
+          "type": "json_object"
+        }
+      },
+      "top_p": 0.9
+    }
+  },
+  {
+    "test": "Audit Chat 04 Claude stop",
+    "provider": "Anthropic",
+    "model": "claude-haiku-4-5-20251001",
+    "expected": "complete",
+    "httpCalls": 2,
+    "httpStatuses": [
+      200,
+      200
+    ],
+    "answerPresent": true,
+    "lastInterruption": null,
+    "ledgerCalls": 2,
+    "ledgerCostUsd": 0.00036,
+    "usageChecks": 2,
+    "wireControls": {
+      "max_tokens": 256,
+      "model": "claude-haiku-4-5-20251001",
+      "stop_sequences": [
+        "END_AUDIT"
+      ],
+      "stream": true,
+      "temperature": 0.2
+    }
+  },
+  {
+    "test": "Audit Chat 05 OpenAI bad seed",
+    "provider": "OpenAI",
+    "model": "gpt-5.4-mini",
+    "expected": "preflight rejection",
+    "httpCalls": 0,
+    "httpStatuses": [],
+    "answerPresent": false,
+    "lastInterruption": "Parameter configuration for OpenAI/gpt-5.4-mini: seed is not supported on this endpoint. Change the preset before retrying.",
+    "ledgerCalls": 0,
+    "ledgerCostUsd": 0,
+    "usageChecks": 0,
+    "wireControls": {}
+  },
+  {
+    "test": "Audit Chat 06 Claude bad JSON",
+    "provider": "Anthropic",
+    "model": "claude-haiku-4-5-20251001",
+    "expected": "preflight rejection",
+    "httpCalls": 0,
+    "httpStatuses": [],
+    "answerPresent": false,
+    "lastInterruption": null,
+    "ledgerCalls": 0,
+    "ledgerCostUsd": 0,
+    "usageChecks": 0,
+    "wireControls": {}
+  },
+  {
+    "test": "Audit Chat 07 Replicate bad seed",
+    "provider": "Replicate",
+    "model": "meta/meta-llama-3-8b-instruct",
+    "expected": "preflight rejection",
+    "httpCalls": 0,
+    "httpStatuses": [],
+    "answerPresent": false,
+    "lastInterruption": null,
+    "ledgerCalls": 0,
+    "ledgerCostUsd": 0,
+    "usageChecks": 0,
+    "wireControls": {}
+  },
+  {
+    "test": "Audit Chat 08 Missing knowledge",
+    "provider": "OpenAI",
+    "model": "gpt-5.4-mini",
+    "expected": "retrieval rejection",
+    "httpCalls": 0,
+    "httpStatuses": [],
+    "answerPresent": false,
+    "lastInterruption": null,
+    "ledgerCalls": 0,
+    "ledgerCostUsd": 0,
+    "usageChecks": 0,
+    "wireControls": {}
+  },
+  {
+    "test": "Audit Chat 09 Web off",
+    "provider": "OpenAI",
+    "model": "gpt-5.4-mini",
+    "expected": "complete without tools",
+    "httpCalls": 1,
+    "httpStatuses": [
+      200
+    ],
+    "answerPresent": true,
+    "lastInterruption": null,
+    "ledgerCalls": 1,
+    "ledgerCostUsd": 9.300000000000001e-05,
+    "usageChecks": 1,
+    "wireControls": {
+      "model": "gpt-5.4-mini",
+      "stream": true
+    }
+  },
+  {
+    "test": "Audit Chat 10 Image history",
+    "provider": "OpenAI",
+    "model": "gpt-5.4-mini",
+    "expected": "blue image recognized",
+    "httpCalls": 1,
+    "httpStatuses": [
+      200
+    ],
+    "answerPresent": true,
+    "lastInterruption": null,
+    "ledgerCalls": 1,
+    "ledgerCostUsd": 9.375e-05,
+    "usageChecks": 1,
+    "wireControls": {
+      "max_output_tokens": 256,
+      "model": "gpt-5.4-mini",
+      "stream": true
+    }
+  },
+  {
+    "test": "Audit Chat 11 OpenAI limit",
+    "provider": "OpenAI",
+    "model": "gpt-5.4-mini",
+    "expected": "incomplete, billable",
+    "httpCalls": 1,
+    "httpStatuses": [
+      200
+    ],
+    "answerPresent": true,
+    "lastInterruption": "response.incomplete: max_output_tokens",
+    "ledgerCalls": 1,
+    "ledgerCostUsd": 0.000114,
+    "usageChecks": 1,
+    "wireControls": {
+      "max_output_tokens": 16,
+      "model": "gpt-5.4-mini",
+      "reasoning": {
+        "effort": "none"
+      },
+      "stream": true
+    }
+  },
+  {
+    "test": "Audit Chat 12 Claude limit",
+    "provider": "Anthropic",
+    "model": "claude-haiku-4-5-20251001",
+    "expected": "incomplete, billable",
+    "httpCalls": 1,
+    "httpStatuses": [
+      200
+    ],
+    "answerPresent": true,
+    "lastInterruption": "Response truncated: output token limit reached. Increase max tokens and retry.",
+    "ledgerCalls": 1,
+    "ledgerCostUsd": 5.9e-05,
+    "usageChecks": 1,
+    "wireControls": {
+      "max_tokens": 1,
+      "model": "claude-haiku-4-5-20251001",
+      "stream": true
+    }
+  },
+  {
+    "test": "Audit Chat 13 Google limit",
+    "provider": "Google",
+    "model": "gemini-2.5-flash",
+    "expected": "incomplete, billable",
+    "httpCalls": 2,
+    "httpStatuses": [
+      200,
+      200
+    ],
+    "answerPresent": true,
+    "lastInterruption": "Response truncated: output token limit reached. Increase max tokens and retry.",
+    "ledgerCalls": 1,
+    "ledgerCostUsd": 5.83e-05,
+    "usageChecks": 1,
+    "wireControls": {
+      "generationConfig": {
+        "maxOutputTokens": 16,
+        "stopSequences": [],
+        "thinkingConfig": {
+          "thinkingBudget": 0
+        }
+      }
+    }
+  },
+  {
+    "test": "Audit Chat 14 Stop stream",
+    "provider": "OpenAI",
+    "model": "gpt-5.4-mini",
+    "expected": "cancel and recover",
+    "httpCalls": 3,
+    "httpStatuses": [
+      200,
+      200,
+      200
+    ],
+    "answerPresent": true,
+    "lastInterruption": "Stopped before completion",
+    "ledgerCalls": 2,
+    "ledgerCostUsd": 0.008796,
+    "usageChecks": 1,
+    "wireControls": {
+      "max_output_tokens": 3000,
+      "model": "gpt-5.4-mini",
+      "reasoning": {
+        "effort": "none"
+      },
+      "stream": true
+    }
+  },
+  {
+    "test": "Audit Chat 15 Mistral seed",
+    "provider": "Mistral",
+    "model": "mistral-medium-latest",
+    "expected": "complete",
+    "httpCalls": 1,
+    "httpStatuses": [
+      200
+    ],
+    "answerPresent": true,
+    "lastInterruption": null,
+    "ledgerCalls": 1,
+    "ledgerCostUsd": 0.000153,
+    "usageChecks": 1,
+    "wireControls": {
+      "max_tokens": 256,
+      "model": "mistral-medium-latest",
+      "random_seed": 17,
+      "response_format": {
+        "type": "json_object"
+      },
+      "stop": [
+        "END_AUDIT"
+      ],
+      "stream": true,
+      "stream_options": {
+        "include_usage": true
+      },
+      "temperature": 0.2,
+      "top_p": 0.9
+    }
+  },
+  {
+    "test": "Audit Chat 16 xAI JSON",
+    "provider": "xAI",
+    "model": "grok-4.3",
+    "expected": "complete",
+    "httpCalls": 1,
+    "httpStatuses": [
+      200
+    ],
+    "answerPresent": true,
+    "lastInterruption": null,
+    "ledgerCalls": 1,
+    "ledgerCostUsd": 0.0008456,
+    "usageChecks": 1,
+    "wireControls": {
+      "max_tokens": 256,
+      "model": "grok-4.3",
+      "response_format": {
+        "type": "json_object"
+      },
+      "stream": true,
+      "stream_options": {
+        "include_usage": true
+      },
+      "temperature": 0.2
+    }
+  },
+  {
+    "test": "Audit Chat 17 Local web",
+    "provider": "Local",
+    "model": "audit-unloaded.task",
+    "expected": "preflight rejection",
+    "httpCalls": 0,
+    "httpStatuses": [],
+    "answerPresent": false,
+    "lastInterruption": "Parameter configuration for Local/audit-unloaded.task: web search tool is not supported on this endpoint; web search is not supported on this endpoint. Change the preset before retrying.",
+    "ledgerCalls": 0,
+    "ledgerCostUsd": 0,
+    "usageChecks": 0,
+    "wireControls": {}
+  },
+  {
+    "test": "Audit Chat 18 Deleted agent",
+    "provider": "OpenAI",
+    "model": "gpt-5.4-mini",
+    "expected": "preflight rejection",
+    "httpCalls": 0,
+    "httpStatuses": [],
+    "answerPresent": false,
+    "lastInterruption": "This chat's agent is no longer available. Restore the agent before continuing.",
+    "ledgerCalls": 0,
+    "ledgerCostUsd": 0,
+    "usageChecks": 0,
+    "wireControls": {}
+  },
+  {
+    "test": "Audit Chat 19 Groq web",
+    "provider": "Groq",
+    "model": "openai/gpt-oss-20b",
+    "expected": "preflight rejection",
+    "httpCalls": 0,
+    "httpStatuses": [],
+    "answerPresent": false,
+    "lastInterruption": "Parameter configuration for Groq/openai/gpt-oss-20b: web search tool is not supported on this endpoint. Change the preset before retrying.",
+    "ledgerCalls": 0,
+    "ledgerCostUsd": 0,
+    "usageChecks": 0,
+    "wireControls": {}
+  }
+]

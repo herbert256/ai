@@ -10,6 +10,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import kotlin.concurrent.withLock
 
 /**
@@ -20,6 +23,15 @@ object ChatHistoryManager {
     private var historyDir: File? = null
     private val gson = createAppGson()
     private val lock = java.util.concurrent.locks.ReentrantLock()
+    private val saveScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val deletedSessionIds = mutableSetOf<String>() // guarded by lock
+
+    /** Writes outlive screen navigation; version checks reject late snapshots. */
+    fun saveSessionAsync(session: ChatSession, onFailure: () -> Unit = {}) {
+        saveScope.launch {
+            if (!saveSession(session, onlyIfNewer = true)) withContext(Dispatchers.Main) { onFailure() }
+        }
+    }
     private val _historyVersion = MutableStateFlow(0L)
     val historyVersion: StateFlow<Long> = _historyVersion.asStateFlow()
     @Volatile private var cachedSessions: List<ChatSession>? = null
@@ -32,7 +44,7 @@ object ChatHistoryManager {
         }
     }
 
-    fun saveSession(session: ChatSession): Boolean {
+    fun saveSession(session: ChatSession, onlyIfNewer: Boolean = false): Boolean {
         val dir = historyDir ?: run { AppLog.w("ChatHistory", "Not initialized"); return false }
         // Defence in depth: imports carry an externally-supplied id.
         // Internal callers all use UUIDs, but a crafted runtime-import
@@ -44,6 +56,7 @@ object ChatHistoryManager {
         }
         var notifyChanged = false
         val saved = lock.withLock {
+            if (onlyIfNewer && session.id in deletedSessionIds) return@withLock true
             if (!dir.exists()) dir.mkdirs()
             try {
                 val target = File(dir, "${session.id}.json")
@@ -57,9 +70,14 @@ object ChatHistoryManager {
                 // detect a save that didn't actually land. Forward the
                 // boolean so the chat session UI can warn / retry instead
                 // of pretending the message persisted.
-                val json = gson.toJson(session)
+                val previous = if (onlyIfNewer && target.exists()) target.bufferedReader().use {
+                    gson.fromJson(it, ChatSession::class.java)
+                } else null
+                if (previous != null && previous.updatedAt > session.updatedAt) return@withLock true
+                val json = gson.toJson(session.copy(createdAt = previous?.createdAt ?: session.createdAt))
                 val ok = target.writeTextAtomic(json)
                 if (ok) {
+                    deletedSessionIds.remove(session.id)
                     AppLog.d("ChatHistory", "save ${session.id} msgs=${session.messages.size} bytes=${json.length}")
                     cachedSessions = null
                     cachedHeaders = null
@@ -149,6 +167,7 @@ object ChatHistoryManager {
             val deleted = lock.withLock {
                 val ok = File(dir, "$sessionId.json").delete()
                 if (ok) {
+                    deletedSessionIds.add(sessionId)
                     cachedSessions = null
                     cachedHeaders = null
                 }
@@ -208,7 +227,9 @@ object ChatHistoryManager {
         if (!dir.exists()) return 0
         return lock.withLock {
             var count = 0
-            dir.listFiles { f -> f.extension == "json" }?.forEach { if (it.delete()) count++ }
+            dir.listFiles { f -> f.extension == "json" }?.forEach {
+                if (it.delete()) { deletedSessionIds.add(it.nameWithoutExtension); count++ }
+            }
             cachedSessions = null
             cachedHeaders = null
             if (count > 0) notifyHistoryChanged()

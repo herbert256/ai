@@ -37,6 +37,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.ai.data.*
 import com.ai.data.AppService
 import com.ai.data.ChatMessage
 import com.ai.data.ChatParameters
@@ -103,6 +104,7 @@ internal fun AgentChatScreen(
     var isStreaming by remember(agentIdForKey) { mutableStateOf(false) }
     var streamingText by remember(agentIdForKey) { mutableStateOf("") }
     var streamJob by remember(agentIdForKey) { mutableStateOf<Job?>(null) }
+    var callError by remember { mutableStateOf<String?>(null) }
     var appliedTick by remember(agentIdForKey) { mutableStateOf(0) }
 
     // ----- 🎭 system prompt picker -----
@@ -127,16 +129,7 @@ internal fun AgentChatScreen(
             onConfirm = { ids ->
                 selectedParamsIds = ids
                 val m = aiSettings.mergeParameters(ids)
-                params = params.copy(
-                    temperature = m?.temperature, maxTokens = m?.maxTokens,
-                    topP = m?.topP, topK = m?.topK,
-                    frequencyPenalty = m?.frequencyPenalty, presencePenalty = m?.presencePenalty,
-                    searchEnabled = m?.searchEnabled ?: false,
-                    returnCitations = m?.returnCitations ?: true,
-                    searchRecency = m?.searchRecency,
-                    webSearchTool = m?.webSearchTool ?: false,
-                    reasoningEffort = m?.reasoningEffort
-                )
+                params = (m ?: AgentParameters()).toChatParameters().copy(systemPrompt = params.systemPrompt)
             },
             onBack = { showParamsPicker = false },
             onNavigateHome = navigateHome
@@ -147,45 +140,50 @@ internal fun AgentChatScreen(
     fun sendTurn() {
         val text = userInput.trim()
         if (text.isBlank() || isStreaming || bridge == null) return
-        userInput = ""
+        userInput = ""; callError = null
         messages.add(ChatMessage(role = "user", content = text))
-        scope.launch(Dispatchers.IO) { onSaveMessages(messages.toList()) }
+        val pendingMessages = messages.toList()
         // Outgoing call = optional system message + the full conversation.
         val outgoing = buildList {
             if (params.systemPrompt.isNotBlank()) add(ChatMessage(role = "system", content = params.systemPrompt))
-            addAll(messages)
+            addAll(messages.map { if (it.role == "assistant") it.copy(content = stripThinkSections(it.content)) else it })
         }
         isStreaming = true
         streamingText = ""
         val sb = StringBuilder()
+        val filter = ReportAnswerFilter()
+        val usageRef = java.util.concurrent.atomic.AtomicReference<TokenUsage?>()
+        var interruption: String? = null
         streamJob = scope.launch {
             try {
-                bridge.send(service, model, agentIdForKey, outgoing, params).collect { chunk ->
-                    sb.append(chunk); streamingText = sb.toString()
+                withContext(Dispatchers.IO) { onSaveMessages(pendingMessages) }
+                bridge.send(service, model, agentIdForKey, outgoing, params, { usageRef.set(it) }).collect { chunk ->
+                    sb.append(filter.append(chunk)); streamingText = sb.toString()
                 }
-                val reply = sb.toString().trim()
-                if (reply.isNotBlank()) {
-                    messages.add(ChatMessage(role = "assistant", content = reply))
-                    withContext(Dispatchers.IO) { onSaveMessages(messages.toList()) }
-                    bridge.recordUsage(
-                        service, model,
-                        bridge.estimateTokens(outgoing.joinToString("\n") { it.content }),
-                        bridge.estimateTokens(reply)
-                    )
-                }
+                sb.append(filter.finish())
+                if (sb.isBlank()) throw IllegalStateException("No final answer content returned")
             } catch (e: kotlinx.coroutines.CancellationException) {
-                // Navigation / scope cancellation isn't a model failure — rethrow
-                // so no spurious failure bubble is appended. See audit bug 18.
+                interruption = "Stopped before completion"
                 throw e
-            } catch (_: Exception) {
-                messages.add(ChatMessage(role = "assistant", content = "${com.ai.data.MetadataIconsHolder.current.statusWarning} The model call failed. Try again."))
-                // Persist the failure bubble too (the success path does), so it
-                // survives reopening the chat. See audit bug 19.
-                withContext(Dispatchers.IO) { onSaveMessages(messages.toList()) }
+            } catch (e: Exception) {
+                interruption = e.message ?: "The model call failed. Try again."
+                callError = interruption
             } finally {
-                isStreaming = false; streamingText = ""; streamJob = null
+                withContext(kotlinx.coroutines.NonCancellable) {
+                    val reply = sb.toString().trim()
+                    if (reply.isNotBlank()) messages.add(ChatMessage(role = "assistant", content = reply, interruption = interruption))
+                    else if (interruption != null && messages.isNotEmpty()) messages[messages.lastIndex] = messages.last().copy(interruption = interruption)
+                    val usage = usageRef.get() ?: reply.takeIf { it.isNotBlank() }?.let {
+                        TokenUsage(bridge.estimateTokens(outgoing.joinToString("\n") { it.content }), bridge.estimateTokens(it), estimated = true)
+                    }
+                    if (usage != null) bridge.recordUsage(service, model, usage)
+                    val savedMessages = messages.toList()
+                    withContext(Dispatchers.IO) { onSaveMessages(savedMessages) }
+                    isStreaming = false; streamingText = ""
+                }
             }
         }
+
     }
 
     val listState = rememberLazyListState()
@@ -210,6 +208,7 @@ internal fun AgentChatScreen(
             modifier = Modifier.padding(bottom = 8.dp)
         )
 
+        (callError ?: messages.lastOrNull()?.interruption)?.let { Text(it, color = AppColors.DangerAccent, fontSize = 12.sp) }
         LazyColumn(state = listState, modifier = Modifier.weight(1f).fillMaxWidth()) {
             items(messages.size) { i ->
                 val msg = messages[i]
@@ -277,6 +276,7 @@ private fun AgentChatBubble(msg: ChatMessage, onApply: (() -> Unit)?) {
         ) {
             Text(msg.content, fontSize = 13.sp, color = AppColors.TextPrimary)
         }
+        msg.interruption?.let { Text(it, fontSize = 12.sp, color = AppColors.DangerAccent) }
         if (onApply != null) {
             Text(
                 "Apply ▶",

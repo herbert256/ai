@@ -22,27 +22,35 @@ fun AnalysisRepository.sendChatStream(
     model: String,
     messages: List<ChatMessage>,
     params: ChatParameters,
-    baseUrl: String? = null
+    baseUrl: String? = null,
+    onUsage: (TokenUsage) -> Unit = {}
 ): Flow<String> {
     val effectiveUrl = baseUrl ?: service.baseUrl
     val inner: Flow<String> = flow {
-        reportParameterError(service, model, params.forParameterValidation())?.let { throw IllegalArgumentException(it) }
+        chatConfigurationError(service, model, params)?.let { throw IllegalArgumentException(it) }
         // LiteLLM gating: when the model is known not to support native SSE
         // streaming, route through the non-streaming sendChat path and emit
         // the full response as a single chunk. The chat UI's accumulator
         // sees one large appended chunk instead of an empty stream.
         if (PricingCache.liteLLMSupportsNativeStreaming(service, model) == false) {
-            val full = sendChat(service, apiKey, model, messages, params, effectiveUrl)
-            emit(full)
+            val response = sendChatResponse(service, apiKey, model, messages, params, effectiveUrl)
+            response.tokenUsage?.let(onUsage)
+            if (response.error != null) throw IllegalStateException(response.error)
+            emit(response.analysis ?: throw IllegalStateException("No response content"))
             return@flow
         }
         when (service.apiFormat) {
-            ApiFormat.ANTHROPIC -> streamAnthropic(service, apiKey, model, messages, params, effectiveUrl).collect { emit(it) }
-            ApiFormat.GOOGLE -> streamGemini(service, apiKey, model, messages, params, effectiveUrl).collect { emit(it) }
+            ApiFormat.ANTHROPIC -> streamAnthropic(service, apiKey, model, messages, params, effectiveUrl, onUsage).collect { emit(it) }
+            ApiFormat.GOOGLE -> streamGemini(service, apiKey, model, messages, params, effectiveUrl, onUsage).collect { emit(it) }
             // Replicate has no OpenAI-style SSE stream; run the synchronous
             // predictions call and emit the whole answer as one chunk.
-            ApiFormat.REPLICATE -> emit(sendChat(service, apiKey, model, messages, params, effectiveUrl))
-            ApiFormat.OPENAI_COMPATIBLE -> streamOpenAi(service, apiKey, model, messages, params, effectiveUrl).collect { emit(it) }
+            ApiFormat.REPLICATE -> {
+                val response = sendChatResponse(service, apiKey, model, messages, params, effectiveUrl)
+                response.tokenUsage?.let(onUsage)
+                if (response.error != null) throw IllegalStateException(response.error)
+                emit(response.analysis ?: throw IllegalStateException("No response content"))
+            }
+            ApiFormat.OPENAI_COMPATIBLE -> streamOpenAi(service, apiKey, model, messages, params, effectiveUrl, onUsage).collect { emit(it) }
         }
     }
     return inner.gatedByHost(effectiveUrl)
@@ -86,8 +94,7 @@ internal fun parseSseStream(
     requireTerminator: Boolean = false,
     // Optional usage side-channel for the streaming-report path. When set,
     // every event is also offered to [extractUsage]; any TokenUsage it
-    // returns is handed to [onUsage] (which merges across events). Chat
-    // callers leave both null and see the unchanged content-only Flow.
+    // returns is handed to [onUsage] for report and chat accounting.
     extractUsage: ((eventType: String?, data: String) -> Pair<TokenUsage?, String?>?)? = null,
     onUsage: ((TokenUsage, String?) -> Unit)? = null
 ): Flow<String> = flow {
@@ -199,6 +206,7 @@ internal fun parseSseStream(
         // (Anthropic message_stop, OpenAI Responses response.completed, Gemini
         // finishReason). Otherwise a mid-answer socket drop after some content
         // would look like a clean, complete answer.
+        if (!sawAnyData && requireTerminator) throw java.io.IOException("Provider returned an empty stream; usage unavailable")
         if (!sawTerminator && sawAnyData && (requireTerminator || chunkCount == 0)) {
             throw java.io.IOException("SSE stream ended without terminator — response likely truncated")
         }
@@ -300,10 +308,8 @@ internal fun extractOpenAiContent(eventType: String?, data: String): String? {
  *  answer (`delta.content`) and buffers reasoning (`reasoning_content` /
  *  `reasoning`) separately, so a reasoning model's chain-of-thought never gets
  *  concatenated into the answer (the flat [extractOpenAiContent] does, because
- *  early reasoning deltas have empty content and fall through). After the
- *  stream, call [reasoningFallback] to recover the answer for the
- *  non-conforming providers that put it in `reasoning_content` with empty
- *  `content`. Reports require final content; only chat uses the compatibility fallback. */
+ *  early reasoning deltas have empty content and fall through).
+ *  Production report and chat paths require final answer content. */
 internal class OpenAiContentExtractor {
     private val reasoning = StringBuilder()
     var finishReason: String? = null; private set
@@ -322,7 +328,7 @@ internal class OpenAiContentExtractor {
             }
         } catch (_: Exception) { null }
     }
-    /** Compatibility fallback for chat only, after a normal completion. */
+    /** Legacy compatibility probe; production callers must not use reasoning as an answer. */
     fun reasoningFallback(): String? =
         if (!sawContent && finishReason == "stop") reasoning.toString().takeIf { it.isNotBlank() } else null
 }
@@ -349,6 +355,7 @@ internal fun extractGeminiContent(eventType: String?, data: String): String? {
     return try {
         gson.fromJson(data, GeminiStreamChunk::class.java)
             ?.candidates?.firstOrNull()?.content?.parts
+            ?.filter { it.thought != true }
             ?.mapNotNull { it.text }
             ?.joinToString(separator = "")
             ?.takeIf { it.isNotEmpty() }
@@ -361,7 +368,7 @@ internal fun extractGeminiContent(eventType: String?, data: String): String? {
 
 private fun AnalysisRepository.streamOpenAi(
     service: AppService, apiKey: String, model: String,
-    messages: List<ChatMessage>, params: ChatParameters, baseUrl: String
+    messages: List<ChatMessage>, params: ChatParameters, baseUrl: String, onUsage: (TokenUsage) -> Unit
 ): Flow<String> = flow {
     if (usesResponsesApi(service, model)) {
         val api = ApiFactory.createOpenAiCompatibleApi(baseUrl)
@@ -376,7 +383,7 @@ private fun AnalysisRepository.streamOpenAi(
             nonSystem.map { msg ->
                 val mime = msg.imageMime ?: "image/png"
                 val parts = buildList {
-                    if (msg.content.isNotBlank()) add(mapOf("type" to "input_text", "text" to msg.content))
+                    if (msg.content.isNotBlank()) add(mapOf("type" to if (msg.role == "assistant") "output_text" else "input_text", "text" to msg.content))
                     if (!msg.imageBase64.isNullOrBlank()) {
                         add(mapOf("type" to "input_image", "image_url" to "data:$mime;base64,${msg.imageBase64}"))
                     }
@@ -391,7 +398,8 @@ private fun AnalysisRepository.streamOpenAi(
             max_output_tokens = params.maxTokens,
             tools = if (params.webSearchTool) responsesWebSearchTool() else null,
             reasoning = reasoningField(service, model, params.reasoningEffort),
-            temperature = params.temperature, top_p = params.topP
+            temperature = params.temperature, top_p = params.topP,
+            text = responsesJsonText(params.forParameterValidation())
         )
         val response = withApiCallTimeout(streamingOpen = true) { withContext(Dispatchers.IO) { api.responsesStream(responsesUrl, "Bearer $apiKey", request) } }
         if (response.isSuccessful) {
@@ -399,6 +407,8 @@ private fun AnalysisRepository.streamOpenAi(
                 parseSseStream(
                     body,
                     ::extractResponsesApiContent,
+                    extractUsage = extractResponsesApiUsage(service),
+                    onUsage = { usage, _ -> onUsage(usage) },
                     requireTerminator = true
                 ).collect { emit(it) }
             } ?: throw Exception("Empty response body")
@@ -413,48 +423,20 @@ private fun AnalysisRepository.streamOpenAi(
         val api = ApiFactory.createOpenAiCompatibleApi(baseUrl)
         val chatUrl = buildChatUrl(baseUrl, service.chatPath, service.knownEndpointPaths())
         val openAiMessages = messages.map { it.toOpenAiMessage() }
-        val request = OpenAiRequest(
-            model = model, messages = openAiMessages, stream = true,
-            // Bounded default — see [defaultMaxTokens].
-            max_tokens = params.maxTokens ?: defaultMaxTokens(service, model),
-            temperature = params.temperature,
-            top_p = params.topP, top_k = params.topK,
-            frequency_penalty = params.frequencyPenalty, presence_penalty = params.presencePenalty,
-            search = if (params.searchEnabled) true else null,
-            return_citations = if (service.supportsCitations) params.returnCitations else null,
-            search_recency_filter = if (service.supportsSearchRecency) params.searchRecency else null,
-            tools = if (params.webSearchTool) openAiChatWebSearchTool() else null,
-            reasoning_effort = params.reasoningEffort?.takeIf {
-                it.isNotBlank() && isReasoningCapableForDispatch(service, model)
-            }
-        )
+        val request = buildOpenAiRequest(service, model, openAiMessages, params.forParameterValidation(), stream = true)
+            .copy(stream_options = StreamOptions(include_usage = true))
         val response = withApiCallTimeout(streamingOpen = true) { withContext(Dispatchers.IO) { api.chatStream(chatUrl, "Bearer $apiKey", request) } }
         if (response.isSuccessful) {
             response.body()?.let { body ->
-                // Emit content only, buffering reasoning, so the chain-of-
-                // thought isn't interleaved into the streamed answer AND the
-                // truncation guard counts real content chunks (not reasoning,
-                // which previously masked a reasoning-only / truncated stream
-                // as a completed answer). Surface reasoning at the end only
-                // when no content streamed (answer-in-reasoning_content).
                 val ext = OpenAiContentExtractor()
-                var reasoningFallbackEmitted = false
-                suspend fun flushReasoningFallback() {
-                    if (reasoningFallbackEmitted) return
-                    val fallback = ext.reasoningFallback() ?: return
-                    reasoningFallbackEmitted = true
-                    emit(fallback)
+                parseSseStream(body, ext::extract,
+                    isFinalChunk = { _, _ -> ext.finishReason != null }, requireTerminator = true,
+                    extractUsage = extractOpenAiUsage(service), onUsage = { usage, _ -> onUsage(usage) }
+                ).collect { emit(it) }
+                if (ext.finishReason != null && ext.finishReason != "stop") {
+                    throw java.io.IOException("Response stopped: ${ext.finishReason}")
                 }
-                try {
-                    parseSseStream(body, ext::extract).collect { emit(it) }
-                    flushReasoningFallback()
-                } catch (e: kotlinx.coroutines.CancellationException) {
-                    try { flushReasoningFallback() } catch (_: kotlinx.coroutines.CancellationException) {}
-                    throw e
-                } catch (e: Exception) {
-                    flushReasoningFallback()
-                    throw e
-                }
+                if (!ext.sawContent) throw java.io.IOException("No final answer content returned")
             } ?: throw Exception("Empty response body")
         } else {
             val errorMsg = try { response.errorBody()?.string() } catch (_: Exception) { null }
@@ -465,7 +447,7 @@ private fun AnalysisRepository.streamOpenAi(
 
 private fun AnalysisRepository.streamAnthropic(
     service: AppService, apiKey: String, model: String, messages: List<ChatMessage>,
-    params: ChatParameters, baseUrl: String
+    params: ChatParameters, baseUrl: String, onUsage: (TokenUsage) -> Unit
 ): Flow<String> = flow {
     val api = ApiFactory.createClaudeApi(baseUrl)
     val claudeMessages = messages.filter { it.role != "system" }.map { it.toClaudeMessage() }
@@ -475,21 +457,32 @@ private fun AnalysisRepository.streamAnthropic(
         model = model, messages = claudeMessages, stream = true,
         max_tokens = bundle.maxTokens,
         temperature = params.temperature, top_p = params.topP, top_k = params.topK,
-        system = systemPrompt,
+        system = systemPrompt, stop_sequences = params.stopSequences?.takeIf { it.isNotEmpty() },
         frequency_penalty = params.frequencyPenalty, presence_penalty = params.presencePenalty,
         search = if (params.searchEnabled) true else null,
         tools = if (params.webSearchTool) anthropicWebSearchTool() else null,
         thinking = bundle.thinking,
         output_config = bundle.outputConfig
     )
-    val response = withApiCallTimeout(streamingOpen = true) { withContext(Dispatchers.IO) { api.createMessageStream(apiKey, request = request) } }
+    val response = withApiCallTimeout(streamingOpen = true) { withContext(Dispatchers.IO) { api.chatStreamAt(nativeChatUrl(service, baseUrl, model, streaming = true), apiKey, request) } }
     if (response.isSuccessful) {
         response.body()?.let { body ->
+            var finishReason: String? = null
+            var usage: TokenUsage? = null
             parseSseStream(
                 body,
-                ::extractClaudeContent,
+                { event, data ->
+                    runCatching { gson.fromJson(data, ClaudeStreamEvent::class.java)?.delta?.stop_reason }.getOrNull()?.let { finishReason = it }
+                    extractClaudeContent(event, data)
+                },
+                extractUsage = { event, data ->
+                    extractClaudeUsage(event, data)?.let { (u, raw) -> u?.copy(estimated = event != "message_delta") to raw }
+                },
+                onUsage = { next, _ -> usage = mergeUsage(usage, next).copy(estimated = next.estimated); onUsage(usage) },
                 requireTerminator = true
             ).collect { emit(it) }
+            val failure = validateNativeReportCompletion(AnalysisResponse(service, "stream", null, httpStatusCode = 200), finishReason).error
+            if (failure != null) throw java.io.IOException(failure)
         } ?: throw Exception("Empty response body")
     } else {
         val errorBody = try { response.errorBody()?.string() } catch (_: Exception) { null }
@@ -499,7 +492,7 @@ private fun AnalysisRepository.streamAnthropic(
 
 private fun AnalysisRepository.streamGemini(
     service: AppService, apiKey: String, model: String, messages: List<ChatMessage>,
-    params: ChatParameters, baseUrl: String
+    params: ChatParameters, baseUrl: String, onUsage: (TokenUsage) -> Unit
 ): Flow<String> = flow {
     val api = ApiFactory.createGeminiApi(baseUrl)
     val contents = messages.filter { it.role != "system" }.map { it.toGeminiContent() }
@@ -508,10 +501,9 @@ private fun AnalysisRepository.streamGemini(
         contents = contents,
         generationConfig = GeminiGenerationConfig(
             params.temperature, params.topP, params.topK, params.maxTokens,
-            // frequency/presence penalty were dropped on the streaming path, so a
-            // Gemini chat with them set behaved differently from the non-streaming
-            // analyzeGemini path (audit data#14). (stopSequences/seed aren't on
-            // ChatParameters, so they stay unset for chat.)
+            // Keep the streaming and non-streaming generation controls identical.
+            stopSequences = params.stopSequences, seed = params.seed,
+            responseMimeType = if (params.responseFormatJson) "application/json" else null,
             frequencyPenalty = params.frequencyPenalty,
             presencePenalty = params.presencePenalty,
             search = if (params.searchEnabled) true else null,
@@ -520,15 +512,26 @@ private fun AnalysisRepository.streamGemini(
         systemInstruction = systemInstruction,
         tools = if (params.webSearchTool) geminiWebSearchTool() else null
     )
-    val response = withApiCallTimeout(streamingOpen = true) { withContext(Dispatchers.IO) { api.streamGenerateContent(model, apiKey, request = request) } }
+    val response = withApiCallTimeout(streamingOpen = true) { withContext(Dispatchers.IO) { api.chatStreamAt(nativeChatUrl(service, baseUrl, model, streaming = true), apiKey, request) } }
     if (response.isSuccessful) {
         response.body()?.let { body ->
+            var finishReason: String? = null
             parseSseStream(
                 body,
-                ::extractGeminiContent,
+                { event, data ->
+                    runCatching { gson.fromJson(data, GeminiStreamChunk::class.java)?.candidates?.firstOrNull()?.finishReason }.getOrNull()?.let { finishReason = it }
+                    extractGeminiContent(event, data)
+                },
                 ::isGeminiFinalChunk,
+                extractUsage = { event, data ->
+                    extractGeminiUsage(event, data)?.let { (u, raw) ->
+                        u?.copy(estimated = finishReason == null && !isGeminiFinalChunk(event, data)) to raw
+                    }
+                }, onUsage = { usage, _ -> onUsage(usage) },
                 requireTerminator = true
             ).collect { emit(it) }
+            val failure = validateNativeReportCompletion(AnalysisResponse(service, "stream", null, httpStatusCode = 200), finishReason).error
+            if (failure != null) throw java.io.IOException(failure)
         } ?: throw Exception("Empty response body")
     } else {
         val errorBody = try { response.errorBody()?.string() } catch (_: Exception) { null }

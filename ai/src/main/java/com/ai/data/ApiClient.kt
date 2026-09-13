@@ -38,6 +38,23 @@ interface OpenAiApi {
 
 /** Anthropic Messages API. */
 interface ClaudeApi {
+    @POST
+    suspend fun chatAt(
+        @Url url: String,
+        @Header("x-api-key") apiKey: String,
+        @Body request: ClaudeRequest,
+        @Header("anthropic-version") version: String = "2023-06-01"
+    ): Response<ClaudeResponse>
+
+    @Streaming
+    @POST
+    suspend fun chatStreamAt(
+        @Url url: String,
+        @Header("x-api-key") apiKey: String,
+        @Body request: ClaudeRequest,
+        @Header("anthropic-version") version: String = "2023-06-01"
+    ): Response<okhttp3.ResponseBody>
+
     @POST("v1/messages")
     suspend fun createMessage(
         @Header("x-api-key") apiKey: String,
@@ -76,6 +93,22 @@ interface ReplicateApi {
 
 /** Google Gemini GenerativeAI API. */
 interface GeminiApi {
+    @POST
+    suspend fun chatAt(
+        @Url url: String,
+        @Query("key") apiKey: String,
+        @Body request: GeminiRequest
+    ): Response<GeminiResponse>
+
+    @Streaming
+    @POST
+    suspend fun chatStreamAt(
+        @Url url: String,
+        @Query("key") apiKey: String,
+        @Body request: GeminiRequest,
+        @Query("alt") alt: String = "sse"
+    ): Response<okhttp3.ResponseBody>
+
     @POST("v1beta/models/{model}:generateContent")
     suspend fun generateContent(
         @Path("model") model: String,

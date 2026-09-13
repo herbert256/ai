@@ -72,7 +72,7 @@ fun AppNavHost(
     // the chat engine without threading a view-model through every layer.
     val agentChatBridge = remember(appViewModel, chatViewModel) {
         com.ai.ui.shared.AgentChatBridge(
-            send = { service, model, agentIdForKey, messages, params ->
+            send = { service, model, agentIdForKey, messages, params, onUsage ->
                 val settings = appViewModel.uiState.value.aiSettings
                 val settingsAgent = agentIdForKey?.let { settings.getAgentById(it) }
                 val apiKey = settingsAgent?.let { settings.getEffectiveApiKeyForAgent(it) }
@@ -81,12 +81,12 @@ fun AppNavHost(
                 chatViewModel.sendChatMessageStream(
                     service = service, apiKey = apiKey, model = model,
                     messages = messages, sessionParams = params,
-                    baseUrl = baseUrl, context = sweepContext
+                    baseUrl = baseUrl, context = sweepContext, onUsage = onUsage
                 )
             },
             estimateTokens = { com.ai.viewmodel.AppViewModel.estimateTokens(it) },
-            recordUsage = { service, model, inTok, outTok ->
-                appViewModel.viewModelScope.launch { chatViewModel.recordChatStatistics(service, model, inTok, outTok) }
+            recordUsage = { service, model, usage ->
+                chatViewModel.recordChatStatistics(service, model, usage, "Chat")
             }
         )
     }
@@ -779,14 +779,7 @@ internal suspend fun continueReportInChat(
     val settingsAgent = aiSettings.getAgentById(agentId)
     val chatParams = if (settingsAgent != null) {
         val rp = aiSettings.resolveAgentParameters(settingsAgent)
-        com.ai.data.ChatParameters(
-            temperature = rp.temperature, maxTokens = rp.maxTokens,
-            topP = rp.topP, topK = rp.topK,
-            frequencyPenalty = rp.frequencyPenalty, presencePenalty = rp.presencePenalty,
-            systemPrompt = rp.systemPrompt ?: "",
-            searchEnabled = rp.searchEnabled, returnCitations = rp.returnCitations,
-            searchRecency = rp.searchRecency, webSearchTool = rp.webSearchTool
-        )
+        rp.toChatParameters()
     } else com.ai.data.ChatParameters()
 
     val now = System.currentTimeMillis()
@@ -808,6 +801,8 @@ internal suspend fun continueReportInChat(
             )
         ),
         parameters = chatParams,
+        agentId = settingsAgent?.id,
+        endpointUrl = settingsAgent?.let { aiSettings.getEffectiveEndpointUrlForAgent(it) },
         createdAt = now,
         updatedAt = now
     )

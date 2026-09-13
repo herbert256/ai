@@ -511,3 +511,27 @@ catalog tiers but preserves manual + Together-native pricing;
 - [throttle.md](throttle.md) — the per-host rate/concurrency gate and
   the `ApiCallCaps` flow-level pools that bound concurrent costed
   calls.
+
+## Chat call accounting (September 2026 audit)
+
+New chat turns capture provider-reported usage from SSE or the synchronous fallback,
+including cached input and hidden reasoning. Each `ChatCallRecord` stores the provider,
+model, category, exact trace filename, full usage, and call-time USD cost. Reopening a
+chat or changing a manual price does not reprice those calls. Title generation is
+attributed to its own agent under `Chat title`, and its cost is included in the saved
+chat total. Global chat usage is flushed before the completed turn is saved.
+
+When an interrupted stream supplies no usage but has partial text, the app records an
+explicit estimate. A cancellation before any text or usage cannot establish the
+provider's final charge. Legacy histories have no original usage evidence; their
+reconstructed subtotal is labeled estimated and retained separately when migrated.
+The conversation total covers generation and title calls; RAG embedding usage remains
+in the separate `chat/rag` statistics category.
+
+Partial answers retain a separate interruption status, so errors are visible after
+reopening without becoming text sent to the model. Dual Chat costs also use the full
+provider usage and preserve call-time prices while the session remains open/restored.
+If cancellation races with delivery of a completed Dual Chat response, the exact
+completed trace can recover its usage. The session records that usage once before
+enabling resume. Missing or partial traces do not establish an exact bill.
+Local chat has zero cloud cost, including its estimated legacy subtotal.

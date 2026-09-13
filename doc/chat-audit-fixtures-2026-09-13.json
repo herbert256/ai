@@ -1,0 +1,231 @@
+[
+  {
+    "name": "Audit Chat 01 Groq controls",
+    "provider": "Groq",
+    "model": "openai/gpt-oss-20b",
+    "parameters": {
+      "systemPrompt": "Return a short JSON object containing answer. This is a controlled chat configuration audit.",
+      "temperature": 0.2,
+      "topP": 0.9,
+      "maxTokens": 512,
+      "seed": 17,
+      "stopSequences": [
+        "END_AUDIT"
+      ],
+      "responseFormatJson": true
+    },
+    "expected": "complete"
+  },
+  {
+    "name": "Audit Chat 02 Google controls",
+    "provider": "Google",
+    "model": "gemini-2.5-flash",
+    "parameters": {
+      "systemPrompt": "Return a short JSON object containing answer. This is a controlled chat configuration audit.",
+      "temperature": 0.2,
+      "topP": 0.9,
+      "topK": 20,
+      "maxTokens": 512,
+      "seed": 17,
+      "stopSequences": [
+        "END_AUDIT"
+      ],
+      "responseFormatJson": true,
+      "reasoningEffort": "none"
+    },
+    "expected": "complete"
+  },
+  {
+    "name": "Audit Chat 03 OpenAI JSON",
+    "provider": "OpenAI",
+    "model": "gpt-5.4-mini",
+    "parameters": {
+      "systemPrompt": "Return a short JSON object containing answer. This is a controlled chat configuration audit.",
+      "temperature": 0.2,
+      "topP": 0.9,
+      "maxTokens": 256,
+      "responseFormatJson": true,
+      "reasoningEffort": "none"
+    },
+    "expected": "complete"
+  },
+  {
+    "name": "Audit Chat 04 Claude stop",
+    "provider": "Anthropic",
+    "model": "claude-haiku-4-5-20251001",
+    "parameters": {
+      "systemPrompt": "Return a short JSON object containing answer. This is a controlled chat configuration audit.",
+      "temperature": 0.2,
+      "maxTokens": 256,
+      "stopSequences": [
+        "END_AUDIT"
+      ]
+    },
+    "expected": "complete"
+  },
+  {
+    "name": "Audit Chat 05 OpenAI bad seed",
+    "provider": "OpenAI",
+    "model": "gpt-5.4-mini",
+    "parameters": {
+      "systemPrompt": "Return a short JSON object containing answer. This is a controlled chat configuration audit.",
+      "seed": 17
+    },
+    "expected": "preflight rejection"
+  },
+  {
+    "name": "Audit Chat 06 Claude bad JSON",
+    "provider": "Anthropic",
+    "model": "claude-haiku-4-5-20251001",
+    "parameters": {
+      "systemPrompt": "Return a short JSON object containing answer. This is a controlled chat configuration audit.",
+      "responseFormatJson": true
+    },
+    "expected": "preflight rejection"
+  },
+  {
+    "name": "Audit Chat 07 Replicate bad seed",
+    "provider": "Replicate",
+    "model": "meta/meta-llama-3-8b-instruct",
+    "parameters": {
+      "systemPrompt": "Return a short JSON object containing answer. This is a controlled chat configuration audit.",
+      "seed": 17
+    },
+    "expected": "preflight rejection"
+  },
+  {
+    "name": "Audit Chat 08 Missing knowledge",
+    "provider": "OpenAI",
+    "model": "gpt-5.4-mini",
+    "parameters": {
+      "systemPrompt": "Return a short JSON object containing answer. This is a controlled chat configuration audit."
+    },
+    "expected": "retrieval rejection",
+    "knowledgeBaseIds": [
+      "chat-audit-missing-kb"
+    ]
+  },
+  {
+    "name": "Audit Chat 09 Web off",
+    "provider": "OpenAI",
+    "model": "gpt-5.4-mini",
+    "parameters": {
+      "systemPrompt": "Return a short JSON object containing answer. This is a controlled chat configuration audit.",
+      "webSearchTool": true
+    },
+    "expected": "complete without tools"
+  },
+  {
+    "name": "Audit Chat 10 Image history",
+    "provider": "OpenAI",
+    "model": "gpt-5.4-mini",
+    "parameters": {
+      "systemPrompt": "Return a short JSON object containing answer. This is a controlled chat configuration audit.",
+      "maxTokens": 256
+    },
+    "expected": "blue image recognized",
+    "image": true
+  },
+  {
+    "name": "Audit Chat 11 OpenAI limit",
+    "provider": "OpenAI",
+    "model": "gpt-5.4-mini",
+    "parameters": {
+      "systemPrompt": "Explain the requested topic in detail.",
+      "maxTokens": 16,
+      "reasoningEffort": "none"
+    },
+    "expected": "incomplete, billable",
+    "prompt": "CHAT_AUDIT_LIMIT: Write a detailed explanation of 10 different sorting algorithms."
+  },
+  {
+    "name": "Audit Chat 12 Claude limit",
+    "provider": "Anthropic",
+    "model": "claude-haiku-4-5-20251001",
+    "parameters": {
+      "systemPrompt": "Explain the requested topic in detail.",
+      "maxTokens": 1
+    },
+    "expected": "incomplete, billable",
+    "prompt": "CHAT_AUDIT_LIMIT: Write a detailed explanation of 10 different sorting algorithms."
+  },
+  {
+    "name": "Audit Chat 13 Google limit",
+    "provider": "Google",
+    "model": "gemini-2.5-flash",
+    "parameters": {
+      "systemPrompt": "Explain the requested topic in detail.",
+      "maxTokens": 16,
+      "reasoningEffort": "none"
+    },
+    "expected": "incomplete, billable",
+    "prompt": "CHAT_AUDIT_LIMIT: Write a detailed explanation of 10 different sorting algorithms."
+  },
+  {
+    "name": "Audit Chat 14 Stop stream",
+    "provider": "OpenAI",
+    "model": "gpt-5.4-mini",
+    "parameters": {
+      "systemPrompt": "Follow the user request.",
+      "maxTokens": 3000,
+      "reasoningEffort": "none"
+    },
+    "expected": "cancel and recover",
+    "prompt": "CHAT_AUDIT_STOP: Write 200 numbered facts about planets, one sentence for each fact."
+  },
+  {
+    "name": "Audit Chat 15 Mistral seed",
+    "provider": "Mistral",
+    "model": "mistral-medium-latest",
+    "parameters": {
+      "systemPrompt": "Return a short JSON object containing answer. This is a controlled chat configuration audit.",
+      "temperature": 0.2,
+      "topP": 0.9,
+      "maxTokens": 256,
+      "seed": 17,
+      "responseFormatJson": true,
+      "stopSequences": [
+        "END_AUDIT"
+      ]
+    },
+    "expected": "complete"
+  },
+  {
+    "name": "Audit Chat 16 xAI JSON",
+    "provider": "xAI",
+    "model": "grok-4.3",
+    "parameters": {
+      "systemPrompt": "Return a short JSON object containing answer. This is a controlled chat configuration audit.",
+      "temperature": 0.2,
+      "maxTokens": 256,
+      "responseFormatJson": true
+    },
+    "expected": "complete"
+  },
+  {
+    "name": "Audit Chat 17 Local web",
+    "provider": "Local",
+    "model": "audit-unloaded.task",
+    "parameters": {
+      "webSearchTool": true
+    },
+    "expected": "preflight rejection"
+  },
+  {
+    "name": "Audit Chat 18 Deleted agent",
+    "provider": "OpenAI",
+    "model": "gpt-5.4-mini",
+    "parameters": {},
+    "agentId": "chat-audit-missing-agent",
+    "expected": "preflight rejection"
+  },
+  {
+    "name": "Audit Chat 19 Groq web",
+    "provider": "Groq",
+    "model": "openai/gpt-oss-20b",
+    "parameters": {
+      "webSearchTool": true
+    },
+    "expected": "preflight rejection"
+  }
+]

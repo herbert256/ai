@@ -319,6 +319,13 @@ fun SelectProviderScreen(
 /**
  * Full-screen agent selection screen with pricing columns.
  */
+private data class AgentPickerMetadata(
+    val pricing: PricingCache.ModelPricing,
+    val vision: Boolean,
+    val web: Boolean,
+    val reasoning: Boolean
+)
+
 @Composable
 fun SelectAgentScreen(
     aiSettings: Settings,
@@ -329,6 +336,18 @@ fun SelectAgentScreen(
     BackHandler { onBack() }
     val context = LocalContext.current
     var searchQuery by remember { mutableStateOf("") }
+
+    val priceVersion by PricingCache.manualPricingVersion.collectAsState()
+    val metadata by produceState<Map<String, AgentPickerMetadata>>(emptyMap(), aiSettings, priceVersion) {
+        value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            aiSettings.agents.associate { agent ->
+                val model = aiSettings.getEffectiveModelForAgent(agent)
+                agent.id to AgentPickerMetadata(PricingCache.getPricing(context, agent.provider, model),
+                    aiSettings.isVisionCapable(agent.provider, model), aiSettings.isWebSearchCapable(agent.provider, model),
+                    aiSettings.isReasoningCapable(agent.provider, model))
+            }
+        }
+    }
 
     val allAgents = aiSettings.agents
     val filteredAgents = remember(searchQuery, allAgents) {
@@ -380,9 +399,9 @@ fun SelectAgentScreen(
         LazyColumn(modifier = Modifier.weight(1f)) {
             items(filteredAgents, key = { it.id }) { agent ->
                 val effectiveModel = aiSettings.getEffectiveModelForAgent(agent)
-                val pricing = aiSettings.getModelPricing(agent.provider, effectiveModel)
-                    ?: PricingCache.getPricing(context, agent.provider, effectiveModel)
-                val priceColor = if (pricing.source.equals("DEFAULT", ignoreCase = true)) AppColors.TextDim else AppColors.DangerAccent
+                val details = metadata[agent.id]
+                val pricing = details?.pricing
+                val priceColor = if (pricing == null || pricing.source.equals("DEFAULT", ignoreCase = true)) AppColors.TextDim else AppColors.DangerAccent
 
                 Row(
                     modifier = Modifier.fillMaxWidth().clickable { onSelectAgent(agent) }
@@ -392,16 +411,16 @@ fun SelectAgentScreen(
                     Column(modifier = Modifier.weight(1f)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(agent.name, style = MaterialTheme.typography.bodyMedium, color = AppColors.TextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            VisionBadge(aiSettings.isVisionCapable(agent.provider, effectiveModel))
-                            WebSearchBadge(aiSettings.isWebSearchCapable(agent.provider, effectiveModel))
-                            ReasoningBadge(aiSettings.isReasoningCapable(agent.provider, effectiveModel))
+                            VisionBadge(details?.vision == true)
+                            WebSearchBadge(details?.web == true)
+                            ReasoningBadge(details?.reasoning == true)
                         }
                         Text(modelLabel(agent.provider.id, effectiveModel),
                             style = MaterialTheme.typography.bodySmall, color = AppColors.TextTertiary,
                             maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
-                    Text(formatPrice(pricing.promptPrice), style = MaterialTheme.typography.bodySmall, fontFamily = FontFamily.Monospace, color = priceColor, textAlign = TextAlign.End, modifier = Modifier.width(70.dp))
-                    Text(formatPrice(pricing.completionPrice), style = MaterialTheme.typography.bodySmall, fontFamily = FontFamily.Monospace, color = priceColor, textAlign = TextAlign.End, modifier = Modifier.width(70.dp))
+                    Text(pricing?.let { formatPrice(it.promptPrice) } ?: "…", style = MaterialTheme.typography.bodySmall, fontFamily = FontFamily.Monospace, color = priceColor, textAlign = TextAlign.End, modifier = Modifier.width(70.dp))
+                    Text(pricing?.let { formatPrice(it.completionPrice) } ?: "…", style = MaterialTheme.typography.bodySmall, fontFamily = FontFamily.Monospace, color = priceColor, textAlign = TextAlign.End, modifier = Modifier.width(70.dp))
                 }
                 HorizontalDivider(color = AppColors.DividerDark)
             }

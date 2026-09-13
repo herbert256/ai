@@ -261,14 +261,11 @@ turn — there is no per-turn system-prompt override.
 | **Dual chat setup** (`DualChatScreen`) | `mergeParameters(ids).systemPrompt` of the chosen presets |
 | **Resumed session** | whatever was saved on the `ChatSession` |
 
-> **Subtle but important:** in the agent path, `resolveAgentParameters(agent)`
-> only **`mergeParameters(agent.paramsIds)`** — it does **not** read
-> `agent.systemPromptId`. So a chat started from an agent inherits a system
-> prompt **only if** one of the agent's parameter presets carries a
-> `systemPrompt`; the agent's standalone 🎭 (`systemPromptId`) is a
-> report-generation level and does **not** flow into chat. (Reports do honour
-> `agent.systemPromptId`; chat does not.) An app-wide default also does not
-> apply to chat unless the user wires it in via a preset or the inline field.
+`resolveAgentParameters` overlays the agent's standalone system prompt on its merged
+parameter presets. Configure-on-the-fly chats inherit an embedded preset prompt unless
+the inline field is edited, explicitly cleared, or replaced by a system-prompt selection.
+Dual Chat uses its selected system prompt, falling back to the model's parameter preset.
+Every later turn retains the resolved system instruction.
 
 ---
 
@@ -285,7 +282,7 @@ turn — there is no per-turn system-prompt override.
 5. Finally the **app-wide** default; if nothing matches, no system message is
    sent.
 6. **Chat is the exception**: it does not walk this ladder — it only takes a
-   system prompt from a parameters preset (agent / dual-chat) or what the user
+   system prompt from the resolved agent, a parameters preset, or what the user
    types/picks at setup.
 7. **Secondaries split three ways.** Only the `resolveSecondaryParams` family
    (rerank, meta, fan-out, fan-in, meta-edit, and the *alternatives* probes)

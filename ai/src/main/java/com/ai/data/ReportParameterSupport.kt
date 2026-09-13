@@ -14,6 +14,23 @@ internal fun AnalysisRepository.reportParameterError(service: AppService, model:
     if (p.frequencyPenalty != null && (!p.frequencyPenalty.isFinite() || p.frequencyPenalty !in -2f..2f)) errors += "frequency penalty must be -2..2"
     if (p.presencePenalty != null && (!p.presencePenalty.isFinite() || p.presencePenalty !in -2f..2f)) errors += "presence penalty must be -2..2"
     fun unsupported(set: Boolean, name: String) { if (set) errors += "$name is not supported on this endpoint" }
+    unsupported(p.webSearchTool && service.apiFormat == ApiFormat.OPENAI_COMPATIBLE &&
+        !usesResponsesApi(service, model) && openAiChatWebSearchTool() == null, "web search tool")
+    unsupported(!p.searchRecency.isNullOrBlank() && !service.supportsSearchRecency, "search recency")
+    if (!p.searchRecency.isNullOrBlank() && p.searchRecency !in setOf("day", "week", "month", "year")) {
+        errors += "search recency must be day, week, month, or year"
+    }
+    if (service.apiFormat == ApiFormat.REPLICATE || service == AppService.LOCAL) {
+        unsupported(p.frequencyPenalty != null || p.presencePenalty != null, "repetition penalties")
+        unsupported(!p.stopSequences.isNullOrEmpty(), "stop sequences")
+        unsupported(p.responseFormatJson, "JSON object mode")
+        unsupported(p.webSearchTool || p.searchEnabled, "web search")
+        if (service == AppService.LOCAL) unsupported(p.maxTokens != null, "per-turn max tokens")
+        else {
+            unsupported(p.topK != null, "top K")
+            unsupported(p.seed != null, "seed")
+        }
+    }
     unsupported(!p.reasoningEffort.isNullOrBlank() && !isReasoningCapableForDispatch(service, model), "reasoning effort")
     if (usesResponsesApi(service, model)) {
         unsupported(p.topK != null, "top K")
@@ -76,6 +93,9 @@ internal fun AnalysisRepository.reportParameterError(service: AppService, model:
         unsupported(p.frequencyPenalty != null || p.presencePenalty != null, "repetition penalties")
     }
     if (service.apiFormat == ApiFormat.GOOGLE) {
+        if (p.reasoningEffort == "none" && !model.startsWith("gemini-2.5-flash")) {
+            errors += "thinking cannot be disabled on this model; use its default or a supported effort"
+        }
         unsupported(p.searchEnabled, "search flag (use the web search tool)")
         if (p.frequencyPenalty == 2f || p.presencePenalty == 2f) errors += "Gemini penalties must be less than 2"
     }
@@ -93,5 +113,15 @@ internal fun responsesJsonText(params: AgentParameters?): Map<String, Any>? =
 internal fun ChatParameters.forParameterValidation() = AgentParameters(
     temperature = temperature, maxTokens = maxTokens, topP = topP, topK = topK,
     frequencyPenalty = frequencyPenalty, presencePenalty = presencePenalty,
-    reasoningEffort = reasoningEffort, searchEnabled = searchEnabled
+    reasoningEffort = reasoningEffort, searchEnabled = searchEnabled,
+    systemPrompt = systemPrompt, stopSequences = stopSequences, seed = seed,
+    responseFormatJson = responseFormatJson, webSearchTool = webSearchTool,
+    returnCitations = returnCitations, searchRecency = searchRecency
 )
+
+internal fun AnalysisRepository.chatConfigurationError(service: AppService, model: String, params: ChatParameters): String? {
+    if (com.ai.model.SettingsHolder.current?.getProviderState(service) == "inactive") {
+        return "Provider ${service.id} is inactive. Enable it in AI setup before retrying."
+    }
+    return reportParameterError(service, model, params.forParameterValidation())
+}

@@ -24,6 +24,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ai.data.ApiTracer
+import com.ai.data.toChatParameters
 import com.ai.data.AppService
 import com.ai.data.ReportDataVersion
 import com.ai.data.ReportStorage
@@ -568,13 +569,7 @@ fun ReportModelScreen(
         val settingsAgent = aiSettings.getAgentById(currentAgentId)
         val initialParams = if (settingsAgent != null) {
             val rp = aiSettings.resolveAgentParameters(settingsAgent)
-            com.ai.data.ChatParameters(
-                temperature = rp.temperature, maxTokens = rp.maxTokens, topP = rp.topP, topK = rp.topK,
-                frequencyPenalty = rp.frequencyPenalty, presencePenalty = rp.presencePenalty,
-                systemPrompt = rp.systemPrompt ?: "",
-                searchEnabled = rp.searchEnabled, returnCitations = rp.returnCitations,
-                searchRecency = rp.searchRecency, webSearchTool = rp.webSearchTool
-            )
+            rp.toChatParameters()
         } else com.ai.data.ChatParameters()
         val seed = buildList {
             add(com.ai.data.ChatMessage(role = "user", content = report.prompt, imageBase64 = report.imageBase64, imageMime = report.imageMime))

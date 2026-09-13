@@ -564,12 +564,13 @@ class AgentChatBridge(
         model: String,
         agentIdForKey: String?,
         messages: List<com.ai.data.ChatMessage>,
-        params: com.ai.data.ChatParameters
+        params: com.ai.data.ChatParameters,
+        onUsage: (com.ai.data.TokenUsage) -> Unit
     ) -> kotlinx.coroutines.flow.Flow<String>,
     /** Rough token estimate (chars/4) — for AI Usage accounting. */
     val estimateTokens: (String) -> Int,
     /** Record one turn's tokens into the global AI Usage ledger. */
-    val recordUsage: (service: com.ai.data.AppService, model: String, inputTokens: Int, outputTokens: Int) -> Unit,
+    val recordUsage: suspend (service: com.ai.data.AppService, model: String, usage: com.ai.data.TokenUsage) -> Unit,
 )
 val LocalAgentChat = compositionLocalOf<AgentChatBridge?> { null }
 

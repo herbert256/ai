@@ -22,11 +22,9 @@ internal fun buildMessages(
 }
 
 internal fun buildOpenAiRequest(service: AppService, model: String, messages: List<OpenAiMessage>, params: AgentParameters?, stream: Boolean? = null): OpenAiRequest {
-    // Drop response_format when LiteLLM reports the model doesn't honor a
-    // response schema — sending it would either error out or be silently
-    // ignored. Null on LiteLLM (unknown model) leaves it in.
-    val jsonRequested = params?.responseFormatJson == true
-    val jsonAllowed = jsonRequested && PricingCache.liteLLMSupportsResponseSchema(service, model) != false
+    // JSON-object mode and JSON-schema support are different capabilities.
+    // Preserve an explicit JSON request; a provider rejection stays visible.
+    val jsonAllowed = params?.responseFormatJson == true
     return OpenAiRequest(
         model = model, messages = messages, stream = stream,
         // Fall back to a bounded default so balance-gating providers
@@ -180,6 +178,15 @@ internal fun AppService.knownEndpointPaths(): List<String> = listOfNotNull(
     pathFor(ModelType.EMBEDDING)
 )
 
+/** Agent endpoints may be a base URL or a complete native API URL. */
+internal fun nativeChatUrl(service: AppService, baseUrl: String, model: String, streaming: Boolean = false): String {
+    val path = service.chatPath.replace("{model}", model)
+    val streamPath = path.replace(":generateContent", ":streamGenerateContent")
+    val target = if (streaming) streamPath else path
+    return buildChatUrl(baseUrl.replace("{model}", model), target,
+        service.knownEndpointPaths().map { it.replace("{model}", model) } + path + streamPath)
+}
+
 /** Read [OpenAiMessage.content] as a String regardless of whether it was a
  *  raw String or (after a future round-trip) a serialized list. Response
  *  bodies always come back with content as a JSON string, so this is safe. */
@@ -331,8 +338,8 @@ internal fun claudeReasoningBundle(
  *  to avoid bloating the response body for callers that just want the
  *  final answer. */
 internal fun geminiThinkingConfigField(service: AppService, model: String, effort: String?): Map<String, Any>? {
-    val budget = budgetForEffort(effort) ?: return null
     if (!isReasoningCapableForDispatch(service, model)) return null
+    val budget = if (effort.equals("none", ignoreCase = true)) 0 else budgetForEffort(effort) ?: return null
     return mapOf("thinkingBudget" to budget)
 }
 
