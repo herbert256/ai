@@ -628,7 +628,7 @@ private fun renderHtmlReport(
     sb.append(htmlHead(data.title))
     sb.append("<body><div class='container'>")
     sb.append("<h1>${iconPrefixHtml(data.reportIcon)}${esc(data.title)}</h1>")
-    data.rapportText?.let { sb.append("<div class='rapport'>${convertMarkdownToHtmlForExport(it)}</div>") }
+    data.rapportText?.let { sb.append("<div class='rapport'>${renderReportPresentationHtml(it)}</div>") }
     data.conclusionText?.let { sb.append("<section><h2>My selected conclusion</h2><pre style='white-space:pre-wrap'>${esc(ReportExportRedaction.plainText(it))}</pre></section>") }
 
     val languages = buildLanguageViews(data)
@@ -657,7 +657,7 @@ private fun renderHtmlReport(
         sb.append("</div>")
     }
 
-    data.closeText?.let { sb.append("<div class='close-text'>${convertMarkdownToHtmlForExport(it)}</div>") }
+    data.closeText?.let { sb.append("<div class='close-text'>${renderReportPresentationHtml(it)}</div>") }
     // User-note appendix — annotations used to vanish from every
     // human-readable format (JSON bundle only).
     if (data.userNotes.isNotEmpty()) {
@@ -1351,6 +1351,17 @@ internal fun processThinkSections(text: String, agentId: String): String {
     val after = text.substring(lastEnd)
     if (after.isNotEmpty()) out.append(convertMarkdownToHtmlForExport(after))
     return out.toString()
+}
+
+/** Caller-authored <open>/<close> content is an HTML extension point. Keep
+ * markup, CSS and JavaScript verbatim, including script whitespace and angle
+ * brackets. Text-only legacy content still supports Markdown; code examples
+ * alone do not switch it into HTML mode. Never use this for model responses. */
+internal fun renderReportPresentationHtml(content: String): String {
+    val outsideCode = Regex("```.*?```|`[^`\n]+`", RegexOption.DOT_MATCHES_ALL).replace(content, "")
+    val hasHtml = Regex("</?[A-Za-z][A-Za-z0-9:-]*(?=[\\s/>])|<!--|<!DOCTYPE\\b", RegexOption.IGNORE_CASE)
+        .containsMatchIn(outsideCode)
+    return if (hasHtml) content else convertMarkdownToHtmlForExport(content)
 }
 
 internal fun convertMarkdownToHtmlForExport(markdown: String): String {

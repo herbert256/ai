@@ -75,10 +75,10 @@ fun HtmlPreviewScreen(
                 // immediately after the body wrapper. The title bar
                 // already shows the title, so strip the first <h1>
                 // in the preview only — the export paths are
-                // untouched. Title text is HTML-escaped server side
-                // (`esc(...)`) so it never contains a literal `<`,
-                // making `[^<]*` a safe inner match.
-                val html = raw.replaceFirst(Regex("<h1>[^<]*</h1>"), "")
+                // untouched. Include the generated icon markup in the
+                // match; skipping an image-bearing title would remove a
+                // caller's first <h1> inside <open> instead.
+                val html = raw.replaceFirst(Regex("<h1>.*?</h1>", RegexOption.DOT_MATCHES_ALL), "")
                 PreviewState.Ready(report, html)
             }
         }
@@ -115,12 +115,8 @@ fun HtmlPreviewScreen(
                     modifier = Modifier.fillMaxSize(),
                     factory = { ctx ->
                         WebView(ctx).apply {
-                            // No file:// or content:// access — the
-                            // HTML is self-contained (data: URIs for
-                            // images), and disallowing these closes
-                            // the obvious local-file exfiltration
-                            // vector if a model ever produces a
-                            // crafted <script>.
+                            // Execute report UI scripts and caller-authored
+                            // <open>/<close> HTML, without device-file access.
                             settings.javaScriptEnabled = true
                             settings.allowFileAccess = false
                             settings.allowContentAccess = false

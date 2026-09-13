@@ -328,7 +328,7 @@ private fun zipRootIndex(data: HtmlReportData, languages: List<HtmlLanguageView>
     sb.append("<main>")
     sb.append("<h1>").append(titlePrefix).append(esc(titleText)).append("</h1>")
     sb.append("<div class='meta'>").append(esc(data.timestamp)).append("</div>")
-    if (!data.rapportText.isNullOrBlank()) sb.append("<div class='rapport'>${convertMarkdownToHtmlForExport(data.rapportText)}</div>")
+    if (!data.rapportText.isNullOrBlank()) sb.append("<div class='rapport'>${renderReportPresentationHtml(data.rapportText)}</div>")
     data.conclusionText?.let { sb.append("<h2>My selected conclusion</h2><pre class='prompt'>${esc(com.ai.data.ReportExportRedaction.plainText(it))}</pre>") }
     sb.append("<h2>Languages</h2><ul class='section-list'>")
     languages.forEach { lv ->
@@ -338,7 +338,7 @@ private fun zipRootIndex(data: HtmlReportData, languages: List<HtmlLanguageView>
         sb.append("<li><a href='${esc(lv.key)}/index.html'>").append(label).append("</a></li>")
     }
     sb.append("</ul>")
-    if (!data.closeText.isNullOrBlank()) sb.append("<div class='close-text'>${convertMarkdownToHtmlForExport(data.closeText)}</div>")
+    if (!data.closeText.isNullOrBlank()) sb.append("<div class='close-text'>${renderReportPresentationHtml(data.closeText)}</div>")
     sb.append("</main></body></html>")
     return sb.toString()
 }
@@ -372,7 +372,7 @@ private fun languageIndex(data: HtmlReportData, lv: HtmlLanguageView, basePath: 
         // (the same content zipRootIndex would otherwise show).
         sb.append("<h1>").append(reportPrefix).append(esc(titleText)).append("</h1>")
         sb.append("<div class='meta'>").append(esc(data.timestamp)).append("</div>")
-        if (!data.rapportText.isNullOrBlank()) sb.append("<div class='rapport'>${convertMarkdownToHtmlForExport(data.rapportText)}</div>")
+        if (!data.rapportText.isNullOrBlank()) sb.append("<div class='rapport'>${renderReportPresentationHtml(data.rapportText)}</div>")
         data.conclusionText?.let { sb.append("<h2>My selected conclusion</h2><pre class='prompt'>${esc(com.ai.data.ReportExportRedaction.plainText(it))}</pre>") }
         sb.append("<h2>").append(langLabelHtml).append("</h2>")
     } else {
@@ -384,7 +384,7 @@ private fun languageIndex(data: HtmlReportData, lv: HtmlLanguageView, basePath: 
         sb.append("<li><a href='${esc(href)}index.html'>").append(esc(label)).append("</a></li>")
     }
     sb.append("</ul>")
-    if (flat && !data.closeText.isNullOrBlank()) sb.append("<div class='close-text'>${convertMarkdownToHtmlForExport(data.closeText)}</div>")
+    if (flat && !data.closeText.isNullOrBlank()) sb.append("<div class='close-text'>${renderReportPresentationHtml(data.closeText)}</div>")
     sb.append("</main></body></html>")
     return sb.toString()
 }

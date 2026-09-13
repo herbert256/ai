@@ -26,6 +26,7 @@ sealed interface ExternalReportCommand {
  */
 object ExternalAppCommandParser {
     private const val MARKER = "-- end prompt --"
+    private val PRESENTATION_TAGS = Regex("<(open|close)>(.*?)</\\1>", RegexOption.DOT_MATCHES_ALL)
 
     fun parse(
         prompt: String,
@@ -46,23 +47,30 @@ object ExternalAppCommandParser {
             else -> return ExternalReportCommand.Prefill(title ?: "", prompt, systemPrompt)
         }
 
+        // HTML forms and scripts may contain instruction-looking tags, such
+        // as <select>. Only tags outside the presentation bodies are commands.
+        val presentation = PRESENTATION_TAGS.findAll(instr).toList()
+        val commands = PRESENTATION_TAGS.replace(instr, "")
+        fun presentationBody(tag: String): String? = presentation
+            .firstOrNull { it.groupValues[1] == tag }?.groupValues?.get(2)?.trim()
+
         return ExternalReportCommand.Confirm(
             PendingExternalReport(
                 title = title,
                 systemPrompt = systemPrompt,
                 aiPrompt = aiPrompt,
-                openHtml = extractTag("open", instr),
-                closeHtml = extractTag("close", instr),
-                reportType = extractTag("type", instr),
-                email = extractTag("email", instr),
-                nextAction = extractTag("next", instr),
-                hasReturn = hasTag("return", instr),
-                hasEdit = hasTag("edit", instr),
-                hasSelect = hasTag("select", instr),
-                agentNames = extractAllTags("agent", instr),
-                flockNames = extractAllTags("flock", instr),
-                swarmNames = extractAllTags("swarm", instr),
-                modelSpecs = extractAllTags("model", instr)
+                openHtml = presentationBody("open"),
+                closeHtml = presentationBody("close"),
+                reportType = extractTag("type", commands),
+                email = extractTag("email", commands),
+                nextAction = extractTag("next", commands),
+                hasReturn = hasTag("return", commands),
+                hasEdit = hasTag("edit", commands),
+                hasSelect = hasTag("select", commands),
+                agentNames = extractAllTags("agent", commands),
+                flockNames = extractAllTags("flock", commands),
+                swarmNames = extractAllTags("swarm", commands),
+                modelSpecs = extractAllTags("model", commands)
             )
         )
     }

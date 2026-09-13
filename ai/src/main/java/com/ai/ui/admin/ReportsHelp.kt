@@ -1087,6 +1087,7 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
     "report_html_preview" to HelpContent(
         title = "Help - HTML preview",
         cards = listOf(
+            HelpCard("Opening and closing content", "Reports created by another app can include opening and closing HTML, CSS and JavaScript. These render and run here and in HTML exports. Reports with this content have an HTML tile in View. Text without HTML keeps its Markdown formatting."),
             HelpCard("What you see", "The same HTML page you'd get from a full HTML export, rendered live inside the app. The title reads 'HTML preview' for the full detail level or 'HTML preview (short)' when you launched the lighter version. The entire body is the document — prompt, model responses, costs, anything else the export builds — laid out as it would appear in a browser."),
             HelpCard("How to read it", "Scroll the document vertically; tap intra-page anchors (for example, a rerank row pointing back to the model that produced an answer) to jump around inside the page. Interactive features the export bakes in — sortable tables, collapsibles — work the same here as they do in a saved HTML file. The preview always shows one language at a time so there's no language picker inside the WebView; pick the language up front on the Export screen and the preview renders that slice.")
         )

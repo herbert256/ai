@@ -298,7 +298,7 @@ the New Report editor via <code>aiNewReportWithParams</code>. The user
 still picks models and taps Generate, so no credits move without
 consent.</li>
 <li><strong>Prompt + instructions</strong> (an
-<code>externalInstructions</code> extra, or a
+<code>instructions</code> string extra, or a
 <code>-- end prompt --</code> marker splitting prompt from
 instructions) → the instructions are parsed into a
 <code>PendingExternalReport</code> and an
@@ -324,6 +324,20 @@ instructions) → the instructions are parsed into a
 </ul>
 </div>
 </details>
+
+<p><code>&lt;open&gt;</code> and <code>&lt;close&gt;</code> supply opening and
+closing report content. HTML bodies are inserted verbatim, including CSS,
+scripts and event handlers, in Complete / Short HTML and the zipped HTML
+index. They run in the app's HTML preview and in a browser opening the export.
+Reports with either field show an <strong>HTML</strong> tile in
+<strong>View</strong>; Export → HTML → View in app also opens the preview.
+Text without HTML keeps Markdown formatting, including fenced code examples.
+When HTML is present, the entire body is treated as HTML.</p>
+<p>Instruction tags are read only outside these bodies: an HTML
+<code>&lt;select&gt;</code> or script string containing
+<code>&lt;email&gt;</code> is not an app command. The matching literal
+<code>&lt;/open&gt;</code> or <code>&lt;/close&gt;</code> ends its body, so
+avoid it inside script strings. This content is separate from the AI prompt.</p>
 
 <p>The confirmation overlay (help topic <code>external_intent</code>,
 title "External request") lays out exactly what will happen — which

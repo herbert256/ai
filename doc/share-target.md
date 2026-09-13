@@ -274,7 +274,7 @@ Three behaviours, by how much the intent asks for:
   marker) → merely pre-fills the New Report editor via
   `aiNewReportWithParams`. The user still picks models and taps
   Generate, so no credits move without consent.
-- **Prompt + instructions** (an `externalInstructions` extra, or a
+- **Prompt + instructions** (the `instructions` string extra, or a
   `-- end prompt --` marker splitting prompt from instructions) → the
   instructions are parsed into a `PendingExternalReport` (a 15-field
   payload: `title`, `systemPrompt`, `aiPrompt`, `openHtml`,
@@ -284,6 +284,21 @@ Three behaviours, by how much the intent asks for:
   `<email>`, `<next>`, `<return>`, `<edit>`, `<select>`, `<agent>`,
   `<flock>`, `<swarm>`, `<model>` tags) and an
   `ExternalIntentConfirmScreen` is shown first.
+
+`<open>` and `<close>` supply the report's opening and closing content.
+HTML bodies are inserted verbatim, including CSS, `<script>` elements and
+event handlers, into Complete / Short HTML and the zipped HTML index.
+They run in the app's HTML preview and in a browser opening the export.
+Reports with either field show an **HTML** tile in **View**; Export → HTML →
+View in app also opens the preview. Text without HTML keeps Markdown
+formatting (including fenced code examples). When HTML is present, the whole
+body is treated as HTML; write HTML for its surrounding text too.
+
+Instruction tags are read only outside these two bodies, so an HTML
+`<select>` or a script string containing `<email>` is not an app command.
+The delimiters `</open>` and `</close>` terminate their respective bodies;
+avoid writing the matching literal delimiter inside JavaScript strings.
+These fields are report presentation content, separate from the AI prompt.
 
 The confirmation overlay (help topic `external_intent`, title
 "External request") lays out exactly what will happen — which models

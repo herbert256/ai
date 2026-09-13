@@ -312,7 +312,7 @@ internal fun buildShortHtmlFromData(data: HtmlReportData): String {
     sb.append("</style></head><body>")
     sb.append("<h1>").append(iconPrefixHtml(data.reportIcon)).append(esc(data.title)).append("</h1>")
     if (!data.rapportText.isNullOrBlank()) {
-        sb.append("<div>").append(convertMarkdownToHtmlForExport(data.rapportText)).append("</div>")
+        sb.append("<div class='rapport'>").append(renderReportPresentationHtml(data.rapportText)).append("</div>")
     }
 
     sb.append("<h2>Prompt</h2><p class='prompt'>").append(esc(data.prompt)).append("</p>")
@@ -356,7 +356,7 @@ internal fun buildShortHtmlFromData(data: HtmlReportData): String {
     appendMeta(moderations, "Moderations", metaPromptIcon("moderation"))
 
     if (!data.closeText.isNullOrBlank()) {
-        sb.append("<div>").append(convertMarkdownToHtmlForExport(data.closeText)).append("</div>")
+        sb.append("<div class='close-text'>").append(renderReportPresentationHtml(data.closeText)).append("</div>")
     }
     sb.append("</body></html>")
     return sb.toString()

@@ -173,6 +173,21 @@ internal fun ViewAiReportScreen(
     var selectedViewLangKey by rememberSaveable(reportId) {
         mutableStateOf(LangTab.ORIGINAL_KEY)
     }
+    var htmlViewLanguage by rememberSaveable(reportId, resetTick) { mutableStateOf<String?>(null) }
+    if (htmlViewLanguage != null) {
+        val backToMain: () -> Unit = { htmlViewLanguage = null }
+        androidx.compose.runtime.CompositionLocalProvider(
+            com.ai.ui.shared.LocalNavigateToCurrentReport provides backToMain
+        ) {
+            HtmlPreviewScreen(
+                reportId = reportId,
+                language = htmlViewLanguage!!.takeIf { it.isNotEmpty() }
+                    ?.let { ExportLanguage.Single(it) } ?: ExportLanguage.Original,
+                onBack = backToMain
+            )
+        }
+        return
+    }
     // Per-tile content-only "View" overlay state. Owned by
     // ViewAiReportScreen rather than the parent so adding new view
     // overlays one-per-commit doesn't grow ReportsScreen's bytecode
@@ -1013,13 +1028,14 @@ internal fun ViewAiReportScreen(
                 matrixViewOpen = true
             }))
             add(IdentifiedTile("doc:Costs", ViewTile("Costs", com.ai.data.MetadataIconsHolder.current.cost, AppColors.CautionAccent) { showCostsView = true }))
-            // HTML preview, Log, Trace tiles are deliberately omitted
-            // from the View grid — the content-only View surface
-            // focuses on the report's outputs, not export views or
-            // operational logs / API traces. HTML preview remains
-            // reachable from Report - manage; Log + Trace from the
-            // result page's bottom-bar icons (📜 App Log, 🐞 Trace
-            // list).
+            // Caller-authored opening/closing content belongs to the report
+            // document. Open it here with the selected language and preserve
+            // this grid beneath the preview, including layered View jumps.
+            if (!loadedReport?.rapportText.isNullOrBlank() || !loadedReport?.closeText.isNullOrBlank()) {
+                add(IdentifiedTile("doc:Html", ViewTile("HTML", com.ai.data.MetadataIconsHolder.current.document, AppColors.InfoAccent) {
+                    htmlViewLanguage = currentLanguageState.value.orEmpty()
+                }))
+            }
             // Only when the per-model icon chain is enabled — otherwise the
             // Icons view is rows of 🤖 fallback glyphs. perModelIconGenEnabled
             // was a remember key but never actually read here.
