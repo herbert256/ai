@@ -78,7 +78,7 @@ data class ModelTestRunState(
      *  time, used by the L1 top-row stats panel. These are *catalog*
      *  counts (everything in the selected providers' model lists),
      *  partitioned by the skip rule that applied: inaccessible (tier-
-     *  gated, e.g. Together non-serverless), excluded (cost > 5¢ +
+     *  gated, e.g. Together non-serverless), excluded (cost > 5 cents +
      *  manual), or "no chat" (non-testable types — image / TTS / etc.).
      *  Stable for the lifetime of the run; the second-row [doneCount]
      *  / [errorCount] / etc. track the actual probe progress. */

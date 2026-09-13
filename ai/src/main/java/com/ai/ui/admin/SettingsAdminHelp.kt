@@ -435,7 +435,7 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
         title = "Help - Test-excluded models",
         cards = listOf(
             HelpCard("Overview", "Provider/model pairs the \"Test all models\" sweep skips entirely — never enumerated, never probed, no Total/Done/Errors contribution."),
-            HelpCard("Auto-add on expensive probes", "Any probe whose computed cost is more than 5¢ is added to this list on run completion. The next sweep won't pay for that model again. Removing an entry here makes the sweep probe it once more."),
+            HelpCard("Auto-add on expensive probes", "Any probe whose computed cost is more than 5 cents is added to this list on run completion. The next sweep won't pay for that model again. Removing an entry here makes the sweep probe it once more."),
             HelpCard("Hand-curated", "Add / edit / delete entries yourself for models you simply don't want tested. Persisted with the rest of your configuration — included in Backup/Restore and Export/Import."),
         )
     ),

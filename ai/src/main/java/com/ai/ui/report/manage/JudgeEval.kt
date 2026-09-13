@@ -481,13 +481,13 @@ private fun JudgeEvalL1(
                         modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center
                     )
                     Spacer(Modifier.height(8.dp))
-                    // One-line-per-judge table, in a card: # / Model / Cost(¢) /
+                    // One-line-per-judge table, in a card: # / Model / Cost /
                     // API time / Agreement-with-consensus.
                     Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(AppColors.CardBackground)) {
                         Row(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
                             Text("#", color = AppColors.InfoAccent, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.width(22.dp))
                             Text("Model", color = AppColors.InfoAccent, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-                            Text("¢", color = AppColors.InfoAccent, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.End, modifier = Modifier.width(52.dp))
+                            Text("Cost", color = AppColors.InfoAccent, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.End, modifier = Modifier.width(52.dp))
                             Text("Time", color = AppColors.InfoAccent, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.End, modifier = Modifier.width(50.dp))
                             Text("Indep.", color = AppColors.InfoAccent, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.End, modifier = Modifier.width(48.dp))
                             Spacer(Modifier.width(28.dp))   // aligns with the per-row ✗ remove column
@@ -549,7 +549,7 @@ private fun JudgeProgressRow(label: String, done: Int, total: Int, barFrac: Floa
     }
 }
 
-/** One-line judge row: # / Model / Cost(¢) / API time / Agreement. */
+/** One-line judge row: # / Model / Cost / API time / Agreement. */
 @Composable
 private fun JudgeLeaderRow(rank: Int, s: JudgeStats, onDelete: () -> Unit, onClick: () -> Unit) {
     Row(

@@ -15,14 +15,14 @@ class AnswerMatrixHelpersTest {
         // formatCentsValue is a plain fixed-decimals primitive (default 4). The
         // zero/negative → "-" rule lives at the call sites (e.g. AnswerMatrix's
         // `if (cost > 0.0) formatCentsValue(..) else "-"`), not in this helper.
-        assertThat(formatCentsValue(0.0)).isEqualTo("0.0000 ¢")
-        assertThat(formatCentsValue(12.5)).isEqualTo("12.5000 ¢")
+        assertThat(formatCentsValue(0.0)).isEqualTo("0.0000")
+        assertThat(formatCentsValue(12.5)).isEqualTo("12.5000")
     }
 
     @Test fun cents_decimals_param_controls_precision() {
-        assertThat(formatCentsValue(12.5, decimals = 2)).isEqualTo("12.50 ¢")
-        assertThat(formatCentsValue(2.5, decimals = 3)).isEqualTo("2.500 ¢")
-        assertThat(formatCentsValue(0.5, decimals = 4)).isEqualTo("0.5000 ¢")
+        assertThat(formatCentsValue(12.5, decimals = 2)).isEqualTo("12.50")
+        assertThat(formatCentsValue(2.5, decimals = 3)).isEqualTo("2.500")
+        assertThat(formatCentsValue(0.5, decimals = 4)).isEqualTo("0.5000")
     }
 
     // ---- formatDuration ----

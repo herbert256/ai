@@ -101,7 +101,7 @@ class ModelTestEngine internal constructor(
         if (persisted != null) {
             // Reconcile the snapshot: the four buckets + items.size
             // must equal catalogTotal. They can drift when a probe
-            // mid-run is auto-added to test-excluded (cost > 5¢) or
+            // mid-run is auto-added to test-excluded (cost > 5 cents) or
             // inaccessible — the model ends up counted in two
             // places. Recompute when the math doesn't balance.
             val sum = persisted.inaccessibleAtStart + persisted.excludedAtStart +

@@ -1058,7 +1058,7 @@ fun ReportCostTable(report: Report, onShowAllApi: () -> Unit = {}) {
                 listOf(
                     CostCell(com.ai.ui.shared.shortModelName(g.model ?: ""), AppColors.TextPrimary, mono = true, end = false, weight = 2f),
                     CostCell(g.calls.toString(), AppColors.TextPrimary, mono = true, end = true, weight = 1f),
-                    CostCell(String.format(Locale.US, "%.2f ¢", g.inputCents + g.outputCents), tColor, mono = true, end = true, weight = 1f),
+                    CostCell(String.format(Locale.US, "%.2f", g.inputCents + g.outputCents), tColor, mono = true, end = true, weight = 1f),
                 )
             },
             onRowTap = { g -> popup = CostPopup.ModelGroup(g) },
@@ -1158,7 +1158,7 @@ fun ReportApiCallsScreen(report: Report, onBack: () -> Unit, onNavigateToTraceFi
                             listOf(
                                 CostCell(r.type, costTypeColor(r.type), mono = false, end = false, weight = 1f),
                                 CostCell(com.ai.ui.shared.shortModelName(r.model), AppColors.TextPrimary, mono = true, end = false, weight = 2f),
-                                CostCell(String.format(Locale.US, "%.2f ¢", r.inputCents + r.outputCents), tColor, mono = true, end = true, weight = 1f),
+                                CostCell(String.format(Locale.US, "%.2f", r.inputCents + r.outputCents), tColor, mono = true, end = true, weight = 1f),
                             )
                         },
                         onRowTap = { r -> popup = CostPopup.Call(r) },
@@ -1372,7 +1372,7 @@ private fun <T> CostRowSection(
                     val middleSum = columnWeights.drop(1).dropLast(1).sum()
                     if (middleSum > 0f) Spacer(modifier = Modifier.weight(middleSum))
                     Text(
-                        String.format(Locale.US, "+%.2f ¢", deletedCents),
+                        String.format(Locale.US, "+%.2f", deletedCents),
                         fontSize = 11.sp, color = AppColors.WarningAccent,
                         fontFamily = FontFamily.Monospace,
                         textAlign = androidx.compose.ui.text.style.TextAlign.End,
@@ -1461,7 +1461,7 @@ private fun CostTypeGroupedSection(
                 CostCellText(CostCell("${if (isOpen) "▾" else "▸"} ${g.prefix}", costTypeColor(g.prefix), mono = false, end = false, weight = weights[0], bold = true))
                 CostCellText(CostCell(g.calls.toString(), AppColors.TextPrimary, mono = true, end = true, weight = weights[1]))
                 CostCellText(CostCell(String.format(Locale.US, "%,d", g.inputTokens + g.outputTokens), AppColors.TextPrimary, mono = true, end = true, weight = weights[2]))
-                CostCellText(CostCell(String.format(Locale.US, "%.2f ¢", g.inputCents + g.outputCents), tColor, mono = true, end = true, weight = weights[3]))
+                CostCellText(CostCell(String.format(Locale.US, "%.2f", g.inputCents + g.outputCents), tColor, mono = true, end = true, weight = weights[3]))
             }
             // Members — indented; tap opens that type's per-call breakdown.
             if (isOpen) {
@@ -1475,7 +1475,7 @@ private fun CostTypeGroupedSection(
                         CostCellText(CostCell("      ${m.key}", costTypeColor(m.key), mono = false, end = false, weight = weights[0]))
                         CostCellText(CostCell(m.calls.toString(), AppColors.TextPrimary, mono = true, end = true, weight = weights[1]))
                         CostCellText(CostCell(String.format(Locale.US, "%,d", m.inputTokens + m.outputTokens), AppColors.TextPrimary, mono = true, end = true, weight = weights[2]))
-                        CostCellText(CostCell(String.format(Locale.US, "%.2f ¢", m.inputCents + m.outputCents), tColor, mono = true, end = true, weight = weights[3]))
+                        CostCellText(CostCell(String.format(Locale.US, "%.2f", m.inputCents + m.outputCents), tColor, mono = true, end = true, weight = weights[3]))
                     }
                 }
             }
@@ -1486,7 +1486,7 @@ private fun CostTypeGroupedSection(
             Row(modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text("deleted", fontSize = 11.sp, color = AppColors.WarningAccent, fontStyle = FontStyle.Italic, modifier = Modifier.weight(weights[0]))
                 Spacer(modifier = Modifier.weight(weights[1] + weights[2]))
-                Text(String.format(Locale.US, "+%.2f ¢", deletedCents), fontSize = 11.sp, color = AppColors.WarningAccent, fontFamily = FontFamily.Monospace,
+                Text(String.format(Locale.US, "+%.2f", deletedCents), fontSize = 11.sp, color = AppColors.WarningAccent, fontFamily = FontFamily.Monospace,
                     textAlign = androidx.compose.ui.text.style.TextAlign.End, modifier = Modifier.weight(weights[3]))
             }
         }
@@ -1494,7 +1494,7 @@ private fun CostTypeGroupedSection(
             CostCellText(CostCell("Total", tColor, mono = false, end = false, weight = weights[0], bold = true))
             CostCellText(CostCell(totalRows.toString(), tColor, mono = true, end = true, weight = weights[1], bold = true))
             CostCellText(CostCell(String.format(Locale.US, "%,d", totalTokens), tColor, mono = true, end = true, weight = weights[2], bold = true))
-            CostCellText(CostCell(String.format(Locale.US, "%.2f ¢", totalCents), tColor, mono = true, end = true, weight = weights[3], bold = true))
+            CostCellText(CostCell(String.format(Locale.US, "%.2f", totalCents), tColor, mono = true, end = true, weight = weights[3], bold = true))
         }
     }
 }
@@ -1609,9 +1609,9 @@ private fun buildGroupBody(g: GroupTotal): String {
         appendLine(String.format(Locale.US, "in  tokens: %,d", g.inputTokens))
         appendLine(String.format(Locale.US, "out tokens: %,d", g.outputTokens))
         appendLine()
-        appendLine(String.format(Locale.US, "in  ¢: %.4f", g.inputCents))
-        appendLine(String.format(Locale.US, "out ¢: %.4f", g.outputCents))
-        append(String.format(Locale.US, "total: %.4f ¢", total))
+        appendLine(String.format(Locale.US, "in:   %.4f", g.inputCents))
+        appendLine(String.format(Locale.US, "out:  %.4f", g.outputCents))
+        append(String.format(Locale.US, "total: %.4f", total))
     }
 }
 
@@ -1628,9 +1628,9 @@ private fun buildCallBody(r: CostRow): String {
         appendLine(String.format(Locale.US, "in  tokens: %,d", r.inputTokens))
         appendLine(String.format(Locale.US, "out tokens: %,d", r.outputTokens))
         appendLine()
-        appendLine(String.format(Locale.US, "in  ¢: %.4f", r.inputCents))
-        appendLine(String.format(Locale.US, "out ¢: %.4f", r.outputCents))
-        append(String.format(Locale.US, "total: %.4f ¢", total))
+        appendLine(String.format(Locale.US, "in:   %.4f", r.inputCents))
+        appendLine(String.format(Locale.US, "out:  %.4f", r.outputCents))
+        append(String.format(Locale.US, "total: %.4f", total))
     }
 }
 

@@ -2329,7 +2329,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         /** A "Test all models" probe whose cost exceeds this (USD) is
          *  auto-added to [com.ai.model.Settings.testExcludedModels] so
          *  the next sweep doesn't pay for it again. Matches the user-
-         *  facing "5¢" wording on the AI Setup card. */
+         *  facing "5 cents" wording on the AI Setup card. */
         internal const val COSTLY_PROBE_USD_THRESHOLD = 0.05
         fun estimateTokens(text: String): Int = (text.length / 4).coerceAtLeast(1)
         internal const val AI_REPORT_AGENTS_KEY = "ai_report_agents_v2"

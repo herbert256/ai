@@ -301,10 +301,8 @@ fun CostsViewScreen(
                 )
             }
             Spacer(modifier = Modifier.height(4.dp))
-            // Cents directly — the row-level cost halves already
-            // live in this unit. ¢ suffix replaces the USD prefix
-            // per the user's "show in cents, with the cent char"
-            // request.
+            // The row-level cost halves are already in cents.
+            // Display the number without a unit suffix.
             Text(
                 text = formatCentsValue(totalCents, decimals = 4),
                 color = AppColors.CautionAccent,

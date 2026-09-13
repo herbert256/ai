@@ -18,7 +18,7 @@ All keys share the shape `"${providerId}:${model}"` — the same form as
 |---|---|---|---|---|
 | Cooldowns | `ModelCooldownStore` (own prefs) | long-bench 429 (>1h hint / quota / billing) | dim + ⏳ caption | `cruds/models/cooldowns/` |
 | Blocked | `Settings.blockedModels` | sweep FAIL → block, PASS → un-block | dim + 🚫 caption | `cruds/models/blocked/` |
-| Test-excluded | `Settings.testExcludedModels` | probe cost > 5¢; `excluded.json` seed | none (sweep-only) | `cruds/models/testexcluded/` |
+| Test-excluded | `Settings.testExcludedModels` | probe cost > 5 cents; `excluded.json` seed | none (sweep-only) | `cruds/models/testexcluded/` |
 | Inaccessible | `Settings.inaccessibleModels` | tier-gate probe error; `inaccessible.json` seed | dim + 🔒 caption | `cruds/models/inaccessible/` |
 | Manual types | `Settings.modelTypeOverrides` | (manual only) | wins over autodetection | `cruds/models/manualoverrides/` |
 
@@ -114,7 +114,7 @@ UUID ([model/SettingsModels.kt:170](../ai/src/main/java/com/ai/model/SettingsMod
 practice `ModelTestEngine.startRun` consults it per-model via
 `isTestExcluded` ([viewmodel/ModelTestEngine.kt:192](../ai/src/main/java/com/ai/viewmodel/ModelTestEngine.kt)).
 
-- **Populated** automatically when a probe's cost exceeds the 5¢
+- **Populated** automatically when a probe's cost exceeds the 5 cents
   ceiling (`COSTLY_PROBE_USD_THRESHOLD = 0.05` in
   [viewmodel/AppViewModel.kt:2208](../ai/src/main/java/com/ai/viewmodel/AppViewModel.kt))
   — the same per-item `applyTestItemIncrement` hook appends the model

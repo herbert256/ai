@@ -104,7 +104,7 @@ private fun ReportSectionRow(
     HorizontalDivider(color = AppColors.TextDisabled, thickness = 1.dp)
 }
 
-/** The "nnn costed calls / x.xxx s duration / x.xx ¢" statistics line shown
+/** The "nnn costed calls / x.xxx s duration / x.xx" statistics line shown
  *  under the title bar of all three report screens.
  *
  *  Call count + duration are re-read from disk (keyed on [refreshKey] + the

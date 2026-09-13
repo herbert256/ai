@@ -58,7 +58,7 @@ SharedPreferences file.</p>
 <div>
 <dt>Test-excluded</dt>
 <div class="meta"><code>Settings.testExcludedModels</code></div>
-<dd>Auto: probe cost &gt; 5&cent;; seeded from <code>excluded.json</code>.
+<dd>Auto: probe cost &gt; 5 cents; seeded from <code>excluded.json</code>.
 Picker: none (sweep-only). CRUD at <code>cruds/models/testexcluded/</code>.</dd>
 </div>
 <div>
@@ -281,7 +281,7 @@ no UUID; a simple <code>"providerId:model"</code> set.</p>
 <dl class="kv">
 <div>
 <dt>Populated by</dt>
-<dd>Auto-added when a probe's cost exceeds the 5&cent; ceiling
+<dd>Auto-added when a probe's cost exceeds the 5 cents ceiling
 (<code>COSTLY_PROBE_USD_THRESHOLD = 0.05</code>) — the same
 per-item <code>applyTestItemIncrement</code> hook appends the model
 (no-clobber) when <code>item.totalCost &gt;

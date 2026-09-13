@@ -35,6 +35,8 @@ Info</strong> per-model usage card, and the per-report
 </ul>
 </nav>
 
+<p>Cost displays show numeric US-cent values without a repeated unit symbol.
+The conversion from stored dollars and each screen's decimal precision are unchanged.</p>
 <h2 id="costing">How a call is costed</h2>
 
 <p><code>PricingCache.computeInOutCost(usage, pricing)</code>
@@ -522,7 +524,7 @@ themselves (<code>report/prompt</code>, <code>after/rerank</code>,
 <code>meta/compare</code>, <code>transrank/rank</code>,
 <code>fan/meta</code>, the <code>translate/...</code> family,
 &hellip;). A Total card ("Current items total", in cents) sits above a
-horizontal-bar list (bar length = share of total); sub-0.0001&cent;
+horizontal-bar list (bar length = share of total); sub-0.0001 cents
 buckets are dropped. A <strong>Buckets &hArr; Models</strong> toggle
 re-rolls the same data by <code>shortModelName</code>. Tapping a bar
 drills L2 (cross-dimension) &rarr; L3 (individual calls, paged); the

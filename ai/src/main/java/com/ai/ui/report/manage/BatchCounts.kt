@@ -26,7 +26,7 @@ enum class BenchMode {
 
 /** The seven live-batch counters shown by [BatchStatsRow]. Cost is left
  *  to each caller — it varies (per-item sum vs a pre-aggregated field,
- *  with or without a "¢" suffix). */
+ *  formatted as numeric cents). */
 data class BatchCounts(
     val total: Int,
     val done: Int,

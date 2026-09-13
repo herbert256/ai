@@ -165,7 +165,7 @@ definition (`AppService.defaultModel` / `defaultModelSource`), so
 | `provider_states` | JSON Map<String, String> | `"ok"` / `"error"` / `"inactive"` / `"not-used"` |
 | `ai_model_type_overrides` | JSON List<ModelTypeOverride> | per-model type assignment that wins over autodetection — see [model-states.md](model-states.md) |
 | `ai_blocked_models` | JSON List<BlockedModel> | `(providerId, model, reason)`; dimmed `🚫` in every picker — see [model-states.md](model-states.md) |
-| `ai_test_excluded_models` | JSON List<String> | skipped by "Test all models"; auto-added when a probe would cost > 5 ¢; seeded from `assets/excluded.json` (sweep-only, no picker effect) |
+| `ai_test_excluded_models` | JSON List<String> | skipped by "Test all models"; auto-added when a probe would cost > 5 cents; seeded from `assets/excluded.json` (sweep-only, no picker effect) |
 | `ai_inaccessible_models` | JSON List<String> | not reachable on this account; dimmed `🔒` in pickers; seeded from `assets/inaccessible.json` |
 | `ai_default_meta_items` | JSON List<DefaultMetaItem> | configurable default secondary/meta items |
 | `ai_disabled_info_providers` | JSON List<String> | info-provider ids (`litellm`, `openrouter`, `cloudprice`, …) the user switched off under AI Setup → Info providers; a disabled tier is skipped by refresh and by `PricingCache.getPricing` |

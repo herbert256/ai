@@ -198,7 +198,7 @@ fun ModelsSetupScreen(
                 onClick = { onNavigate(SettingsSubScreen.AI_MODEL_COOLDOWNS) })
             ModelsSetupNavCard(MetadataDefaults.STATUS_BLOCKED, "Blocked models", "Provider/model pairs flagged as blocked — dimmed in every model picker", "${aiSettings.blockedModels.size}",
                 onClick = { onNavigate(SettingsSubScreen.AI_BLOCKED_MODELS) })
-            ModelsSetupNavCard(MetadataDefaults.SPEND, "Test-excluded models", "Skipped by Test all models — auto-added when a probe costs > 5¢", "${aiSettings.testExcludedModels.size}",
+            ModelsSetupNavCard(MetadataDefaults.SPEND, "Test-excluded models", "Skipped by Test all models — auto-added when a probe costs > 5 cents", "${aiSettings.testExcludedModels.size}",
                 onClick = { onNavigate(SettingsSubScreen.AI_TEST_EXCLUDED_MODELS) })
             ModelsSetupNavCard(MetadataDefaults.STATUS_LOCKED, "Inaccessible models", "Not reachable on this account — dimmed in every model picker", "${aiSettings.inaccessibleModels.size}",
                 onClick = { onNavigate(SettingsSubScreen.AI_INACCESSIBLE_MODELS) })

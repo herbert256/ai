@@ -12,6 +12,9 @@ surfaces: the global **Spend & usage** dashboard, the per-report
 **Costs** breakdown, the **Model Info** per-model usage card, and
 the per-report **API-call cost ledger** that drives all three.
 
+Cost displays show numeric US-cent values without a repeated unit symbol.
+The conversion from stored dollars and each screen's decimal precision are unchanged.
+
 ## How a call is costed
 
 Fan Meta persists every worker attempt on its secondary pair, including
@@ -392,7 +395,7 @@ so the bucket keys are the raw `<category>/<prompt>` type strings
 themselves (`report/prompt`, `after/rerank`, `meta/compare`,
 `transrank/rank`, `fan/meta`, the `translate/...` family, …). A Total
 card ("Current items total", in cents) sits above
-a horizontal-bar list (bar length = share of total); sub-0.0001 ¢
+a horizontal-bar list (bar length = share of total); sub-0.0001 cents
 buckets are dropped. A **Buckets ⇄ Models** toggle re-rolls the same
 data by `shortModelName`. Tapping a bar drills L2 (cross-dimension) →
 L3 (individual calls, paged); the 🐞 on a call opens its exact trace

@@ -163,7 +163,7 @@ data class BlockedModel(
     val key: String get() = "$providerId:$model"
 }
 
-/** A provider/model pair the user (or the >5¢ auto-add rule) has
+/** A provider/model pair the user (or the >5 cents auto-add rule) has
  *  flagged as "don't probe in Test all models". Identity is the
  *  `(providerId, model)` pair; no UUID, no reason field — the list is
  *  a simple skip-set. */
