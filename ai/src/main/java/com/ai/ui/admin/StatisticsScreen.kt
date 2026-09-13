@@ -7,6 +7,7 @@ import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -14,6 +15,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -211,8 +213,8 @@ internal fun AddManualOverrideScreen(
         mutableStateOf(initialProviderId?.let { AppService.findById(it) } ?: AppService.entries.firstOrNull())
     }
     var model by remember(resetTick) { mutableStateOf(initialModel ?: "") }
-    var inputPrice by remember(resetTick) { mutableStateOf(initialInputPerMillion?.let { "%.4f".format(Locale.US, it) } ?: "") }
-    var outputPrice by remember(resetTick) { mutableStateOf(initialOutputPerMillion?.let { "%.4f".format(Locale.US, it) } ?: "") }
+    var inputPrice by remember(resetTick) { mutableStateOf(initialInputPerMillion?.toBigDecimal()?.stripTrailingZeros()?.toPlainString() ?: "") }
+    var outputPrice by remember(resetTick) { mutableStateOf(initialOutputPerMillion?.toBigDecimal()?.stripTrailingZeros()?.toPlainString() ?: "") }
     var showProviderSelect by remember { mutableStateOf(false) }
     var showModelSelect by remember { mutableStateOf(false) }
     val context = LocalContext.current
@@ -222,7 +224,16 @@ internal fun AddManualOverrideScreen(
     )
     val isAddMode = dup.isAddMode
     val keyMatchesOriginal = originalProviderId != null && originalModel != null &&
-        selectedProvider?.id == originalProviderId && model == originalModel
+        selectedProvider?.id == originalProviderId && model.trim() == originalModel
+    val manualPricingVersion by PricingCache.manualPricingVersion.collectAsState()
+    val existingTarget = remember(selectedProvider, model, manualPricingVersion) {
+        selectedProvider?.let { PricingCache.getManualPricing(context, it, model.trim()) } != null
+    }
+    val targetConflict = existingTarget && (isAddMode || !keyMatchesOriginal)
+    val parsedInput = parseManualPricePerMillion(inputPrice)
+    val parsedOutput = parseManualPricePerMillion(outputPrice)
+    val canSave = selectedProvider != null && model.isNotBlank() && parsedInput != null && parsedOutput != null &&
+        !targetConflict && !(isAddMode && keyMatchesOriginal)
 
     // Full-screen overlays for selection
     if (showProviderSelect && selectedProvider != null) {
@@ -248,15 +259,9 @@ internal fun AddManualOverrideScreen(
             onClear = { resetTick++ }
         )
         Spacer(modifier = Modifier.height(8.dp))
-        // Comma→dot before parse: price fields use a Decimal keyboard (comma key
-        // on nl-NL) and toDoubleOrNull is dot-only.
-        fun String.priceToDouble(): Double? = replace(',', '.').toDoubleOrNull()
         OutlinedButton(onClick = {
-            val inp = inputPrice.priceToDouble()?.div(1_000_000)
-            val outp = outputPrice.priceToDouble()?.div(1_000_000)
-            if (inp != null && outp != null && selectedProvider != null && model.isNotBlank()) onSave(selectedProvider!!, model, inp, outp, isAddMode)
-        }, enabled = selectedProvider != null && model.isNotBlank() && inputPrice.priceToDouble() != null && outputPrice.priceToDouble() != null &&
-            !(isAddMode && keyMatchesOriginal),
+            if (canSave) onSave(selectedProvider!!, model.trim(), parsedInput, parsedOutput, isAddMode)
+        }, enabled = canSave,
             modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedButtonColors()
         ) { Text(if (isAddMode) "Add" else "Save", maxLines = 1, softWrap = false) }
         Spacer(modifier = Modifier.height(8.dp))
@@ -274,14 +279,23 @@ internal fun AddManualOverrideScreen(
 
             // Show current pricing for reference
             if (selectedProvider != null && model.isNotBlank()) {
-                val current = PricingCache.getPricingWithoutOverride(context, selectedProvider!!, model)
-                Text("Current: input ${formatTokenPricePerMillion(current.promptPrice)}, output ${formatTokenPricePerMillion(current.completionPrice)} (${current.source})",
+                val current = PricingCache.getPricingWithoutOverride(context, selectedProvider!!, model.trim())
+                Text("Without override: input ${formatTokenPricePerMillion(current.promptPrice)}, output ${formatTokenPricePerMillion(current.completionPrice)} (${current.source})",
                     fontSize = 11.sp, color = AppColors.TextTertiary)
             }
+            if (targetConflict) Text("An override already exists for this model. Edit that entry or choose another model.", color = MaterialTheme.colorScheme.error)
+            Text("Flat token rates: cached input uses the input rate. Provider-reported charges take priority. Saved call costs stay unchanged.",
+                fontSize = 11.sp, color = AppColors.TextTertiary)
 
             OutlinedTextField(value = inputPrice, onValueChange = { inputPrice = it },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                isError = inputPrice.isNotBlank() && parsedInput == null,
+                supportingText = { if (inputPrice.isNotBlank() && parsedInput == null) Text("Enter a finite number of zero or more.") },
                 label = { Text("Input price ($/1M tokens)") }, modifier = Modifier.fillMaxWidth(), singleLine = true, colors = AppColors.outlinedFieldColors())
             OutlinedTextField(value = outputPrice, onValueChange = { outputPrice = it },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                isError = outputPrice.isNotBlank() && parsedOutput == null,
+                supportingText = { if (outputPrice.isNotBlank() && parsedOutput == null) Text("Enter a finite number of zero or more.") },
                 label = { Text("Output price ($/1M tokens)") }, modifier = Modifier.fillMaxWidth(), singleLine = true, colors = AppColors.outlinedFieldColors())
         }
 

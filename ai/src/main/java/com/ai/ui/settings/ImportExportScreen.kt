@@ -1250,8 +1250,8 @@ fun ImportExportScreen(
                     if (parts.size >= 4) {
                         val provider = AppService.findById(parts[0].trim())
                         val model = parts[1].trim()
-                        val inp = parts[2].trim().toDoubleOrNull()?.div(1_000_000)
-                        val outp = parts[3].trim().toDoubleOrNull()?.div(1_000_000)
+                        val inp = com.ai.data.parseManualPricePerMillion(parts[2])
+                        val outp = com.ai.data.parseManualPricePerMillion(parts[3])
                         if (provider != null && model.isNotBlank() && inp != null && outp != null) {
                             PricingCache.setManualPricing(context, provider, model, inp, outp)
                             importedKeys.add("${provider.id}:$model")
@@ -1571,7 +1571,7 @@ fun ImportExportScreen(
                             arr.forEach { el ->
                                 val o = (el as? JsonObject) ?: return@forEach
                                 val provId = o.get("provider")?.takeIf { it.isJsonPrimitive }?.asString ?: return@forEach
-                                val model = o.get("model")?.takeIf { it.isJsonPrimitive }?.asString ?: return@forEach
+                                val model = o.get("model")?.takeIf { it.isJsonPrimitive }?.asString?.trim() ?: return@forEach
                                 // Guard against non-numeric primitives ("NaN", strings):
                                 // asDouble throws NumberFormatException on those and would
                                 // otherwise abort the whole bundle import mid-flight.
@@ -1580,7 +1580,7 @@ fun ImportExportScreen(
                                 val outp = o.get("outputPerMillion")?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isNumber }
                                     ?.runCatching { asDouble }?.getOrNull()?.div(1_000_000) ?: return@forEach
                                 val provider = AppService.findById(provId) ?: return@forEach
-                                if (model.isNotBlank()) {
+                                if (model.isNotBlank() && inp.isFinite() && inp >= 0.0 && outp.isFinite() && outp >= 0.0) {
                                     PricingCache.setManualPricing(context, provider, model, inp, outp); imported++
                                 }
                             }

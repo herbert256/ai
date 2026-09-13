@@ -440,22 +440,34 @@ UI lives in two places:
   Also reachable pre-filled from **Model Info**
   (`ManualCostOverrideEntryScreen`, `ui/admin/StatisticsScreen.kt:145`).
 
-Because the store isn't reactive, the CRUD bumps a refresh tick to
-re-read after each write. Overrides round-trip through the backup zip
-(the `pricing_cache` prefs file is in `PREFS_TO_BACKUP`).
+The `manualPricingVersion` flow refreshes the CRUD, Statistics pricing
+tiers and precomputed model-picker prices after edits. Overrides round-trip
+through the backup zip (`pricing_cache` is in `PREFS_TO_BACKUP`).
+
+The form and imports reject negative/non-finite prices, accept zero and
+decimal commas, and preserve price precision when editing. Add/Copy and
+repointed edits cannot overwrite an existing pair; edit that entry instead.
+The two fields define flat token rates, including full-rate cached input;
+catalog cache/context discounts are not inherited. Actual provider-reported
+charges retain precedence, and recorded historical call costs do not change.
+
+`data/ManualPriceDefaults.kt` contains the three requested initial overrides
+(Groq GPT-OSS 20B: 0.075/0.30, Groq GPT-OSS 120B: 0.15/0.60,
+OpenAI GPT-5.4 mini: 0.75/4.50 USD per million input/output tokens). The
+source links and verification date are alongside the seed. Only an absent
+`manual_pricing` key is seeded. Existing stores, including an explicitly
+empty map or deleted entries, remain unchanged. Runtime-data clear writes
+an empty map so it does not recreate deleted overrides.
 
 ## Costs maintenance screen
 
 `ui/admin/CostsMaintenanceScreen.kt` (Housekeeping → **Costs**, help
 `cost_config`) — the two occasional bulk operations:
 
-- **Cleanup** — `cleanupRedundantManualOverrides`
-  (`data/PricingCache.kt:269`) drops every override that is dormant or
-  redundant: covered by any catalog tier (LiteLLM / models.dev /
-  Helicone / llm-prices / AA / llm-stats / OpenRouter / Requesty /
-  genai-prices / TrueFoundry), equal to the built-in
-  `DEFAULT`, or equal to what `getPricingWithoutOverride` would return
-  anyway. Reports the count removed.
+- **Cleanup** — `cleanupRedundantManualOverrides` removes an override
+  only when every rate equals the effective lookup without it, including
+  cache, long-context and per-query rates. Catalog coverage or matching
+  the placeholder default alone is insufficient. Reports the count removed.
 - **Layered costs CSV** — `buildLayeredCsv` emits one row per active
   `(provider, model)` (via `getTierBreakdown`,
   `data/PricingCache.kt:841`) with every tier's `$/M` price (litellm,

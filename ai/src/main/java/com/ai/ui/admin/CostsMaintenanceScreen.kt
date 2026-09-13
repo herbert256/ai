@@ -59,7 +59,7 @@ fun CostsMaintenanceScreen(
         return context.contentResolver.openInputStream(uri)?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }
     }
     fun parsePerMillion(raw: String): Double? =
-        raw.trim().replace(',', '.').toDoubleOrNull()?.div(1_000_000)
+        com.ai.data.parseManualPricePerMillion(raw)
     fun detectCsvDelimiter(header: String): Char {
         val commaColumns = parseCsvRow(header, ',').size
         val semicolonColumns = parseCsvRow(header, ';').size
@@ -150,6 +150,12 @@ fun CostsMaintenanceScreen(
                     val model = parts[1].trim()
                     var inp = parsePerMillion(rawIn)
                     var outp = parsePerMillion(rawOut)
+                    // A blank side is optional; an invalid nonblank side is
+                    // an error, not an instruction to use the current price.
+                    if ((rawIn.isNotEmpty() && inp == null) || (rawOut.isNotEmpty() && outp == null)) {
+                        skipped++
+                        return@forEach
+                    }
                     // Single-column edit (only one of input/output filled): keep the
                     // other side at whatever the lookup currently returns so a
                     // one-column correction doesn't get silently skipped.
@@ -183,7 +189,7 @@ fun CostsMaintenanceScreen(
             item {
                 CollapsibleCard("Cleanup", icon = MetadataDefaults.CLEAR) {
                     Text(
-                        "Drops every manual price override that is dormant or redundant: covered by a catalog tier (LiteLLM, models.dev, Helicone, llm-prices, Artificial Analysis, OpenRouter), equal to the built-in default, or equal to what the lookup would return without it.",
+                        "Removes only overrides whose removal leaves all rates unchanged, including cache and long-context rates. Overrides that correct catalog prices are kept.",
                         fontSize = 11.sp, color = AppColors.TextTertiary
                     )
                     OutlinedButton(

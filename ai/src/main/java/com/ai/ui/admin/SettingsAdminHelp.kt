@@ -946,16 +946,16 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
     "cost_config" to HelpContent(
         title = "Help - Cost Config",
         cards = listOf(
-            HelpCard("Overview", "Per-row Add Manual Override at the top, the list of currently configured overrides in the middle, and at the bottom two collapsed maintenance cards (Cleanup and Layered costs) lifted from the former Housekeeping → Manual cost overrides screen. The maintenance cards stay collapsed by default — the main task here is curating per-row overrides; cleanup and bulk CSV are occasional."),
-            HelpCard("Add Manual Override", "Green button — opens AddManualOverrideScreen as a full-screen overlay. The single-row form."),
-            HelpCard("Cleanup (collapsed)", "Drops every manual override that is dormant or redundant: covered by a catalog tier (LiteLLM, models.dev, Helicone, llm-prices, Artificial Analysis, llm-stats, OpenRouter, Requesty, genai-prices, or TrueFoundry), equal to the built-in default, or equal to what the lookup would return without it."),
+            HelpCard("Overview", "Bulk maintenance for manual prices: Cleanup and Layered costs CSV. Add, edit, duplicate and delete individual overrides in AI Setup → Costs."),
+            HelpCard("AI Setup", "The bottom-bar shortcut returns to AI Setup, where Costs opens the manual override list."),
+            HelpCard("Cleanup (collapsed)", "Removes only overrides whose removal leaves all rates unchanged, including cache, long-context and per-query rates. Overrides that correct catalog prices are kept."),
             HelpCard("Layered costs (collapsed) · Export all", "CSV with one row per (provider, model) for every active provider. Two leading override columns are blank; remaining columns show every catalog tier's $/M-token price in run-time precedence order."),
             HelpCard("Layered costs · Export filtered", "Same shape but drops rows already covered by any catalog tier — surfaces only the (provider, model) pairs the user would actually need to override manually."),
             HelpCard("Layered costs · Import manual changed costs", "Reads the same CSV back. Only rows where the user filled in the two leading override columns are applied via PricingCache.setManualPricing. Blank rows are silently ignored."),
-            HelpCard("Per-row card", "Provider name (blue), model id, current input/output prices in $/1M tokens. Two buttons in view mode: Remove (red) / Edit. Edit mode shows two input fields plus Cancel / Save."),
+            HelpCard("Individual prices", "Use AI Setup → Costs to view an entry and then Edit, Duplicate or Delete it. Prices in that form are USD per million tokens."),
             HelpCard("Pricing precedence", "From PricingCache.getPricing: provider self-report (OpenRouter / Together, when that's the calling provider) → manual override → LiteLLM → models.dev → llm-prices → Artificial Analysis → llm-stats → OpenRouter cross-provider fallback → Requesty → genai-prices → TrueFoundry → Helicone → DEFAULT."),
             HelpCard("Tips", "Stored as $/token internally — the form takes $/1M tokens and divides by 1,000,000 on save (and multiplies by it on edit-load)."),
-            HelpCard("Pitfalls", "Manual override comes AFTER the curated tiers — if LiteLLM has a price, your override may not actually win. Cleanup drops those redundant entries."),
+            HelpCard("Pitfalls", "Manual prices beat curated catalogs. Provider self-report pricing from OpenRouter or Together, and actual API-reported charges, still take priority. An override changes future estimates; saved call costs remain unchanged."),
         )
     ),
     "cost_override" to HelpContent(
@@ -965,9 +965,9 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
             HelpCard("Provider button", "Outlined button opens SelectProviderScreen as a full-screen overlay. Default = first provider in AppService.entries."),
             HelpCard("Model row", "Free-text \"Model\" field plus a Select button that opens SelectModelScreen for the chosen provider. Either typing or picking works."),
             HelpCard("Reference price", "When provider+model are populated, a small dim line shows the current price the lookup would return WITHOUT the override (PricingCache.getPricingWithoutOverride) plus the source tier."),
-            HelpCard("Save", "Disabled until provider + non-blank model + parseable input + parseable output. Numbers are $/1M tokens; saved divided by 1,000,000."),
+            HelpCard("Save", "Requires a provider, a non-blank model and finite input/output prices of zero or more. Decimal commas are accepted. Prices are $/1M tokens, saved divided by 1,000,000. Add, Copy and moving an edit cannot overwrite another existing entry."),
             HelpCard("Tips", "When opened from Model Info on an existing override, both price fields pre-populate from the saved values."),
-            HelpCard("Pitfalls", "Negative prices and non-numeric input fail the Save gate without an explicit error message — the button just stays disabled."),
+            HelpCard("Pitfalls", "Invalid prices show an error and disable Save; zero is allowed. These are flat input/output rates: cached input uses the input rate and catalog cache/context discounts are not inherited. Provider-reported charges take priority."),
         )
     ),
 )

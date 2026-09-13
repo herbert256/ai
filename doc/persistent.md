@@ -229,7 +229,7 @@ consulted on demand.
 | `genaiprices_timestamp` | Long | last genai-prices fetch ms |
 | `truefoundry_timestamp` | Long | last TrueFoundry fetch ms |
 | `cloudprice_timestamp` | Long | last CloudPrice fetch ms |
-| `manual_pricing` | JSON Map<String, ModelPricing> | per-`<providerId>:<model>` user overrides (source `"OVERRIDE"`) |
+| `manual_pricing` | JSON Map<String, ModelPricing> | per-`<providerId>:<model>` user overrides (source `"OVERRIDE"`); an absent key seeds `ManualPriceDefaults`, an existing/empty map is preserved |
 
 The `_v2` suffix on the AA timestamp exists to invalidate older
 UUID-keyed entries from a previous parser revision. Manual overrides

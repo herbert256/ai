@@ -2055,7 +2055,8 @@ fun AiCostsTierScreen(
     val refreshTick = resumeRefreshTick()
     // Config covers configured entries; Traced covers distinct entries in
     // retained traces. Both columns resolve current pricing sources.
-    val tierData by produceState<Pair<Map<String, Int>, Map<String, Int>>?>(null, refreshTick, uiState.aiSettings) {
+    val manualPricingVersion by PricingCache.manualPricingVersion.collectAsState()
+    val tierData by produceState<Pair<Map<String, Int>, Map<String, Int>>?>(null, refreshTick, uiState.aiSettings, manualPricingVersion) {
         val config = computeTierCounts(context, uiState.aiSettings)
         val runtime = computeTierCountsRuntime(context)
         value = config to runtime

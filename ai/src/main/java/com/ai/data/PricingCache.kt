@@ -226,7 +226,13 @@ object PricingCache {
 
     // Manual pricing overrides
     fun setManualPricing(context: Context, provider: AppService, model: String, promptPrice: Double, completionPrice: Double) = synchronized(lock) {
+        require(model.isNotBlank() && model == model.trim()) { "A trimmed model ID is required" }
+        require(promptPrice.isFinite() && promptPrice >= 0.0 && completionPrice.isFinite() && completionPrice >= 0.0) {
+            "Manual prices must be finite and non-negative"
+        }
         ensureLoaded(context)
+        // A write during the cold UI window must not replace unloaded overrides.
+        if (manualPricing == null) loadManualPricing(context)
         val key = "${provider.id}:$model"
         val map = manualPricing ?: mutableMapOf<String, ModelPricing>().also { manualPricing = it }
         map[key] = ModelPricing(model, promptPrice, completionPrice, "OVERRIDE")
@@ -235,21 +241,14 @@ object PricingCache {
 
     fun removeManualPricing(context: Context, provider: AppService, model: String) = synchronized(lock) {
         ensureLoaded(context)
+        if (manualPricing == null) loadManualPricing(context)
         manualPricing?.remove("${provider.id}:$model")
         saveManualPricing(context)
     }
 
-    /** Drop manual cost overrides that are dormant or redundant. An entry
-     *  is removed when any of these holds:
-     *   1. Any curated catalog tier has a price for the model — LiteLLM,
-     *      models.dev, Helicone, llm-prices, Artificial Analysis, llm-stats,
-     *      OpenRouter, Requesty, genai-prices, or TrueFoundry. The override
-     *      sits behind every one of these in the lookup, so it's never read
-     *      while any of them covers the model.
-     *   2. The override prices equal the DEFAULT_PRICING fallback.
-     *   3. The override prices equal what getPricingWithoutOverride would
-     *      have returned anyway.
-     *  Returns the number of entries removed. */
+    /** Remove only overrides whose removal leaves every rate unchanged,
+     * including cache, long-context and per-query rates. Catalog coverage
+     * alone is not redundancy: manual prices beat curated catalogs. */
     fun cleanupRedundantManualOverrides(context: Context): Int = synchronized(lock) {
         ensureLoaded(context)
         val entries = manualPricing?.toMap() ?: return 0
@@ -259,22 +258,8 @@ object PricingCache {
             val providerId = parts.getOrNull(0) ?: continue
             val modelId = parts.getOrNull(1) ?: continue
             val service = AppService.findById(providerId) ?: continue
-            val breakdown = getTierBreakdown(context, service, modelId)
-            val matchesDefault = pricesEqual(override, breakdown.default)
             val withoutOverride = getPricingWithoutOverride(context, service, modelId)
-            val matchesWithoutOverride = pricesEqual(override, withoutOverride)
-            val shouldRemove = breakdown.litellm != null ||
-                breakdown.modelsDev != null ||
-                breakdown.helicone != null ||
-                breakdown.llmPrices != null ||
-                breakdown.artificialAnalysis != null ||
-                breakdown.llmStats != null ||
-                breakdown.openrouter != null ||
-                breakdown.requesty != null ||
-                breakdown.genaiPrices != null ||
-                breakdown.trueFoundry != null ||
-                matchesDefault ||
-                matchesWithoutOverride
+            val shouldRemove = override.copy(modelId = withoutOverride.modelId, source = withoutOverride.source) == withoutOverride
             if (shouldRemove) {
                 manualPricing?.remove(key)
                 removed++
@@ -284,17 +269,14 @@ object PricingCache {
         removed
     }
 
-    private fun pricesEqual(a: ModelPricing, b: ModelPricing): Boolean =
-        kotlin.math.abs(a.promptPrice - b.promptPrice) < 1e-12 &&
-            kotlin.math.abs(a.completionPrice - b.completionPrice) < 1e-12
-
     fun getManualPricing(context: Context, provider: AppService, model: String): ModelPricing? {
         ensureLoaded(context); return manualPricing?.get("${provider.id}:$model")
     }
 
     fun getAllManualPricing(context: Context): Map<String, ModelPricing> { ensureLoaded(context); return manualPricing?.toMap() ?: emptyMap() }
 
-    fun setAllManualPricing(context: Context, pricing: Map<String, ModelPricing>) {
+    fun setAllManualPricing(context: Context, pricing: Map<String, ModelPricing>) = synchronized(lock) {
+        require(pricing.values.all { it.promptPrice.isFinite() && it.promptPrice >= 0.0 && it.completionPrice.isFinite() && it.completionPrice >= 0.0 })
         manualPricing = pricing.toMutableMap(); saveManualPricing(context)
     }
 
@@ -2163,7 +2145,9 @@ object PricingCache {
         val json = getPrefs(context).getString(KEY_MANUAL_PRICING, null)
         manualPricing = if (json != null) {
             try { gson.fromJson(json, mutableMapModelPricingType) } catch (_: Exception) { mutableMapOf() }
-        } else mutableMapOf()
+        } else ManualPriceDefaults.create().also {
+            getPrefs(context).edit { putString(KEY_MANUAL_PRICING, gson.toJson(it)) }
+        }
     }
 
     /** Helicone non-exact entry — keeps the original provider/model strings
@@ -2492,7 +2476,7 @@ object PricingCache {
             java.io.File(context.filesDir, "model_supported_parameters.json").delete()
         } catch (_: Exception) {}
         // Prefs: wipe the whole pricing_cache file.
-        getPrefs(context).edit { clear() }
+        getPrefs(context).edit { clear(); putString(KEY_MANUAL_PRICING, "{}") }
         // In-memory: drop every loaded tier + lookup memo so the next
         // ensureLoaded call repopulates from the now-empty stores.
         manualPricing = null

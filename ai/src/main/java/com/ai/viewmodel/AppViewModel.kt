@@ -19,6 +19,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.flow.updateAndGet
 import kotlinx.coroutines.launch
@@ -605,6 +606,15 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         // emission — the cost is one volatile write per state change.
         viewModelScope.launch {
             uiState.collect { SettingsHolder.current = it.aiSettings }
+        }
+        // Pickers use precomputed model prices. Manual edits live outside
+        // Settings, so invalidate those snapshots on every override change.
+        viewModelScope.launch(Dispatchers.IO) {
+            settingsReady.first { it }
+            PricingCache.manualPricingVersion.collect {
+                PricingCache.ensureLoadedBlocking(application)
+                recomputeRefreshedCapabilities()
+            }
         }
     }
 
