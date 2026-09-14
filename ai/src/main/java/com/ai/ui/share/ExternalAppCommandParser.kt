@@ -1,5 +1,7 @@
 package com.ai.ui.share
 
+import java.util.Locale
+
 /**
  * The decision a parsed external `ACTION_NEW_REPORT` intent resolves to.
  * Navigation/side effects live in the caller (AppNavHost); this just says
@@ -26,7 +28,11 @@ sealed interface ExternalReportCommand {
  */
 object ExternalAppCommandParser {
     private const val MARKER = "-- end prompt --"
-    private val DATA_BLOCKS = Regex("<(open|close|fen|color|server|player|pgn|board)>(.*?)</\\1>", RegexOption.DOT_MATCHES_ALL)
+    private val ENTRY_BLOCKS = Regex("<([A-Za-z_][A-Za-z0-9_.:-]*)>(.*?)</\\1>",
+        setOf(RegexOption.DOT_MATCHES_ALL, RegexOption.IGNORE_CASE))
+    private val COMMAND_TAGS = setOf("prompt", "systemprompt", "type", "email", "next",
+        "agent", "flock", "swarm", "model", "return", "edit", "select")
+    private val RAW_TAGS = setOf("open", "close", "board")
 
     fun parse(
         prompt: String,
@@ -47,17 +53,25 @@ object ExternalAppCommandParser {
             else -> return ExternalReportCommand.Prefill(title ?: "", prompt, systemPrompt)
         }
 
-        // HTML forms and scripts may contain instruction-looking tags, such
-        // as <select>. Only tags outside the presentation bodies are commands.
-        val blocks = DATA_BLOCKS.findAll(instr).toList()
-        val presentation = blocks.filter { it.groupValues[1] in setOf("open", "close") }
-        val context = ExternalReportContext(blocks.filter { it.groupValues[1] !in setOf("open", "close") }.associate {
-            val tag = it.groupValues[1]
-            tag to if (tag == "board") it.groupValues[2] else ExternalReportContext.decode(it.groupValues[2])
+        // Read top-level entries before decoding. Markup inside a value must
+        // never become another instruction (including arbitrary custom data).
+        val instructionText = Regex("^\\s*<instructions>(.*?)</instructions>\\s*$",
+            setOf(RegexOption.DOT_MATCHES_ALL, RegexOption.IGNORE_CASE))
+            .matchEntire(instr)?.groupValues?.get(1) ?: instr
+        val blocks = ENTRY_BLOCKS.findAll(instructionText).toList()
+        val context = ExternalReportContext(blocks.associate {
+            val tag = it.groupValues[1].lowercase(Locale.US)
+            tag to if (tag in RAW_TAGS) it.groupValues[2] else ExternalReportContext.decode(it.groupValues[2])
         })
-        val commands = DATA_BLOCKS.replace(instr, "")
-        fun presentationBody(tag: String): String? = presentation
-            .firstOrNull { it.groupValues[1] == tag }?.groupValues?.get(2)?.trim()
+        val commands = ENTRY_BLOCKS.replace(instructionText) {
+            if (it.groupValues[1].lowercase(Locale.US) in COMMAND_TAGS) it.value else ""
+        }
+        fun presentationBody(tag: String): String? = blocks
+            .firstOrNull { it.groupValues[1].equals(tag, ignoreCase = true) }?.groupValues?.get(2)?.trim()
+        val agentNames = extractAllTags("agent", commands)
+        val flockNames = extractAllTags("flock", commands)
+        val swarmNames = extractAllTags("swarm", commands)
+        val hasWorkers = agentNames.isNotEmpty() || flockNames.isNotEmpty() || swarmNames.isNotEmpty()
 
         return ExternalReportCommand.Confirm(
             PendingExternalReport(
@@ -65,7 +79,7 @@ object ExternalAppCommandParser {
                 systemPrompt = systemPrompt,
                 aiPrompt = context.expand(aiPrompt),
                 context = context,
-                needsStoredPrompt = aiPrompt.isBlank() || extractTag("prompt", commands) != null,
+                needsStoredPrompt = (aiPrompt.isBlank() && !hasWorkers) || extractTag("prompt", commands) != null,
                 promptReference = extractTag("prompt", commands),
                 systemReference = extractTag("systemprompt", commands),
                 openHtml = presentationBody("open")?.let { context.expand(it, presentation = true) },
@@ -76,9 +90,9 @@ object ExternalAppCommandParser {
                 hasReturn = hasTag("return", commands),
                 hasEdit = hasTag("edit", commands),
                 hasSelect = hasTag("select", commands),
-                agentNames = extractAllTags("agent", commands),
-                flockNames = extractAllTags("flock", commands),
-                swarmNames = extractAllTags("swarm", commands),
+                agentNames = agentNames,
+                flockNames = flockNames,
+                swarmNames = swarmNames,
                 modelSpecs = extractAllTags("model", commands)
             )
         )

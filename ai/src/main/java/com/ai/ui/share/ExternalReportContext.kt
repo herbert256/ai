@@ -7,19 +7,27 @@ import java.util.Locale
 
 /** Values supplied by an external app, separate from executable report instructions. */
 data class ExternalReportContext(val values: Map<String, String> = emptyMap()) {
+    /** Substitute supplied entries once; values are literal and missing entries stay intact. */
+    fun expandPrompt(template: String, fallback: (String) -> String = { it }): String =
+        PLACEHOLDERS.replace(template) { match ->
+            values[match.groupValues[1].lowercase(Locale.US)] ?: fallback(match.value)
+        }
+
     fun expand(template: String, presentation: Boolean = false): String {
         if (values.isEmpty()) return template
-        return Regex("@(FEN|COLOR|SERVER|PLAYER|PGN|BOARD|DATE)@").replace(template) { match ->
+        return PLACEHOLDERS.replace(template) { match ->
             val key = match.groupValues[1].lowercase(Locale.US)
             when (key) {
-                "date" -> SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
-                "board" -> if (presentation) values[key].orEmpty() else ""
-                else -> values[key].orEmpty()
+                "date" -> values[key] ?: SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
+                "board" -> if (presentation) values[key] ?: match.value else ""
+                else -> values[key] ?: match.value
             }
         }
     }
 
     companion object {
+        private val PLACEHOLDERS = Regex("@([A-Za-z_][A-Za-z0-9_.:-]*)@")
+
         /** Decode once: an escaped literal entity must not become a second level of markup. */
         fun decode(text: String): String = Regex("&(amp|lt|gt|quot|#39);").replace(text) {
             when (it.groupValues[1]) {
@@ -41,14 +49,20 @@ internal fun selectExternalPrompt(request: PendingExternalReport, settings: Sett
     val system = settings.getSystemPromptByIdOrName(systemRef)
     return request.copy(
         aiPrompt = request.context.expand(prompt.text),
-        systemPrompt = system?.prompt?.let { request.context.expand(it) },
+        // Keep the template until final system-prompt precedence is resolved.
+        systemPrompt = system?.prompt ?: request.systemPrompt,
         selectedSystemPromptId = system?.id,
         needsStoredPrompt = false
     )
 }
 
 fun resolveNamedExternalPrompt(request: PendingExternalReport, settings: Settings): PendingExternalReport {
-    val ref = request.promptReference ?: return request
+    val ref = request.promptReference ?: run {
+        val systemRef = request.systemReference ?: return request
+        val system = settings.getSystemPromptByIdOrName(systemRef)
+            ?: return request.copy(needsStoredPrompt = true)
+        return request.copy(systemPrompt = system.prompt, selectedSystemPromptId = system.id)
+    }
     val prompt = externalPromptChoices(settings).firstOrNull { it.id == ref }
         ?: externalPromptChoices(settings).filter { it.name.equals(ref, ignoreCase = true) }.singleOrNull()
         ?: return request.copy(needsStoredPrompt = true)

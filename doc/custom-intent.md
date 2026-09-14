@@ -14,14 +14,63 @@ Two behaviours, by how much the intent asks for:
   Generate, so no credits move without consent.
 - **Prompt + instructions** (the `instructions` string extra, or a
   `-- end prompt --` marker splitting prompt from instructions) → the
-  instructions are parsed into a `PendingExternalReport` (a 15-field
-  payload: `title`, `systemPrompt`, `aiPrompt`, `openHtml`,
+  instructions are parsed into a `PendingExternalReport` (including
+  `title`, `systemPrompt`, `aiPrompt`, `openHtml`,
   `closeHtml`, `reportType`, `email`, `nextAction`, `hasReturn`,
   `hasEdit`, `hasSelect`, `agentNames`, `flockNames`, `swarmNames`,
   `modelSpecs`, extracted from `<open>`, `<close>`, `<type>`,
   `<email>`, `<next>`, `<return>`, `<edit>`, `<select>`, `<agent>`,
   `<flock>`, `<swarm>`, `<model>` tags) and an
-  `ExternalIntentConfirmScreen` is shown first.
+  `ExternalIntentConfirmScreen` is shown before generation.
+
+## Prompt placeholders
+
+The `instructions` intent extra (held internally as `externalInstructions`)
+can supply named values using paired tags:
+
+```xml
+<topic>Climate in Amsterdam</topic>
+<language>Dutch</language>
+<agent>My researcher</agent>
+<type>Classic</type>
+<select>
+```
+
+If the selected worker's default prompt is `Explain @topic@ in @language@.`,
+the model receives `Explain Climate in Amsterdam in Dutch.` A system prompt
+such as `Answer in @language@.` becomes `Answer in Dutch.` This applies to
+the effective system prompt from any level: report override, worker,
+provider, external `system` extra, or application default.
+
+- Names match ignoring case: `<topic>` supplies both `@topic@` and `@TOPIC@`.
+  Names start with a letter or underscore and may also contain digits,
+  dots, hyphens and colons.
+- Values retain their whitespace and may span lines. XML entities
+  (`&amp;`, `&lt;`, `&gt;`, `&quot;`, `&#39;`) are decoded once;
+  `<open>`, `<close>` and `<board>` retain their raw markup.
+- An empty entry replaces its placeholder with an empty string. When an
+  entry repeats, its last value is used. Entries without a matching
+  placeholder have no effect on the prompt.
+- Replacement is a single pass: placeholders inside an inserted value
+  are literal text. Placeholders without an entry are left to the normal
+  prompt handling, including existing built-ins such as `@MODEL@` in
+  default prompts; other unmatched placeholders remain unchanged.
+- The selected default prompt is expanded when no explicit report prompt
+  was supplied. The usual Agent / Flock / Swarm default precedence applies.
+  System prompts are expanded after their precedence is resolved.
+- Saved templates are unchanged. The report stores the resolved prompt and
+  system parameters for retry and regeneration.
+
+An instruction-only request that names an Agent, Flock or Swarm uses those
+workers' defaults. Without a worker selection, it opens the saved-prompt
+picker. An explicit `<prompt>name-or-id</prompt>` still selects a saved
+template; `<systemprompt>name-or-id</systemprompt>` selects a saved system
+prompt. See [default-prompts.md](default-prompts.md) for worker defaults.
+
+Custom value bodies are removed before interpreting control tags, so a
+`<select>` or `<email>` inside a value cannot become an app command.
+
+## Report presentation and confirmation
 
 `<open>` and `<close>` supply the report's opening and closing content.
 HTML bodies are inserted verbatim, including CSS, `<script>` elements and
@@ -64,3 +113,9 @@ re-stage the confirmation after the user has cancelled or confirmed.
   the staged request and routes confirmation, editing, and generation.
 - `ai/src/main/java/com/ai/ui/share/ExternalIntentConfirmScreen.kt` —
   `PendingExternalReport` + the custom-intent confirmation overlay.
+- `ai/src/main/java/com/ai/ui/share/ExternalAppCommandParser.kt` —
+  separates instruction entries, presentation bodies, and control tags.
+- `ai/src/main/java/com/ai/ui/share/ExternalReportContext.kt` —
+  decodes entries and substitutes prompt placeholders.
+- `ai/src/main/java/com/ai/viewmodel/ReportLaunchPlan.kt` — resolves
+  default prompts and freezes each model's execution configuration.

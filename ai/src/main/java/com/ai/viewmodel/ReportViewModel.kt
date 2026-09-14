@@ -453,7 +453,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 aiSettings, parametersIds, state.reportAdvancedParameters,
                 state.reportWebSearchTool, state.reportReasoningEffort, state.reportSystemPromptId
             )?.let { params ->
-                params.systemPrompt?.let { params.copy(systemPrompt = state.externalIntent.context.expand(it)) } ?: params
+                params.systemPrompt?.let { params.copy(systemPrompt = state.externalIntent.context.expandPrompt(it)) } ?: params
             }
 
             val agents = selectedAgentIds.mapNotNull { aiSettings.getAgentById(it) }
@@ -493,7 +493,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 state.generalSettings, directModelSids, preGenParamsActive, selectedModels
             ).map { task ->
                 task.resolvedParams.systemPrompt?.let { system ->
-                    task.copy(resolvedParams = task.resolvedParams.copy(systemPrompt = state.externalIntent.context.expand(system)))
+                    task.copy(resolvedParams = task.resolvedParams.copy(systemPrompt = state.externalIntent.context.expandPrompt(system)))
                 } ?: task
             }
 
@@ -519,7 +519,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             try {
                 com.ai.data.ReportWorkLimits.checkSize(reportTasks.size)
                 preparePrimaryExecution(context, aiPrompt, reportTasks, overrideParams,
-                    state.attachedKnowledgeBaseIds, aiSettings, appViewModel.repository)
+                    state.attachedKnowledgeBaseIds, aiSettings, appViewModel.repository, state.externalIntent.context)
             } catch (e: Exception) {
                 if (reportGenerationJob == kotlin.coroutines.coroutineContext[Job]) {
                     appViewModel.updateUiState { it.copy(showGenericReportsDialog=false,showGenericAgentSelection=true,

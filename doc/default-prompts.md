@@ -12,6 +12,12 @@ Each primary run freezes its effective prompt in `ReportAgent.executionConfig`, 
 
 ## Persistence and compatibility
 
+For `com.ai.ACTION_NEW_REPORT`, named entries in the `instructions` extra
+replace matching `@name@` placeholders in the selected default prompt and
+effective system prompt. For example, `<topic>Amsterdam</topic>` supplies
+`@topic@`. The resolved text is captured in the report; the saved template
+is unchanged. See [custom-intent.md](custom-intent.md#prompt-placeholders).
+
 `DefaultPrompt(id, name, prompt)` lives in `Settings.defaultPrompts`, saved under `ai_default_prompts`. Agent, Flock and Swarm each store a nullable `defaultPromptId`. Fresh installs start with an empty catalog and no assignments; existing workers load with no assignment. No personal prompts or reports are bundled as defaults.
 
 Delete clears references on all three worker types. Configuration import/export includes both the catalog and worker references; Default prompts also has its own import/export row. Backup includes the settings preference automatically. No report-bundle schema change is required.

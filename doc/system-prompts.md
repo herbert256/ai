@@ -80,6 +80,13 @@ edit screens surface a warning when the chosen model is known not to.
 The chain is a plain `?:` ladder; the **first non-null wins** and is applied with
 `params.copy(systemPrompt = spText)`.
 
+For an external `ACTION_NEW_REPORT` request, matching `@name@` placeholders
+in the resolved system prompt are replaced with named entries from its
+`instructions` extra. This also covers report-level overrides and the
+external `system` extra. The saved system template remains unchanged; the
+expanded text is captured in the report's execution parameters. See
+[custom-intent.md](custom-intent.md#prompt-placeholders).
+
 ### Agent
 
 ```

@@ -22,7 +22,7 @@ The selected instruction text is followed by these six tags, in this order, even
 - `server`: `lichess.org` or `chess.com` when known. Local FEN positions have no server.
 - `player`: for position reports, the side-to-move player's name; for profile reports, the selected player.
 - `pgn`: the available full game PGN. The separate FEN is authoritative for the current position.
-- `board`: generated chessboard HTML/JavaScript. It belongs in report presentation, not model request bodies.
+- `board`: generated chessboard HTML/JavaScript, intended for report presentation.
 
 A player-only report has empty FEN, color, PGN and board tags. It does not inherit the last opened game.
 
@@ -35,7 +35,7 @@ Instructions may use `@FEN@`, `@COLOR@`, `@SERVER@`, `@PLAYER@`, `@PGN@`, `@BOAR
 <open>@BOARD@</open>
 ```
 
-The AI receiver opens its saved-prompt picker for an instruction-only request. The user then chooses a system prompt, or retains the configured AI system prompts, and reviews the existing external-request confirmation. Context placeholders in the selected normal and system templates are resolved in the AI app. `@BOARD@` is only expanded for report presentation.
+The AI receiver uses worker defaults for an instruction-only request naming an Agent, Flock or Swarm; otherwise it opens its saved-prompt picker. The user reviews the existing external-request confirmation. Context placeholders in normal, system and default templates are resolved in the AI app. In caller-supplied normal prompts, `@BOARD@` remains presentation-only; a system or worker default template that explicitly includes `@BOARD@` receives the supplied value, like any other named entry. See [custom-intent.md](custom-intent.md#prompt-placeholders).
 
 Optional references can select AI-owned templates by stable ID or unique name:
 

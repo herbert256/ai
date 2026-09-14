@@ -120,10 +120,11 @@ private fun SourceCard(intent: PendingExternalReport) {
             val previewLimit = 400
             val preview = if (intent.aiPrompt.length > previewLimit)
                 intent.aiPrompt.take(previewLimit) + "…" else intent.aiPrompt
-            Text(preview, fontSize = 12.sp, color = AppColors.TextSecondary)
+            Text(preview.ifBlank { "Use the selected workers' default prompts." }, fontSize = 12.sp, color = AppColors.TextSecondary)
             if (!intent.systemPrompt.isNullOrBlank()) {
                 Spacer(modifier = Modifier.height(2.dp))
-                Text("System prompt: ${intent.systemPrompt.take(120)}${if (intent.systemPrompt.length > 120) "…" else ""}",
+                val system = intent.context.expandPrompt(intent.systemPrompt)
+                Text("System prompt: ${system.take(120)}${if (system.length > 120) "…" else ""}",
                     fontSize = 11.sp, color = AppColors.TextTertiary)
             }
         }
