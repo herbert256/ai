@@ -660,7 +660,8 @@ data class ExternalIntent(
     val agentNames: List<String> = emptyList(),
     val flockNames: List<String> = emptyList(),
     val swarmNames: List<String> = emptyList(),
-    val modelSpecs: List<String> = emptyList()
+    val modelSpecs: List<String> = emptyList(),
+    val context: com.ai.ui.share.ExternalReportContext = com.ai.ui.share.ExternalReportContext()
 )
 
 // ===== Refresh-all state (lives on AppViewModel so the run survives

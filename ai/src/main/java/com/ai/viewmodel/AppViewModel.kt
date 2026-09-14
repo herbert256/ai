@@ -2326,10 +2326,11 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         agentNames: List<String> = emptyList(), flockNames: List<String> = emptyList(),
         swarmNames: List<String> = emptyList(), modelSpecs: List<String> = emptyList(),
         edit: Boolean = false, select: Boolean = false, openHtml: String? = null,
-        systemPrompt: String? = null
+        systemPrompt: String? = null,
+        context: com.ai.ui.share.ExternalReportContext = com.ai.ui.share.ExternalReportContext()
     ) {
         _uiState.update { it.copy(externalIntent = ExternalIntent(
-            systemPrompt = systemPrompt, closeHtml = closeHtml,
+            systemPrompt = systemPrompt, closeHtml = closeHtml, context = context,
             reportType = reportType, email = email,
             nextAction = nextAction, returnAfterNext = returnAfterNext,
             edit = edit, select = select, openHtml = openHtml,

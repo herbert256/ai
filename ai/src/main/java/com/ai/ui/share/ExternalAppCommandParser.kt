@@ -26,7 +26,7 @@ sealed interface ExternalReportCommand {
  */
 object ExternalAppCommandParser {
     private const val MARKER = "-- end prompt --"
-    private val PRESENTATION_TAGS = Regex("<(open|close)>(.*?)</\\1>", RegexOption.DOT_MATCHES_ALL)
+    private val DATA_BLOCKS = Regex("<(open|close|fen|color|server|player|pgn|board)>(.*?)</\\1>", RegexOption.DOT_MATCHES_ALL)
 
     fun parse(
         prompt: String,
@@ -49,8 +49,13 @@ object ExternalAppCommandParser {
 
         // HTML forms and scripts may contain instruction-looking tags, such
         // as <select>. Only tags outside the presentation bodies are commands.
-        val presentation = PRESENTATION_TAGS.findAll(instr).toList()
-        val commands = PRESENTATION_TAGS.replace(instr, "")
+        val blocks = DATA_BLOCKS.findAll(instr).toList()
+        val presentation = blocks.filter { it.groupValues[1] in setOf("open", "close") }
+        val context = ExternalReportContext(blocks.filter { it.groupValues[1] !in setOf("open", "close") }.associate {
+            val tag = it.groupValues[1]
+            tag to if (tag == "board") it.groupValues[2] else ExternalReportContext.decode(it.groupValues[2])
+        })
+        val commands = DATA_BLOCKS.replace(instr, "")
         fun presentationBody(tag: String): String? = presentation
             .firstOrNull { it.groupValues[1] == tag }?.groupValues?.get(2)?.trim()
 
@@ -58,9 +63,13 @@ object ExternalAppCommandParser {
             PendingExternalReport(
                 title = title,
                 systemPrompt = systemPrompt,
-                aiPrompt = aiPrompt,
-                openHtml = presentationBody("open"),
-                closeHtml = presentationBody("close"),
+                aiPrompt = context.expand(aiPrompt),
+                context = context,
+                needsStoredPrompt = aiPrompt.isBlank() || extractTag("prompt", commands) != null,
+                promptReference = extractTag("prompt", commands),
+                systemReference = extractTag("systemprompt", commands),
+                openHtml = presentationBody("open")?.let { context.expand(it, presentation = true) },
+                closeHtml = presentationBody("close")?.let { context.expand(it, presentation = true) },
                 reportType = extractTag("type", commands),
                 email = extractTag("email", commands),
                 nextAction = extractTag("next", commands),

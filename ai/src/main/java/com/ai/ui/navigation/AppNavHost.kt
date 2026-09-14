@@ -140,7 +140,7 @@ fun AppNavHost(
                 }
                 // Instruction-bearing — stage the confirmation overlay.
                 is com.ai.ui.share.ExternalReportCommand.Confirm ->
-                    pendingExternalReport.value = cmd.staged
+                    pendingExternalReport.value = com.ai.ui.share.resolveNamedExternalPrompt(cmd.staged, appViewModel.uiState.value.aiSettings)
             }
             // Clear the source-of-truth extras so a configuration
             // change doesn't re-stage the confirmation after the user
@@ -150,6 +150,17 @@ fun AppNavHost(
     }
 
     pendingExternalReport.value?.let { staged ->
+        if (staged.needsStoredPrompt) {
+            val state by appViewModel.uiState.collectAsState()
+            com.ai.ui.share.ExternalPromptPickerScreen(
+                settings = state.aiSettings,
+                request = staged,
+                onCancel = { pendingExternalReport.value = null },
+                onSelected = { pendingExternalReport.value = it }
+            )
+            return
+        }
+
         com.ai.ui.share.ExternalIntentConfirmScreen(
             intent = staged,
             onCancel = { pendingExternalReport.value = null },
@@ -167,8 +178,10 @@ fun AppNavHost(
                     edit = staged.hasEdit,
                     select = staged.hasSelect,
                     openHtml = staged.openHtml,
-                    systemPrompt = staged.systemPrompt
+                    systemPrompt = staged.systemPrompt,
+                    context = staged.context
                 )
+                if (staged.context.values.isNotEmpty()) appViewModel.setReportSystemPromptId(staged.selectedSystemPromptId)
                 if (staged.hasEdit) {
                     navController.navigate(NavRoutes.aiNewReportWithParams(staged.title ?: "", staged.aiPrompt)) {
                         popUpTo(NavRoutes.AI) { inclusive = false }

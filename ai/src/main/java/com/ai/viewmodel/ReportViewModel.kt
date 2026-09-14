@@ -451,7 +451,9 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             val overrideParams = resolveReportOverrideParams(
                 aiSettings, parametersIds, state.reportAdvancedParameters,
                 state.reportWebSearchTool, state.reportReasoningEffort, state.reportSystemPromptId
-            )
+            )?.let { params ->
+                params.systemPrompt?.let { params.copy(systemPrompt = state.externalIntent.context.expand(it)) } ?: params
+            }
 
             val agents = selectedAgentIds.mapNotNull { aiSettings.getAgentById(it) }
             // Resolve the kept swarm members from their explicit ids — do NOT
@@ -488,7 +490,11 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             val reportTasks = buildReportTasks(
                 aiSettings, agents, allModelMembers, selectionParamsById, externalSystemPrompt,
                 state.generalSettings, directModelSids, preGenParamsActive, selectedModels
-            )
+            ).map { task ->
+                task.resolvedParams.systemPrompt?.let { system ->
+                    task.copy(resolvedParams = task.resolvedParams.copy(systemPrompt = state.externalIntent.context.expand(system)))
+                } ?: task
+            }
 
             _agentResults.value = emptyMap()
             appViewModel.updateUiState { it.copy(

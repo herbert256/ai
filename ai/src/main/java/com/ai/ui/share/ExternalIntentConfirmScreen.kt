@@ -38,7 +38,12 @@ data class PendingExternalReport(
     val agentNames: List<String>,
     val flockNames: List<String>,
     val swarmNames: List<String>,
-    val modelSpecs: List<String>
+    val modelSpecs: List<String>,
+    val context: ExternalReportContext = ExternalReportContext(),
+    val needsStoredPrompt: Boolean = false,
+    val promptReference: String? = null,
+    val systemReference: String? = null,
+    val selectedSystemPromptId: String? = null
 ) {
     val willAutoGenerate: Boolean get() = !hasEdit && !hasSelect &&
         reportType != null &&

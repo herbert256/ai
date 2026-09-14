@@ -210,6 +210,7 @@ class MainActivity : ComponentActivity() {
                 externalTitle.value = intent.getStringExtra("title")
                 externalSystem.value = intent.getStringExtra("system")
                 externalPrompt.value = intent.getStringExtra("prompt")
+                    ?: if (intent.hasExtra("instructions")) "" else null
                 externalInstructions.value = intent.getStringExtra("instructions")
             }
             Intent.ACTION_SEND -> {
