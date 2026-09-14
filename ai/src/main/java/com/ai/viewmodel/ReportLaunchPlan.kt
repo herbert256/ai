@@ -4,6 +4,15 @@ import android.content.Context
 import com.ai.data.*
 import com.ai.model.Settings
 
+/** Keep report views and secondary operations supplied with the actual default questions. */
+internal fun reportPromptOverview(question: String, tasks: List<ReportViewModel.ReportTask>): String {
+    if (question.isNotBlank()) return question
+    val prompts = tasks.groupBy { it.reportAgent.executionConfig?.prompt.orEmpty() }
+    return if (prompts.size == 1) prompts.keys.first() else prompts.entries.joinToString("\n\n") { (text, members) ->
+        "## ${members.joinToString(", ") { it.runtimeAgent.name }}\n$text"
+    }
+}
+
 /** Capture replay settings and validate attached knowledge before saving a new report. */
 internal fun preparePrimaryExecution(
     context: Context, question: String, tasks: List<ReportViewModel.ReportTask>,
@@ -11,11 +20,13 @@ internal fun preparePrimaryExecution(
     settings: Settings, repository: AnalysisRepository
 ) {
     tasks.forEach { task ->
+        val effectiveQuestion = question.ifBlank { task.defaultPrompt.orEmpty() }
+        require(effectiveQuestion.isNotBlank()) { "${task.runtimeAgent.name} has no default prompt. Enter a report prompt or assign a default prompt." }
         val params = repository.effectiveReportParameters(task.resolvedParams, overlay,
             task.runtimeAgent.provider, task.runtimeAgent.model, context)
         task.reportAgent.executionConfig = ReportExecutionConfig(
             params, settings.getEffectiveEndpointUrlForAgent(task.runtimeAgent),
-            repository.resolveReportPrompt(question, task.runtimeAgent), baseParameters = task.resolvedParams
+            repository.resolveReportPrompt(effectiveQuestion, task.runtimeAgent), baseParameters = task.resolvedParams
         )
     }
     knowledgeBaseIds.firstOrNull()?.let { id ->

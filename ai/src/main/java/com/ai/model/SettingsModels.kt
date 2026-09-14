@@ -112,12 +112,14 @@ typealias Endpoint = com.ai.data.Endpoint
 data class Agent(
     val id: String, val name: String, val provider: AppService, val model: String,
     val apiKey: String, val endpointId: String? = null,
-    val paramsIds: List<String> = emptyList(), val systemPromptId: String? = null
+    val paramsIds: List<String> = emptyList(), val systemPromptId: String? = null,
+    val defaultPromptId: String? = null
 )
 
 data class Flock(
     val id: String, val name: String, val agentIds: List<String> = emptyList(),
-    val paramsIds: List<String> = emptyList(), val systemPromptId: String? = null
+    val paramsIds: List<String> = emptyList(), val systemPromptId: String? = null,
+    val defaultPromptId: String? = null
 )
 
 /** Name of the auto-managed flock that the per-provider Test button
@@ -129,7 +131,8 @@ data class SwarmMember(val provider: AppService, val model: String)
 
 data class Swarm(
     val id: String, val name: String, val members: List<SwarmMember> = emptyList(),
-    val paramsIds: List<String> = emptyList(), val systemPromptId: String? = null
+    val paramsIds: List<String> = emptyList(), val systemPromptId: String? = null,
+    val defaultPromptId: String? = null
 )
 
 data class Parameters(
@@ -152,6 +155,9 @@ data class Parameters(
 }
 
 data class SystemPrompt(val id: String, val name: String, val prompt: String)
+
+/** A reusable user prompt assigned to an Agent, Flock or Swarm. */
+data class DefaultPrompt(val id: String, val name: String, val prompt: String)
 
 /** A provider/model pair the user has flagged as "blocked" — surfaced
  *  dimmed (but still selectable) in every model picker. Identity is the
@@ -296,7 +302,8 @@ data class Worker(
     val credentialAgentId: String? = null,
     /** Selected group defaults carried through expansion until execution is frozen. */
     val inheritedParametersIds: List<String> = emptyList(),
-    val inheritedSystemPromptId: String? = null
+    val inheritedSystemPromptId: String? = null,
+    val inheritedDefaultPromptId: String? = null
 )
 
 /** Stand-alone example prompt — pure (title, text) pair the user
@@ -339,6 +346,7 @@ data class Settings(
     val swarms: List<Swarm> = emptyList(),
     val parameters: List<Parameters> = emptyList(),
     val systemPrompts: List<SystemPrompt> = emptyList(),
+    val defaultPrompts: List<DefaultPrompt> = emptyList(),
     val internalPrompts: List<InternalPrompt> = emptyList(),
     val examplePrompts: List<ExamplePrompt> = emptyList(),
     val endpoints: Map<AppService, List<Endpoint>> = emptyMap(),
@@ -774,12 +782,14 @@ data class Settings(
             val svc = AppService.findById(w.provider) ?: return null
             val credential = w.credentialAgentId?.let(::getAgentById)?.takeIf { it.provider == svc }
             return Agent(id = credential?.id.orEmpty(), name = "${w.provider} / ${w.model}", provider = svc, model = w.model, apiKey = credential?.apiKey.orEmpty(),
-                paramsIds = w.inheritedParametersIds, systemPromptId = w.inheritedSystemPromptId)
+                paramsIds = w.inheritedParametersIds, systemPromptId = w.inheritedSystemPromptId,
+                defaultPromptId = w.inheritedDefaultPromptId)
         }
         if (w.agent != "*N/A" && w.agent.isNotBlank() && w.agent != "*select")
             return agents.firstOrNull { it.name.equals(w.agent, ignoreCase = true) }?.let { agent ->
                 agent.copy(paramsIds = w.inheritedParametersIds + agent.paramsIds,
-                    systemPromptId = w.inheritedSystemPromptId ?: agent.systemPromptId)
+                    systemPromptId = w.inheritedSystemPromptId ?: agent.systemPromptId,
+                    defaultPromptId = w.inheritedDefaultPromptId ?: agent.defaultPromptId)
             }
         return null
     }
@@ -806,12 +816,13 @@ data class Settings(
         isFlock(w) -> getFlockByName(w.flock)?.let { f ->
             getAgentsForFlock(f).filter { isProviderActive(it.provider) }
                 .map { Worker(agent = it.name, inheritedParametersIds = f.paramsIds,
-                    inheritedSystemPromptId = f.systemPromptId) }
+                    inheritedSystemPromptId = f.systemPromptId, inheritedDefaultPromptId = f.defaultPromptId) }
         } ?: emptyList()
         isSwarm(w) -> getSwarmByName(w.swarm)?.let { s ->
             s.members.filter { isProviderActive(it.provider) }
                 .map { Worker(agent = "*N/A", provider = it.provider.id, model = it.model,
-                    inheritedParametersIds = s.paramsIds, inheritedSystemPromptId = s.systemPromptId) }
+                    inheritedParametersIds = s.paramsIds, inheritedSystemPromptId = s.systemPromptId,
+                    inheritedDefaultPromptId = s.defaultPromptId) }
         } ?: emptyList()
         else -> listOf(w)
     }
@@ -827,6 +838,26 @@ data class Settings(
     fun getSwarmByName(name: String) = swarms.firstOrNull { it.name.equals(name, ignoreCase = true) }
     fun getMembersForSwarm(swarm: Swarm) = swarm.members
     fun getMembersForSwarms(swarmIds: Set<String>) = swarmIds.flatMap { id -> getSwarmById(id)?.members ?: emptyList() }.distinctBy { "${it.provider.id}:${it.model}" }
+
+    fun getDefaultPromptById(id: String) = defaultPrompts.find { it.id == id }
+
+    /** Only the selected group contributes defaults; membership alone does not. */
+    fun resolveDefaultPrompt(agentId: String?, sourceType: String? = null, sourceId: String? = null): DefaultPrompt? {
+        val groupId = when (sourceType) {
+            "flock" -> sourceId?.let { getFlockById(it)?.defaultPromptId }
+            "swarm" -> sourceId?.let { getSwarmById(it)?.defaultPromptId }
+            else -> null
+        }
+        return groupId?.let(::getDefaultPromptById)?.takeIf { it.prompt.isNotBlank() }
+            ?: agentId?.let(::getAgentById)?.defaultPromptId?.let(::getDefaultPromptById)?.takeIf { it.prompt.isNotBlank() }
+    }
+
+    fun removeDefaultPrompt(id: String) = copy(
+        defaultPrompts = defaultPrompts.filter { it.id != id },
+        agents = agents.map { if (it.defaultPromptId == id) it.copy(defaultPromptId = null) else it },
+        flocks = flocks.map { if (it.defaultPromptId == id) it.copy(defaultPromptId = null) else it },
+        swarms = swarms.map { if (it.defaultPromptId == id) it.copy(defaultPromptId = null) else it }
+    )
 
     fun getSystemPromptById(id: String) = systemPrompts.find { it.id == id }
     fun getInternalPromptById(id: String) = internalPrompts.find { it.id == id }

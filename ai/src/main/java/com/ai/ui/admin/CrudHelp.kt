@@ -172,6 +172,11 @@ internal val crudHelp: Map<String, HelpContent> = mapOf(
                 "independent fallbacks."
         )
     ),
+    "crud_default_prompts" to crud(
+        "Default prompts",
+        HelpCard("What this manages", "Reusable user prompts with a name and text. Assign one to an agent, flock or swarm using the document icon on its editor. A typed report prompt takes priority; an empty report prompt uses the selected workers' defaults."),
+        HelpCard("Deleting", "Deleting a default prompt also clears its assignments. Saved report executions retain their original prompt text.")
+    ),
     "crud_system_prompts" to crud(
         "System prompts",
         HelpCard(

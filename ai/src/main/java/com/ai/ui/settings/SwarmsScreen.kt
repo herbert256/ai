@@ -46,8 +46,10 @@ fun SwarmEditScreen(
     var selectedMembers by remember(resetTick) { mutableStateOf((swarm?.members ?: emptyList()).sortedWith(memberOrder)) }
     var selectedParamsIds by remember(resetTick) { mutableStateOf(swarm?.paramsIds ?: emptyList()) }
     var selectedSystemPromptId by remember(resetTick) { mutableStateOf(swarm?.systemPromptId) }
+    var selectedDefaultPromptId by remember(resetTick) { mutableStateOf(swarm?.defaultPromptId) }
     var showParamsDialog by remember { mutableStateOf(false) }
     var showSystemPromptDialog by remember { mutableStateOf(false) }
+    var showDefaultPromptDialog by remember { mutableStateOf(false) }
     var showModelPicker by remember { mutableStateOf(false) }
 
     val dup = com.ai.ui.shared.rememberDuplicateMode(
@@ -114,10 +116,16 @@ fun SwarmEditScreen(
             onBack = { showSystemPromptDialog = false }, onNavigateHome = onNavigateHome)
         return
     }
+    if (showDefaultPromptDialog) {
+        DefaultPromptSelectScreen(aiSettings = aiSettings, selectedId = selectedDefaultPromptId,
+            onSelect = { selectedDefaultPromptId = it },
+            onBack = { showDefaultPromptDialog = false }, onNavigateHome = onNavigateHome)
+        return
+    }
 
     val swarmId = remember { java.util.UUID.randomUUID().toString() }
     val current = if (nameError == null && selectedMembers.isNotEmpty())
-        Swarm(if (isAddMode) swarmId else swarm!!.id, name.trim(), selectedMembers, selectedParamsIds.distinct(), selectedSystemPromptId) else null
+        Swarm(if (isAddMode) swarmId else swarm!!.id, name.trim(), selectedMembers, selectedParamsIds.distinct(), selectedSystemPromptId, selectedDefaultPromptId?.takeIf { aiSettings.getDefaultPromptById(it) != null }) else null
     val back = com.ai.ui.shared.rememberConfirmedBack(current, onBack)
     BackHandler { back() }
 
@@ -137,6 +145,7 @@ fun SwarmEditScreen(
             onDelete = if (isAddMode) null else onDelete,
             onClear = { resetTick++ },
             onParameters = { showParamsDialog = true },
+            onDefaultPrompt = { showDefaultPromptDialog = true },
             onSystemPrompt = { showSystemPromptDialog = true }
         )
         Spacer(modifier = Modifier.height(8.dp))

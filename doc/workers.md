@@ -476,3 +476,5 @@ belongs to an unselected group.
 control. `Audit F fallback` pairs it with a valid Agent on the same model to
 exercise recovery. Neither is an automatic worker default. See the
 [configuration audit](configuration-audit-2026-09-12.md).
+
+See [Default prompts](default-prompts.md) for reusable user prompts assigned to Agents, Flocks and Swarms and their report fallback precedence.

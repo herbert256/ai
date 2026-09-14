@@ -50,8 +50,9 @@ object FlockSeed {
                     }
                     val paramsIds = o.getAsJsonArray("paramsIds")?.map { it.asString } ?: emptyList()
                     val systemPromptId = o.get("systemPromptId")?.asString
+                    val defaultPromptId = o.get("defaultPromptId")?.takeUnless { it.isJsonNull }?.asString
                     Flock(id = UUID.randomUUID().toString(), name = name.trim(), agentIds = agentIds,
-                        paramsIds = paramsIds, systemPromptId = systemPromptId)
+                        paramsIds = paramsIds, systemPromptId = systemPromptId, defaultPromptId = defaultPromptId)
                 } catch (e: Exception) {
                     AppLog.w("FlockSeed", "Skipped flock file $file: ${e.message}")
                     null

@@ -951,8 +951,9 @@ Translations) and a substring search box across every topic.
   [parameters.md](parameters.md).
 - **External intent**: another app can launch this one with a
   prompt, a list of agents/flocks/swarms/models, and an action
-  ("view", "share", "browser", "email"). See the in-app **Help**
-  screen for the full intent contract — and
+  ("view", "share", "browser", "email"). See
+  [custom-intent.md](custom-intent.md) and the in-app **Help**
+  screen for the intent contract — and
   [share-target.md](share-target.md) for the standard
   `ACTION_SEND` flow.
 - **Multiple translation runs at once** — the Translate flow lets

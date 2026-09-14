@@ -692,3 +692,7 @@ labels absent evidence instead of opening a missing file.
 outcomes, a diagnostic `policyVersion`, and `previousErrorMessage` where
 needed to reconcile an unchanged automatic block after migration/retry.
 These are personal runtime results, never bundled application defaults.
+
+## Default prompts
+
+`ai_default_prompts` stores the `Settings.defaultPrompts` JSON list (`id`, `name`, `prompt`). Agent, Flock and Swarm JSON includes nullable `defaultPromptId`; missing fields mean no assignment. See [default-prompts.md](default-prompts.md).

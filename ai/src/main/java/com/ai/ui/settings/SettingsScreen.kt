@@ -43,7 +43,7 @@ enum class SettingsSubScreen {
     AI_FLOCKS, AI_FLOCK_EDIT,
     AI_SWARMS, AI_SWARM_EDIT,
     AI_PARAMETERS,
-    AI_SYSTEM_PROMPTS, AI_SYSTEM_PROMPT_EDIT,
+    AI_SYSTEM_PROMPTS, AI_SYSTEM_PROMPT_EDIT, AI_DEFAULT_PROMPTS,
     AI_FAN_PROMPTS_HUB,
     AI_INTERNAL_PROMPTS, AI_INTERNAL_PROMPT_EDIT,
     AI_EXAMPLE_PROMPTS, AI_EXAMPLE_PROMPT_EDIT,
@@ -267,6 +267,7 @@ fun SettingsScreen(
             SettingsSubScreen.AI_AGENTS, SettingsSubScreen.AI_FLOCKS,
             SettingsSubScreen.AI_SWARMS -> currentSubScreen = SettingsSubScreen.AI_WORKERS_SETUP
             SettingsSubScreen.AI_SYSTEM_PROMPTS,
+            SettingsSubScreen.AI_DEFAULT_PROMPTS,
             SettingsSubScreen.AI_EXAMPLE_PROMPTS -> currentSubScreen = SettingsSubScreen.AI_PROMPTS_SETUP
             // The Internal prompts hub now sits between Prompt
             // management and the per-category lists; the Fan out/in
@@ -703,6 +704,12 @@ fun SettingsScreen(
         }
         SettingsSubScreen.AI_SYSTEM_PROMPTS -> {
             com.ai.ui.cruds.prompts.system.SystemPromptsCrud(
+                aiSettings = aiSettings, onSave = onSaveAi,
+                onBack = goBack, onNavigateHome = onNavigateHome
+            )
+        }
+        SettingsSubScreen.AI_DEFAULT_PROMPTS -> {
+            com.ai.ui.cruds.prompts.defaults.DefaultPromptsCrud(
                 aiSettings = aiSettings, onSave = onSaveAi,
                 onBack = goBack, onNavigateHome = onNavigateHome
             )

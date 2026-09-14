@@ -135,6 +135,9 @@ and a manual override layer into one resolved view per
 - **[share-target.md](share-target.md)** — `ACTION_SEND` /
   `ACTION_SEND_MULTIPLE` plumbing, the chooser, and the two landing
   routes (Report, Chat).
+- **[custom-intent.md](custom-intent.md)** — The `ACTION_NEW_REPORT`
+  contract, instruction tags, report presentation content, and the
+  external-request confirmation flow.
 - **[backup-restore.md](backup-restore.md)** — Full-app zip backup
   format, two-pass validate-then-write restore, and the post-restore
   provider catalog merge.
@@ -230,3 +233,5 @@ truth. When in doubt, the relevant files are:
 - `data/BackupManager.kt` — what gets backed up
 
 - [Functional audit fixes — 7 September 2026](functional-audit-remediation-2026-09-07.md) — closure of the 12 partial/open findings and verification details.
+
+- [Default prompts](default-prompts.md) — reusable user prompts assigned to agents, flocks and swarms.

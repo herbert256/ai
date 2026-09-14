@@ -13,6 +13,7 @@ object NavRoutes {
     const val SETTINGS_INTERNAL_PROMPT_EDIT = "settings_internal_prompt_edit/{promptId}"
     const val SETTINGS_PARAMETERS = "settings_parameters"
     const val SETTINGS_SYSTEM_PROMPTS = "settings_system_prompts"
+    const val SETTINGS_DEFAULT_PROMPTS = "settings_default_prompts"
     const val SETTINGS_AGENTS = "settings_agents"
     const val SETTINGS_FLOCKS = "settings_flocks"
     const val SETTINGS_SWARMS = "settings_swarms"

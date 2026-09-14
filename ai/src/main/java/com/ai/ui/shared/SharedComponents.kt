@@ -1129,6 +1129,7 @@ data class TitleBarIcons(
     /** Optional 🎭 system-prompt hook — the paired sibling of
      *  [onParameters]. Opens the system-prompt selector. Null → glyph hidden. */
     val onSystemPrompt: (() -> Unit)? = null,
+    val onDefaultPrompt: (() -> Unit)? = null,
     /** Optional 🧽 clear-form hook (New AI Report). Null → glyph hidden. */
     val onClear: (() -> Unit)? = null,
     /** Optional 📎 attach hook (New AI Report). Null → glyph hidden. */
@@ -1444,6 +1445,7 @@ fun TitleBar(
      *  actions surfaced in the bottom bar (replacing inline buttons). */
     onParameters: (() -> Unit)? = null,
     onSystemPrompt: (() -> Unit)? = null,
+    onDefaultPrompt: (() -> Unit)? = null,
     /** Optional 🧽 clear / 📎 attach / 🚩 validate-prompt hooks (New AI
      *  Report). validatePromptActive grays the 🚩 until activated. */
     onClear: (() -> Unit)? = null,
@@ -1565,6 +1567,7 @@ fun TitleBar(
         onImportReport = onImportReport,
         onParameters = onParameters,
         onSystemPrompt = onSystemPrompt,
+        onDefaultPrompt = onDefaultPrompt,
         onClear = onClear,
         onAttach = onAttach,
         onValidatePrompt = onValidatePrompt,
@@ -2220,6 +2223,8 @@ private fun buildBottomBarIcons(
     // adjacent so they read as a couple wherever a screen exposes them.
     icons.onParameters?.let { add(BottomBarIcon(mi.parameters, Color.Unspecified, it, 28, legendKey = D.PARAMETERS)) }
     icons.onSystemPrompt?.let { add(BottomBarIcon(mi.systemPrompt, Color.Unspecified, it, 28, legendKey = D.SYSTEM_PROMPT)) }
+    icons.onDefaultPrompt?.let { add(BottomBarIcon(mi.document, Color.Unspecified, it, 28, legendKey = D.DOCUMENT,
+        actionHelp = "Default prompt" to "Select or clear the default prompt assigned to this worker.")) }
     icons.onClear?.let { add(BottomBarIcon(mi.clear, Color.Unspecified, it, 28, legendKey = D.CLEAR)) }
     icons.onAttach?.let { add(BottomBarIcon(mi.attach, Color.Unspecified, it, 28, legendKey = D.ATTACH)) }
     // 🚩 validate prompt — grayed until the user activates it (picks a

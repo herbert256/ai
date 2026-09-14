@@ -106,7 +106,8 @@ internal fun NavGraphBuilder.chatRoutes(
                     repository = appViewModel.repository,
                     isVisionCapable = uiState.aiSettings.isVisionCapable(agent.provider, effectiveModel),
                     onNavigateToTraceFile = { navController.navigate(NavRoutes.traceDetail(it)) },
-                    initialUserInput = uiState.chatStarterText,
+                    initialUserInput = uiState.chatStarterText?.takeIf { it.isNotBlank() }
+                        ?: uiState.aiSettings.resolveDefaultPrompt(agent.id)?.prompt,
                     initialUserImageBase64 = uiState.chatStarterImageBase64,
                     initialUserImageMime = uiState.chatStarterImageMime,
                     onConsumeStarter = {

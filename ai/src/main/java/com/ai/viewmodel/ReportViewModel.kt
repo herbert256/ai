@@ -367,7 +367,8 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         val resultId: String,
         val reportAgent: ReportAgent,
         val runtimeAgent: Agent,
-        val resolvedParams: AgentParameters
+        val resolvedParams: AgentParameters,
+        val defaultPrompt: String? = null
     )
 
     fun showGenericAgentSelection(
@@ -533,7 +534,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             }
             val report = ReportStorage.createReportAsync(
                 context = context, title = title.ifBlank { "AI Report" },
-                prompt = aiPrompt, agents = reportTasks.map { it.reportAgent },
+                prompt = reportPromptOverview(aiPrompt, reportTasks), agents = reportTasks.map { it.reportAgent },
                 config = CreateReportConfig(
                     explicitId = plannedReportId,
                     rapportText = rapportText, reportType = reportType, closeText = state.externalCloseHtml,
@@ -563,9 +564,9 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             withTracerTags(reportId = reportId, category = "report/prompt", runId = runId) {
                 appViewModel.updateUiState { it.copy(currentReportId = reportId) }
 
-                iconGen.kickOffLanguageGeneration(context, reportId, aiPrompt, aiSettings)
+                iconGen.kickOffLanguageGeneration(context, reportId, report.prompt, aiSettings)
                 // Generate titles, then the icon, each from the original question.
-                iconGen.kickOffReportTitleGeneration(context, reportId, aiPrompt, aiSettings, thenIcon = true)
+                iconGen.kickOffReportTitleGeneration(context, reportId, report.prompt, aiSettings, thenIcon = true)
 
                 try {
                     runReportPrimaryCalls(
@@ -681,6 +682,10 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             }
             spId?.let { aiSettings.getSystemPromptById(it)?.prompt }
         }
+        fun defaultPrompt(id: String, agentId: String? = null): String? {
+            val selected = selections[id]
+            return aiSettings.resolveDefaultPrompt(agentId, selected?.sourceType, selected?.sourceId)?.prompt
+        }
         val appSp = general.appWideSystemPromptId?.let { aiSettings.getSystemPromptById(it)?.prompt }
         val rmSp = general.reportModelSystemPromptId?.let { aiSettings.getSystemPromptById(it)?.prompt }
 
@@ -705,7 +710,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 ?: appSp
             if (spText != null) params = params.copy(systemPrompt = spText)
 
-            ReportTask(agent.id, ReportAgent(agent.id, agent.name, ea.provider.id, ea.model, ReportStatus.PENDING), ea, params)
+            ReportTask(agent.id, ReportAgent(agent.id, agent.name, ea.provider.id, ea.model, ReportStatus.PENDING), ea, params, defaultPrompt(agent.id, agent.id))
         }
 
         val modelTasks = modelMembers.map { member ->
@@ -738,7 +743,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             ReportTask(sid,
                 ReportAgent(sid, "${member.provider.id} / ${shortModelName(member.model)}", member.provider.id, member.model, ReportStatus.PENDING),
                 Agent(sid, "${member.provider.id} / ${shortModelName(member.model)}", member.provider, member.model, aiSettings.getApiKey(member.provider)),
-                params
+                params, defaultPrompt(sid)
             )
         }
         // Preserve each named Agent's identity, even when Agents share a model.
@@ -1943,7 +1948,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             preparePrimaryExecution(context, prompt, reportTasks, null, emptyList(), aiSettings, appViewModel.repository)
             val report = ReportStorage.createReportAsync(
                 context = context, title = title.ifBlank { "AI Report" },
-                prompt = prompt, agents = reportTasks.map { it.reportAgent },
+                prompt = reportPromptOverview(prompt, reportTasks), agents = reportTasks.map { it.reportAgent },
                 config = CreateReportConfig(reportType = ReportType.CLASSIC, runId = runId)
             )
             val reportId = report.id

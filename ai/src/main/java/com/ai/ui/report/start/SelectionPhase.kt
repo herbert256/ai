@@ -68,9 +68,13 @@ internal fun ColumnScope.SelectionPhase(
      *  time, replaces the per-agent / per-flock / external-intent
      *  system prompt for every agent in this report. */
     selectedSystemPromptId: String? = null,
-    onSystemPromptChange: (String?) -> Unit = {}
+    onSystemPromptChange: (String?) -> Unit = {},
+    useDefaultPrompts: Boolean = false
 ) {
     val context = LocalContext.current
+    val missingDefaultPrompts = if (useDefaultPrompts) models.filter {
+        aiSettings.resolveDefaultPrompt(it.agentId, it.sourceType, it.sourceId) == null
+    } else emptyList()
 
     // Primary CTA hoisted to the top of SelectionPhase — Next
     // (advances to "Report - select workers", where Generate report
@@ -89,12 +93,21 @@ internal fun ColumnScope.SelectionPhase(
     } else {
         OutlinedButton(
             onClick = { onGenerate(ReportType.CLASSIC) },
-            enabled = models.isNotEmpty(),
+            enabled = models.isNotEmpty() && missingDefaultPrompts.isEmpty(),
             modifier = Modifier.fillMaxWidth(),
             colors = AppColors.outlinedButtonColors()
         ) { Text("Next", maxLines = 1, softWrap = false) }
     }
     Spacer(modifier = Modifier.height(8.dp))
+
+    if (useDefaultPrompts) {
+        Text(
+            if (missingDefaultPrompts.isEmpty()) "Each model will use its assigned default prompt."
+            else "${missingDefaultPrompts.size} selected model(s) have no default prompt. Assign one, remove those models, or go back and enter a report prompt.",
+            color = if (missingDefaultPrompts.isEmpty()) AppColors.TextSecondary else AppColors.DangerAccent,
+            fontSize = 12.sp, modifier = Modifier.padding(bottom = 8.dp)
+        )
+    }
 
     // +Report only makes sense when at least one saved report exists
     // — querying ReportStorage on entry. SelectionPhase doesn't get
@@ -271,6 +284,12 @@ internal fun ColumnScope.SelectionPhase(
                     // opacity so the user can always remove a dimmed
                     // model from the list.
                     Text(com.ai.data.MetadataIconsHolder.current.closeMark, color = AppColors.DangerAccent, fontSize = 14.sp, modifier = Modifier.clickable { onRemoveModel(index) })
+                }
+                if (useDefaultPrompts) {
+                    val preset = aiSettings.resolveDefaultPrompt(entry.agentId, entry.sourceType, entry.sourceId)
+                    Text(preset?.let { "Default prompt: ${it.name}\n${it.prompt}" } ?: "No default prompt assigned",
+                        color = if (preset == null) AppColors.DangerAccent else AppColors.TextSecondary,
+                        fontSize = 12.sp, modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp))
                 }
                 HorizontalDivider(color = AppColors.TextDisabled, thickness = 1.dp)
             }

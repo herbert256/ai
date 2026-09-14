@@ -81,8 +81,8 @@ fun SetupScreen(
                     onClick = { onNavigate(SettingsSubScreen.AI_WORKERS_SETUP) }, enabled = hasApiKey)
             }
             run {
-                val promptsCount = aiSettings.systemPrompts.size + aiSettings.internalPrompts.size
-                SetupNavCard(MetadataDefaults.DOCUMENT, "Prompt management", "System, Meta, Fan-out/in, Other and Example prompts", "$promptsCount",
+                val promptsCount = aiSettings.systemPrompts.size + aiSettings.defaultPrompts.size + aiSettings.internalPrompts.size + aiSettings.examplePrompts.size
+                SetupNavCard(MetadataDefaults.DOCUMENT, "Prompt management", "Default, System, Internal and Example prompts", "$promptsCount",
                     onClick = { onNavigate(SettingsSubScreen.AI_PROMPTS_SETUP) })
             }
             SetupNavCard(MetadataDefaults.PARAMETERS, "Parameters", "Parameter presets", "${aiSettings.parameters.size}",
@@ -382,7 +382,7 @@ fun PromptsSetupScreen(
     Column(
         modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
-        TitleBar(helpTopic = "setup_prompts", title = "Prompt management", subject = "System, internal and example prompts", onBackClick = onBack)
+        TitleBar(helpTopic = "setup_prompts", title = "Prompt management", subject = "Default, system, internal and example prompts", onBackClick = onBack)
 
         fun countByCategory(c: String) = aiSettings.internalPrompts.count { it.category == c }
         val internalTotal = countByCategory("meta") + countByCategory("meta_compare") +
@@ -392,6 +392,8 @@ fun PromptsSetupScreen(
             countByCategory("internal") + countByCategory("workers") + countByCategory("alt")
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            ModelsSetupNavCard(MetadataDefaults.DOCUMENT, "Default prompts", "Reusable prompts for agents, flocks and swarms", "${aiSettings.defaultPrompts.size}",
+                onClick = { onNavigate(SettingsSubScreen.AI_DEFAULT_PROMPTS) })
             ModelsSetupNavCard(MetadataDefaults.SPEECH, "System Prompts", "Reusable system prompts", "${aiSettings.systemPrompts.size}",
                 onClick = { onNavigate(SettingsSubScreen.AI_SYSTEM_PROMPTS) })
             ModelsSetupNavCard(MetadataDefaults.MODEL_ICON, "Internal prompts", "Meta, Fan out/in, Worker, and Other internal templates consumed by app features", "$internalTotal",

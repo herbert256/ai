@@ -52,6 +52,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         val listSwarmType: Type = object : TypeToken<List<Swarm>>() {}.type
         val listParametersType: Type = object : TypeToken<List<Parameters>>() {}.type
         val listSystemPromptType: Type = object : TypeToken<List<SystemPrompt>>() {}.type
+        val listDefaultPromptType: Type = object : TypeToken<List<DefaultPrompt>>() {}.type
         val listInternalPromptType: Type = object : TypeToken<List<InternalPrompt>>() {}.type
         val listExamplePromptType: Type = object : TypeToken<List<ExamplePrompt>>() {}.type
         val listModelTypeOverrideType: Type = object : TypeToken<List<ModelTypeOverride>>() {}.type
@@ -288,6 +289,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             swarms = loadList(KEY_AI_SWARMS, TypeTokens.listSwarmType),
             parameters = loadList(KEY_AI_PARAMETERS, TypeTokens.listParametersType),
             systemPrompts = loadList(KEY_AI_SYSTEM_PROMPTS, TypeTokens.listSystemPromptType),
+            defaultPrompts = loadList(KEY_AI_DEFAULT_PROMPTS, TypeTokens.listDefaultPromptType),
             internalPrompts = loadList<InternalPrompt>(KEY_AI_INTERNAL_PROMPTS, TypeTokens.listInternalPromptType).map { raw ->
                 // Gson allocates without the constructor, so a non-null Kotlin
                 // field is left null when older stored JSON predates it (e.g.
@@ -448,6 +450,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             putCatalogString(KEY_AI_SWARMS, gson.toJson(settings.swarms))
             putCatalogString(KEY_AI_PARAMETERS, gson.toJson(settings.parameters))
             putCatalogString(KEY_AI_SYSTEM_PROMPTS, gson.toJson(settings.systemPrompts))
+            putCatalogString(KEY_AI_DEFAULT_PROMPTS, gson.toJson(settings.defaultPrompts))
             putCatalogString(KEY_AI_INTERNAL_PROMPTS, gson.toJson(settings.internalPrompts))
             putCatalogString(KEY_AI_EXAMPLE_PROMPTS, gson.toJson(settings.examplePrompts))
             putCatalogString(KEY_AI_ENDPOINTS, gson.toJson(settings.endpoints.mapKeys { it.key.id }))
@@ -1174,6 +1177,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         private const val KEY_AI_SWARMS = "ai_swarms"
         private const val KEY_AI_PARAMETERS = "ai_parameters"
         private const val KEY_AI_SYSTEM_PROMPTS = "ai_system_prompts"
+        private const val KEY_AI_DEFAULT_PROMPTS = "ai_default_prompts"
         // Persisted under the legacy "ai_meta_prompts" key so users
         // who already have seeded entries from the previous build don't
         // lose them across the rename to InternalPrompt.

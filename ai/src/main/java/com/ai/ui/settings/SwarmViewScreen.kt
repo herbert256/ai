@@ -108,7 +108,8 @@ fun SwarmViewScreen(
                 WorkerSharedCards(
                     aiSettings = aiSettings,
                     paramsIds = swarm.paramsIds,
-                    systemPromptId = swarm.systemPromptId
+                    systemPromptId = swarm.systemPromptId,
+                    defaultPromptId = swarm.defaultPromptId
                 )
             }
         }

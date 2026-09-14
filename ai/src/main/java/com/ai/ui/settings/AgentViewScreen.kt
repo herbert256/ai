@@ -79,7 +79,8 @@ fun AgentViewScreen(
                 WorkerSharedCards(
                     aiSettings = aiSettings,
                     paramsIds = agent.paramsIds,
-                    systemPromptId = agent.systemPromptId
+                    systemPromptId = agent.systemPromptId,
+                    defaultPromptId = agent.defaultPromptId
                 )
             }
         }

@@ -1,6 +1,22 @@
 package com.ai.ui.admin
 
 internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
+    "select_default_prompt" to HelpContent(
+        title = "Help - Select default prompt",
+        cards = listOf(
+            HelpCard("Selecting", "Tap one saved Default prompt for this agent, flock or swarm. The current selection appears below the title. Back returns to the worker editor; Save stores the assignment."),
+            HelpCard("Actions", "The delete icon clears the assignment. The edit icon opens Default prompts management, where you can create, edit, duplicate or delete presets."),
+            HelpCard("Usage", "Leave the report prompt empty to use each selected worker's default. A typed report prompt takes priority. When selecting a flock, its default takes priority over each member agent's default; choosing an agent directly uses its own default. A new agent chat starts with an editable draft of its default prompt.")
+        )
+    ),
+    "default_prompt_edit" to HelpContent(
+        title = "Help - Default prompt edit",
+        cards = listOf(
+            HelpCard("Fields", "Name and Default prompt text are required. Names must be unique, ignoring case and surrounding spaces."),
+            HelpCard("Actions", "Create or Save stores the prompt. Duplicate starts a new copy, Reset restores the form, and Delete removes the prompt and clears its assignments on agents, flocks and swarms."),
+            HelpCard("Usage", "Assign this reusable user prompt from the document icon on a worker's editor. Reports use it when no report prompt was entered. Existing report retries retain the text saved with their original run.")
+        )
+    ),
     "select_parameters" to HelpContent(
         title = "Help - Configure API parameters",
         cards = listOf(
@@ -577,6 +593,7 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
         title = "Help - Prompt management (setup)",
         cards = listOf(
             HelpCard("Overview", "Prompt-management hub. Cards open reusable System prompts, grouped Internal prompts, Fan out/in prompt groups, Worker prompts, Alternative prompts, Compare prompts, and Example prompts."),
+            HelpCard("Default prompts", "Reusable user prompts assigned to agents, flocks and swarms. Leave the report prompt blank to use them; a typed prompt takes priority. Count = number of default prompts."),
             HelpCard("System Prompts", "Direct CRUD list. Count = number of system prompts."),
             HelpCard("Internal prompts", "App-owned templates referenced by name + category. Categories include meta, meta_compare, fan_out, fan_in, workers, alt, and internal."),
             HelpCard("Fan out/in prompts", "Forwards to a sub-hub holding fan_out and fan_in CRUDs. Fan out is per answerer/source pair; Fan in combines fan-out responses into a larger result."),

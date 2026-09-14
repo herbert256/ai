@@ -74,6 +74,7 @@ fun AgentEditScreen(
     var selectedEndpointId by remember(resetTick) { mutableStateOf(agent?.endpointId) }
     var selectedParamsIds by remember(resetTick) { mutableStateOf(agent?.paramsIds ?: emptyList()) }
     var selectedSystemPromptId by remember(resetTick) { mutableStateOf(agent?.systemPromptId) }
+    var selectedDefaultPromptId by remember(resetTick) { mutableStateOf(agent?.defaultPromptId) }
     var isTesting by remember { mutableStateOf(false) }
     var testResult by remember { mutableStateOf<String?>(null) }
     var testSuccess by remember { mutableStateOf(false) }
@@ -84,6 +85,7 @@ fun AgentEditScreen(
     var pendingEndpoints by remember(resetTick) { mutableStateOf<List<Pair<AppService, com.ai.model.Endpoint>>>(emptyList()) }
     var showParamsDialog by remember { mutableStateOf(false) }
     var showSystemPromptDialog by remember { mutableStateOf(false) }
+    var showDefaultPromptDialog by remember { mutableStateOf(false) }
     // Overlay: 0=none, 1=provider, 2=model
     var overlayMode by remember { mutableIntStateOf(0) }
 
@@ -122,6 +124,12 @@ fun AgentEditScreen(
             onBack = { showSystemPromptDialog = false }, onNavigateHome = onNavigateHome)
         return
     }
+    if (showDefaultPromptDialog) {
+        DefaultPromptSelectScreen(aiSettings = aiSettings, selectedId = selectedDefaultPromptId,
+            onSelect = { selectedDefaultPromptId = it },
+            onBack = { showDefaultPromptDialog = false }, onNavigateHome = onNavigateHome)
+        return
+    }
 
     // Full-screen overlays
     when (overlayMode) {
@@ -147,7 +155,7 @@ fun AgentEditScreen(
     }
     val agentId = remember { java.util.UUID.randomUUID().toString() }
     val current = if (nameError == null)
-        Agent(if (isAddMode) agentId else agent!!.id, name.trim(), selectedProvider, model, "", selectedEndpointId, selectedParamsIds, selectedSystemPromptId)
+        Agent(if (isAddMode) agentId else agent!!.id, name.trim(), selectedProvider, model, "", selectedEndpointId, selectedParamsIds, selectedSystemPromptId, selectedDefaultPromptId?.takeIf { aiSettings.getDefaultPromptById(it) != null })
     else null
     // Back confirms "Discard changes?" when edited; the Save button bypasses it.
     val back = com.ai.ui.shared.rememberConfirmedBack(current, onBack)
@@ -170,6 +178,7 @@ fun AgentEditScreen(
             onDelete = if (isAddMode) null else onDelete,
             onClear = { resetTick++ },
             onParameters = { showParamsDialog = true },
+            onDefaultPrompt = { showDefaultPromptDialog = true },
             onSystemPrompt = { showSystemPromptDialog = true }
         )
         // Save / Create CTA hoisted to the top — the form below can be long

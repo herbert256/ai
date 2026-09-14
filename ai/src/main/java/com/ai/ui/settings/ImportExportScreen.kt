@@ -154,7 +154,8 @@ private fun parseFlocks(arr: JsonArray?, agents: List<Agent>): List<Flock> {
             }
             val paramsIds = o.getAsJsonArray("paramsIds")?.map { it.asString } ?: emptyList()
             val systemPromptId = o.get("systemPromptId")?.asString
-            out.add(Flock(id = id, name = name, agentIds = agentIds, paramsIds = paramsIds, systemPromptId = systemPromptId))
+            val defaultPromptId = o.get("defaultPromptId")?.takeUnless { it.isJsonNull }?.asString
+            out.add(Flock(id = id, name = name, agentIds = agentIds, paramsIds = paramsIds, systemPromptId = systemPromptId, defaultPromptId = defaultPromptId))
         } catch (e: Exception) {
             AppLog.w("ImportExport", "Skipped flock entry: ${e.message}")
         }
@@ -177,6 +178,7 @@ private fun flocksToJsonTree(settings: Settings): JsonArray {
             })
             add("paramsIds", gson.toJsonTree(f.paramsIds))
             f.systemPromptId?.let { addProperty("systemPromptId", it) }
+            f.defaultPromptId?.let { addProperty("defaultPromptId", it) }
         })
     }
     return arr
@@ -734,6 +736,27 @@ private fun applySystemPrompts(arr: JsonArray, working: Settings): SettingsImpor
     return SettingsImportResult(working.copy(systemPrompts = merged), incoming.size, replaced)
 }
 
+private fun buildDefaultPromptsTree(s: Settings): JsonArray =
+    createAppGson().toJsonTree(s.defaultPrompts).asJsonArray
+
+private fun applyDefaultPrompts(arr: JsonArray, working: Settings): SettingsImportResult {
+    val gson = createAppGson()
+    val incoming = mutableListOf<DefaultPrompt>()
+    arr.forEach { el ->
+        try {
+            val prompt = gson.fromJson(el, DefaultPrompt::class.java)
+            if (prompt != null && !prompt.id.isNullOrBlank() && !prompt.name.isNullOrBlank() && !prompt.prompt.isNullOrBlank()) {
+                incoming.add(prompt.copy(name = prompt.name.trim()))
+            }
+        }
+        catch (e: Exception) { AppLog.w("ImportExport", "Skipped default prompt entry: ${e.message}") }
+    }
+    val incomingIds = incoming.map { it.id }.toSet()
+    val replaced = working.defaultPrompts.count { it.id in incomingIds }
+    val merged = working.defaultPrompts.filterNot { it.id in incomingIds } + incoming
+    return SettingsImportResult(working.copy(defaultPrompts = merged), incoming.size, replaced)
+}
+
 private fun buildBlockedModelsTree(s: Settings): JsonArray =
     createAppGson().toJsonTree(s.blockedModels).asJsonArray
 
@@ -822,6 +845,7 @@ private fun buildAllBundle(
     bundle.add("endpoints", buildEndpointsTree(aiSettings))
     bundle.add("parameters", buildParametersTree(aiSettings))
     bundle.add("systemPrompts", buildSystemPromptsTree(aiSettings))
+    bundle.add("defaultPrompts", buildDefaultPromptsTree(aiSettings))
     bundle.add("modelTypeOverrides", buildModelTypeOverridesTree(aiSettings))
     bundle.add("modelCooldowns", buildModelCooldownsTree())
     bundle.add("blockedModels", buildBlockedModelsTree(aiSettings))
@@ -1058,6 +1082,13 @@ fun ImportExportScreen(
         shareExportText(context, "ai_system_prompts-${exportTimestamp()}.json", "application/json", "Share system prompts",
             createAppGson(prettyPrint = true).toJson(tree))
         Toast.makeText(context, "System prompts ready to share (${aiSettings.systemPrompts.size} entries)", Toast.LENGTH_SHORT).show()
+    }
+
+    fun exportDefaultPrompts() {
+        val tree = buildDefaultPromptsTree(aiSettings)
+        shareExportText(context, "ai_default_prompts-${exportTimestamp()}.json", "application/json", "Share default prompts",
+            createAppGson(prettyPrint = true).toJson(tree))
+        Toast.makeText(context, "Default prompts ready to share (${aiSettings.defaultPrompts.size} entries)", Toast.LENGTH_SHORT).show()
     }
 
     fun exportModelTypeOverrides() {
@@ -1398,6 +1429,27 @@ fun ImportExportScreen(
                     ).show()
                 }
             }
+            "defaultPrompts" -> {
+                val json = readFromUri(uri)
+                if (json.isNullOrBlank()) { Toast.makeText(context, "File is empty", Toast.LENGTH_SHORT).show(); return@rememberLauncherForActivityResult }
+                val arr = try { JsonParser.parseString(json) as? JsonArray } catch (_: Exception) { null }
+                if (arr == null) {
+                    Toast.makeText(context, "Default prompts file is not a JSON array", Toast.LENGTH_LONG).show()
+                    return@rememberLauncherForActivityResult
+                }
+                val res = applyDefaultPrompts(arr, aiSettings)
+                if (res.imported == 0) {
+                    Toast.makeText(context, "No default prompts found in file", Toast.LENGTH_LONG).show()
+                } else {
+                    onSave(res.settings)
+                    Toast.makeText(
+                        context,
+                        "Imported ${res.imported} default prompt${if (res.imported == 1) "" else "s"}" +
+                            replacementSuffix(res.replaced),
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+            }
             "modelTypeOverrides" -> {
                 val json = readFromUri(uri)
                 if (json.isNullOrBlank()) { Toast.makeText(context, "File is empty", Toast.LENGTH_SHORT).show(); return@rememberLauncherForActivityResult }
@@ -1653,6 +1705,14 @@ fun ImportExportScreen(
                         }
                     }
 
+                    root.getAsJsonArray("defaultPrompts")?.let { arr ->
+                        val res = applyDefaultPrompts(arr, working)
+                        if (res.imported > 0) {
+                            working = res.settings
+                            parts.add(importPart(res.imported, "default prompts", res.replaced))
+                        }
+                    }
+
                     root.getAsJsonArray("modelTypeOverrides")?.let { arr ->
                         val res = applyModelTypeOverrides(arr, working)
                         if (res.imported > 0) {
@@ -1865,6 +1925,9 @@ fun ImportExportScreen(
                 ImportExportRow("System prompts", importOnly,
                     onExport = { exportSystemPrompts() },
                     onImport = { importType = "systemPrompts"; importFileLauncher.launch(arrayOf("application/json", "text/*")) })
+                ImportExportRow("Default prompts", importOnly,
+                    onExport = { exportDefaultPrompts() },
+                    onImport = { importType = "defaultPrompts"; importFileLauncher.launch(arrayOf("application/json", "text/*")) })
                 ImportExportRow("Endpoints", importOnly,
                     onExport = { exportEndpoints() },
                     onImport = { importType = "endpoints"; importFileLauncher.launch(arrayOf("application/json", "text/*")) })

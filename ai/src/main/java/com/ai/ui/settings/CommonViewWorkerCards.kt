@@ -22,7 +22,7 @@ import com.ai.model.Settings
 import com.ai.ui.shared.AppColors
 
 /**
- * Shared System-prompt + Parameters cards rendered at the bottom of
+ * Shared Default-prompt + System-prompt + Parameters cards rendered at the bottom of
  * every Worker view screen (AgentView / FlockView / SwarmView). All
  * three carry the same `paramsIds` + `systemPromptId` shape so the
  * rendering is identical.
@@ -31,8 +31,32 @@ import com.ai.ui.shared.AppColors
 internal fun WorkerSharedCards(
     aiSettings: Settings,
     paramsIds: List<String>,
-    systemPromptId: String?
+    systemPromptId: String?,
+    defaultPromptId: String?
 ) {
+    defaultPromptId?.let { id ->
+        val sp = aiSettings.getDefaultPromptById(id)
+        if (sp != null) {
+            Column(
+                modifier = Modifier.fillMaxWidth()
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(AppColors.CardBackground)
+                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Text("Default prompt", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AppColors.InfoAccent)
+                Text(sp.name, fontSize = 13.sp, color = AppColors.TextPrimary, fontWeight = FontWeight.SemiBold)
+                if (sp.prompt.isNotBlank()) {
+                    Text(
+                        sp.prompt,
+                        fontSize = 12.sp, color = AppColors.TextSecondary,
+                        maxLines = 8, overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+        }
+    }
+
     systemPromptId?.let { id ->
         val sp = aiSettings.getSystemPromptById(id)
         if (sp != null) {

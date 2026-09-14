@@ -316,6 +316,11 @@ internal fun NavGraphBuilder.settingsAdminRoutes(
                 onNavigateToHelpTopic = { id -> navController.navigate(NavRoutes.helpForTopic(id)) },
                 initialSubScreen = SettingsSubScreen.AI_SYSTEM_PROMPTS)
         }
+        composable(NavRoutes.SETTINGS_DEFAULT_PROMPTS) {
+            SettingsScreenNav(viewModel = appViewModel, onNavigateBack = safePopBack, onNavigateHome = navigateHome,
+                onNavigateToHelpTopic = { id -> navController.navigate(NavRoutes.helpForTopic(id)) },
+                initialSubScreen = SettingsSubScreen.AI_DEFAULT_PROMPTS)
+        }
         composable(NavRoutes.SETTINGS_FLOCK_EDIT) { entry ->
             val fid = entry.arguments?.getString("flockId")
             SettingsScreenNav(viewModel = appViewModel, onNavigateBack = safePopBack, onNavigateHome = navigateHome,

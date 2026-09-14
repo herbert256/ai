@@ -135,6 +135,7 @@ verified against the current source. The complete set (see
 | [doc/throttle.md](doc/throttle.md) | Per-provider rate-limit + concurrency caps, 429 retry, timeouts |
 | [doc/translation.md](doc/translation.md) | TRANSLATE secondary-kind, multi-language fan-out, translation runs |
 | [doc/share-target.md](doc/share-target.md) | `ACTION_SEND` / `ACTION_SEND_MULTIPLE` flow |
+| [doc/custom-intent.md](doc/custom-intent.md) | `ACTION_NEW_REPORT` contract, instruction tags, and confirmation flow |
 | [doc/backup-restore.md](doc/backup-restore.md) | Backup zip format, two-pass validate-then-write restore |
 | [doc/providers.md](doc/providers.md) | All 91 cloud providers from `assets/providers/` |
 | [doc/repositories.md](doc/repositories.md) | The twelve external metadata sources |

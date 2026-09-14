@@ -111,7 +111,9 @@ internal fun ReportSelectModelsScreen(
             onSystemPromptChange = onSystemPromptChange,
             onSaveSelectionAsSwarm = onSaveSelectionAsSwarm,
             rowParams = rowParams,
-            onPickRowParams = onPickRowParams
+            onPickRowParams = onPickRowParams,
+            useDefaultPrompts = uiState.editModeReportId == null &&
+                uiState.genericPromptText.replace(com.ai.viewmodel.AppViewModel.USER_TAG_REGEX, "").isBlank()
         )
     }
 }

@@ -143,6 +143,45 @@ fun SystemPromptSelectScreen(
     }
 }
 
+@Composable
+fun DefaultPromptSelectScreen(
+    aiSettings: Settings,
+    selectedId: String?,
+    onSelect: (String?) -> Unit,
+    onBack: () -> Unit,
+    @Suppress("UNUSED_PARAMETER") onNavigateHome: () -> Unit
+) {
+    BackHandler { onBack() }
+    val navigate = LocalNavigateToRoute.current
+    val activeName = selectedId?.let { id -> aiSettings.defaultPrompts.firstOrNull { it.id == id }?.name }
+
+    Column(
+        modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(16.dp)
+    ) {
+        TitleBar(
+            helpTopic = "select_default_prompt",
+            title = "Select default prompt",
+            subject = activeName?.let { "Current active: $it" },
+            onBackClick = onBack,
+            onDelete = if (selectedId != null) ({ onSelect(null) }) else null,
+            onEdit = { navigate(NavRoutes.SETTINGS_DEFAULT_PROMPTS) }
+        )
+        PresetPagedList(
+            count = aiSettings.defaultPrompts.size,
+            emptyMessage = "No default prompts configured"
+        ) { index ->
+            val sp = aiSettings.defaultPrompts[index]
+            PresetRow(
+                name = sp.name,
+                detail = sp.prompt.take(80),
+                selected = selectedId == sp.id,
+                multiSelect = false,
+                onClick = { onSelect(sp.id) }
+            )
+        }
+    }
+}
+
 /**
  * Shared paged list body. Renders as many fixed-height rows as fit the
  * screen; swipe (horizontal or vertical) pages through the rest. Mirrors

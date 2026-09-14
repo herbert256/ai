@@ -385,3 +385,6 @@ reuses the `view_ai_report` help topic rather than defining its own.
 |---|---|
 | Read and finish report | <report title> · Answers / Analysis / Conclusion |
 | Choose content to translate | Selected item count, then choose a language |
+| Default prompts | Reusable worker prompts |
+| Add Default Prompt / Edit Default Prompt | Name of the prompt being edited |
+| Select default prompt | Current active assignment |

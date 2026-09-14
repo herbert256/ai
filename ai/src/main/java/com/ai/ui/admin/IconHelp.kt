@@ -81,6 +81,7 @@ internal val SCREEN_ICON_HELP: Map<String, List<Triple<String, String, String>>>
     "agent_edit" to listOf(
         Triple("🌡️", "Parameters", "Pick the parameter preset(s) for this agent."),
         Triple("🎭", "System prompt", "Pick this agent's system prompt."),
+        Triple("📄", "Default prompt", "Pick this agent's default user prompt."),
         Triple("🧽", "Reset", "Discard your edits and restore the saved agent."),
         Triple("👯", "Duplicate", "Duplicate this agent as a new one (editing an existing agent)."),
         Triple("👁", "View", "Open this agent's read-only view (editing an existing agent)."),
@@ -89,6 +90,7 @@ internal val SCREEN_ICON_HELP: Map<String, List<Triple<String, String, String>>>
     "flock_edit" to listOf(
         Triple("🌡️", "Parameters", "Pick the parameter preset(s) for this flock."),
         Triple("🎭", "System prompt", "Pick this flock's system prompt."),
+        Triple("📄", "Default prompt", "Pick this flock's default user prompt."),
         Triple("🧽", "Reset", "Discard your edits and restore the saved flock."),
         Triple("👯", "Duplicate", "Duplicate this flock as a new one (editing an existing flock)."),
         Triple("👁", "View", "Open this flock's read-only view (editing an existing flock)."),
@@ -97,6 +99,7 @@ internal val SCREEN_ICON_HELP: Map<String, List<Triple<String, String, String>>>
     "swarm_edit" to listOf(
         Triple("🌡️", "Parameters", "Pick the parameter preset(s) for this swarm."),
         Triple("🎭", "System prompt", "Pick this swarm's system prompt."),
+        Triple("📄", "Default prompt", "Pick this swarm's default user prompt."),
         Triple("🧽", "Reset", "Discard your edits and restore the saved swarm."),
         Triple("👯", "Duplicate", "Duplicate this swarm as a new one (editing an existing swarm)."),
         Triple("👁", "View", "Open this swarm's read-only view (editing an existing swarm)."),
@@ -111,6 +114,9 @@ internal val SCREEN_ICON_HELP: Map<String, List<Triple<String, String, String>>>
         Triple("🧽", "Reset", "Reset the form — clears the fields when adding, restores the saved values when editing."),
     ),
     "system_prompt_edit" to listOf(
+        Triple("🧽", "Reset", "Reset the form — clears the fields when adding, restores the saved values when editing."),
+    ),
+    "default_prompt_edit" to listOf(
         Triple("🧽", "Reset", "Reset the form — clears the fields when adding, restores the saved values when editing."),
     ),
     "example_prompt_edit" to listOf(
@@ -177,6 +183,12 @@ internal val SCREEN_ICON_HELP: Map<String, List<Triple<String, String, String>>>
         Triple("✏️", "Edit", "Edit this system prompt."),
         Triple("👯", "Duplicate", "Duplicate this system prompt as a new one."),
         Triple("🗑", "Delete", "Delete this system prompt."),
+    ),
+    "crud_default_prompts" to listOf(
+        Triple("🆕", "Add", "Add a new default prompt."),
+        Triple("✏️", "Edit", "Edit this default prompt."),
+        Triple("👯", "Duplicate", "Duplicate this default prompt as a new one."),
+        Triple("🗑", "Delete", "Delete this default prompt."),
     ),
     "crud_example_prompts" to listOf(
         Triple("🆕", "Add", "Add a new example prompt."),

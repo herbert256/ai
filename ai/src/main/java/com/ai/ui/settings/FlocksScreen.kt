@@ -48,8 +48,10 @@ fun FlockEditScreen(
     var searchQuery by remember { mutableStateOf("") }
     var selectedParamsIds by remember(resetTick) { mutableStateOf(flock?.paramsIds ?: emptyList()) }
     var selectedSystemPromptId by remember(resetTick) { mutableStateOf(flock?.systemPromptId) }
+    var selectedDefaultPromptId by remember(resetTick) { mutableStateOf(flock?.defaultPromptId) }
     var showParamsDialog by remember { mutableStateOf(false) }
     var showSystemPromptDialog by remember { mutableStateOf(false) }
+    var showDefaultPromptDialog by remember { mutableStateOf(false) }
 
     val dup = com.ai.ui.shared.rememberDuplicateMode(
         isEditingExisting = flock != null,
@@ -93,10 +95,16 @@ fun FlockEditScreen(
             onBack = { showSystemPromptDialog = false }, onNavigateHome = onNavigateHome)
         return
     }
+    if (showDefaultPromptDialog) {
+        DefaultPromptSelectScreen(aiSettings = aiSettings, selectedId = selectedDefaultPromptId,
+            onSelect = { selectedDefaultPromptId = it },
+            onBack = { showDefaultPromptDialog = false }, onNavigateHome = onNavigateHome)
+        return
+    }
 
     val flockId = remember { java.util.UUID.randomUUID().toString() }
     val current = if (nameError == null && selectedKnownAgentIds.isNotEmpty())
-        Flock(if (isAddMode) flockId else flock!!.id, name.trim(), selectedKnownAgentIds.toList(), selectedParamsIds.distinct(), selectedSystemPromptId) else null
+        Flock(if (isAddMode) flockId else flock!!.id, name.trim(), selectedKnownAgentIds.toList(), selectedParamsIds.distinct(), selectedSystemPromptId, selectedDefaultPromptId?.takeIf { aiSettings.getDefaultPromptById(it) != null }) else null
     val back = com.ai.ui.shared.rememberConfirmedBack(current, onBack)
     BackHandler { back() }
 
@@ -115,6 +123,7 @@ fun FlockEditScreen(
             onDelete = if (isAddMode) null else onDelete,
             onClear = { resetTick++ },
             onParameters = { showParamsDialog = true },
+            onDefaultPrompt = { showDefaultPromptDialog = true },
             onSystemPrompt = { showSystemPromptDialog = true }
         )
         Spacer(modifier = Modifier.height(8.dp))

@@ -109,7 +109,8 @@ fun FlockViewScreen(
                 WorkerSharedCards(
                     aiSettings = aiSettings,
                     paramsIds = flock.paramsIds,
-                    systemPromptId = flock.systemPromptId
+                    systemPromptId = flock.systemPromptId,
+                    defaultPromptId = flock.defaultPromptId
                 )
             }
         }

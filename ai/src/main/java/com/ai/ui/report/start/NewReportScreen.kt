@@ -110,6 +110,11 @@ fun NewReportScreen(
     }
     val rawPrompt = remember { initialPrompt.ifEmpty { prefs.getString(SettingsPreferences.KEY_LAST_AI_REPORT_PROMPT, "") ?: "" } }
     var userTagBlock by rememberSaveable { mutableStateOf(userTagRegex.find(rawPrompt)?.value ?: "") }
+    val hasWorkerDefaultPrompt = uiState.aiSettings.run {
+        agents.any { resolveDefaultPrompt(it.id) != null } ||
+            flocks.any { resolveDefaultPrompt(null, "flock", it.id) != null } ||
+            swarms.any { resolveDefaultPrompt(null, "swarm", it.id) != null }
+    }
     var prompt by rememberSaveable { mutableStateOf(rawPrompt.replace(userTagRegex, "").trim()) }
     // Draft autosave — the fields used to persist only inside the Next
     // handler, so backing out (or process death) lost a long draft and a
@@ -368,18 +373,23 @@ fun NewReportScreen(
             Spacer(modifier = Modifier.height(12.dp))
         }
 
+        if (prompt.isBlank() && moderationModel != null && hasWorkerDefaultPrompt) {
+            Text("Enter a prompt to validate it, or clear Validate prompt to use worker defaults.",
+                color = AppColors.TextSecondary, fontSize = 12.sp)
+        }
+
         // Primary CTA hoisted into its own full-width row so the
         // "advance" affordance is always reachable without picking
         // it out of the Clear / 📎 row.
         OutlinedButton(
             onClick = next@{
                     val titleRequired = !uiState.generalSettings.reportTitleAiOn()
-                    if ((titleRequired && title.isBlank()) || prompt.isBlank() || isModerating) return@next
+                    if ((titleRequired && title.isBlank()) || (prompt.isBlank() && (!hasWorkerDefaultPrompt || moderationModel != null)) || isModerating) return@next
                     val visiblePrompt = prompt.trim()
                     val fullPrompt = if (userTagBlock.isNotBlank()) "$visiblePrompt\n$userTagBlock" else visiblePrompt
                     prefs.edit().putString(SettingsPreferences.KEY_LAST_AI_REPORT_TITLE, title)
                         .putString(SettingsPreferences.KEY_LAST_AI_REPORT_PROMPT, visiblePrompt).apply()
-                    SettingsPreferences(prefs, context.filesDir).savePromptToHistory(title, visiblePrompt)
+                    if (visiblePrompt.isNotBlank()) SettingsPreferences(prefs, context.filesDir).savePromptToHistory(title, visiblePrompt)
 
                     fun proceed() {
                         reportViewModel.showGenericAgentSelection(
@@ -404,7 +414,7 @@ fun NewReportScreen(
                     }
 
                     val mod = moderationModel
-                    if (mod == null) { proceed(); return@next }
+                    if (mod == null || visiblePrompt.isBlank()) { proceed(); return@next }
                     coroutineScope.launch {
                         isModerating = true
                         try {
@@ -434,7 +444,7 @@ fun NewReportScreen(
                     }
                 },
             enabled = (uiState.generalSettings.reportTitleAiOn() || title.isNotBlank())
-                && prompt.isNotBlank() && !isModerating,
+                && (prompt.isNotBlank() || (hasWorkerDefaultPrompt && moderationModel == null)) && !isModerating,
             modifier = Modifier.fillMaxWidth(),
             colors = AppColors.outlinedButtonColors()
         ) {
@@ -555,7 +565,7 @@ fun NewReportScreen(
         Spacer(modifier = Modifier.height(16.dp))
         OutlinedTextField(
             value = prompt, onValueChange = { prompt = it }, label = { Text("Prompt") },
-            placeholder = { Text("Enter your prompt...") },
+            placeholder = { Text(if (hasWorkerDefaultPrompt) "Enter a prompt, or leave blank to use each selected worker’s default prompt" else "Enter your prompt...") },
             modifier = Modifier.fillMaxWidth().weight(1f), minLines = 10, colors = AppColors.outlinedFieldColors()
         )
     }
