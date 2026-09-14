@@ -215,14 +215,15 @@ internal val developerHelp: Map<String, HelpContent> = mapOf(
     "external_intent" to HelpContent(
         title = "Help - External request",
         cards = listOf(
-            HelpCard("Overview", "Confirmation gate shown before this app fulfils a cross-app share / `ACTION_SEND` request. Another app is asking AI to generate a report with instructions embedded in the intent — review what will happen before spending API credits."),
+            HelpCard("Overview", "Confirmation gate shown before this app fulfils a `com.ai.ACTION_NEW_REPORT` request. Another app is asking AI to generate a report with instructions embedded in the intent — review what will happen before spending API credits."),
+            HelpCard("Saved settings", "Use <system>Name</system> to select a saved system prompt, <parameters>Name</parameters> to select a Parameters preset, and <default>Name</default> to select a default prompt for models when no prompt text was supplied. Names ignore case; stable IDs also work. Unknown or ambiguous names are shown here and must be corrected before continuing. Matching @name@ placeholders in the system and default prompts use entries from the external instructions."),
             HelpCard("Title bar — Back", "Cancels the request and returns to the calling app. Nothing is sent; no API calls fire."),
             HelpCard("Prompt card", "Shows the optional title + a preview of the AI prompt (first 400 chars, truncated with …) + the system-prompt snippet (first 120 chars) if one was passed."),
             HelpCard("Will-do card", "One-line headline of the action, checked in order: *Open the new-report editor with the prompt pre-filled*, *Generate a report immediately*, *Open agent/model selection for a report*, or — for a malformed intent with none of those flags — a generic *Open the new-report screen*. Lists the report type and target models / agents when the caller pinned them; otherwise notes that you'll pick on the next screen."),
             HelpCard("Side-effects card (red)", "Only shown when the intent specifies post-generation actions: email the report, open it in the browser, share its HTML via the system sheet, or close this app afterward once the side effect completes (control returns to the caller, but no data is explicitly returned). Each is bulleted so you can spot a malicious or unexpected effect before confirming."),
             HelpCard("Confirm", "Bottom-right button reads *Generate* when the intent will auto-fire (report type + at least one pinned agent/flock/swarm/model, no edit/select flag) and *Continue* otherwise. Either commits: the auto-generate path fires the report immediately; editor / picker paths open with the prompt pre-filled. Side-effects only fire once generation actually happens."),
             HelpCard("Pitfalls", "A malicious caller could ask the app to email a report to an attacker's address or open a sketchy URL — review the side-effects card carefully. Cancel always returns to the caller with no data leakage."),
-            HelpCard("Reached from", "Android share dialog → AI app, or a deep link of the form `com.ai.ACTION_NEW_REPORT`.")
+            HelpCard("Reached from", "Another app sending `com.ai.ACTION_NEW_REPORT` with an instructions extra.")
         )
     ),
     "inaccessible_models" to HelpContent(

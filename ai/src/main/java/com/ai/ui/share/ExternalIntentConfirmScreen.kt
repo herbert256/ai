@@ -43,7 +43,12 @@ data class PendingExternalReport(
     val needsStoredPrompt: Boolean = false,
     val promptReference: String? = null,
     val systemReference: String? = null,
-    val selectedSystemPromptId: String? = null
+    val selectedSystemPromptId: String? = null,
+    val parametersReference: String? = null,
+    val defaultReference: String? = null,
+    val selectedParameters: com.ai.model.Parameters? = null,
+    val selectedDefaultPrompt: com.ai.model.DefaultPrompt? = null,
+    val resolutionErrors: List<String> = emptyList()
 ) {
     val willAutoGenerate: Boolean get() = !hasEdit && !hasSelect &&
         reportType != null &&
@@ -84,6 +89,10 @@ fun ExternalIntentConfirmScreen(
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
+            if (intent.resolutionErrors.isNotEmpty()) {
+                Text("Cannot use this request", color = AppColors.DangerAccent, fontWeight = FontWeight.SemiBold)
+                intent.resolutionErrors.forEach { Text(it, color = AppColors.DangerAccent) }
+            }
             SourceCard(intent)
             ActionCard(intent)
             val hasSideEffects = !intent.email.isNullOrBlank() ||
@@ -102,6 +111,7 @@ fun ExternalIntentConfirmScreen(
             ) { Text("Cancel") }
             OutlinedButton(
                 onClick = onConfirm,
+                enabled = intent.resolutionErrors.isEmpty(),
                 modifier = Modifier.weight(1f),
                 colors = AppColors.outlinedButtonColors()
             ) { Text(if (intent.willAutoGenerate) "Generate" else "Continue") }
@@ -118,9 +128,18 @@ private fun SourceCard(intent: PendingExternalReport) {
                 Text(it, fontSize = 13.sp, color = AppColors.TextPrimary, fontWeight = FontWeight.SemiBold)
             }
             val previewLimit = 400
-            val preview = if (intent.aiPrompt.length > previewLimit)
-                intent.aiPrompt.take(previewLimit) + "…" else intent.aiPrompt
+            val prompt = intent.aiPrompt.ifBlank {
+                intent.selectedDefaultPrompt?.let { intent.context.expandPrompt(it.prompt) }.orEmpty()
+            }
+            val preview = if (prompt.length > previewLimit)
+                prompt.take(previewLimit) + "…" else prompt
             Text(preview.ifBlank { "Use the selected workers' default prompts." }, fontSize = 12.sp, color = AppColors.TextSecondary)
+            intent.selectedDefaultPrompt?.let {
+                Text("Default prompt: ${it.name}", fontSize = 11.sp, color = AppColors.TextTertiary)
+            }
+            intent.selectedParameters?.let {
+                Text("Parameters: ${it.name}", fontSize = 11.sp, color = AppColors.TextTertiary)
+            }
             if (!intent.systemPrompt.isNullOrBlank()) {
                 Spacer(modifier = Modifier.height(2.dp))
                 val system = intent.context.expandPrompt(intent.systemPrompt)

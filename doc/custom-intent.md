@@ -23,6 +23,43 @@ Two behaviours, by how much the intent asks for:
   `<flock>`, `<swarm>`, `<model>` tags) and an
   `ExternalIntentConfirmScreen` is shown before generation.
 
+## Select saved prompts and parameters
+
+Use these paired tags in the `instructions` extra to select definitions
+already saved in the AI app:
+
+```xml
+<system>Chess coach</system>
+<parameters>Careful analysis</parameters>
+<default>Analyse a position</default>
+<fen>r4rk1/1b2bppp/ppq1p3/2ppB2n/5P2/1P1BP3/P1PPQ1PP/R4RK1 w - - 0 15</fen>
+<select>
+```
+
+| Tag | Definition selected | Effect |
+|---|---|---|
+| `<system>Name</system>` | System prompt | Sets the report-level system prompt for all selected models. |
+| `<parameters>Name</parameters>` | Parameters preset | Sets the report-level generation parameters, above worker/provider defaults. |
+| `<default>Name</default>` | Default prompt | Supplies the prompt for all selected models when no explicit prompt is present, above their assigned worker defaults. |
+
+Names are trimmed and matched ignoring case; stable definition IDs also
+work. These three tag names are case-insensitive. Escape XML characters in
+names, for example `Research &amp; writing`. Missing, ambiguous or empty
+names are reported on the confirmation screen and prevent continuing.
+An empty saved default prompt also prevents continuing.
+
+`<system>` takes precedence over the older `<systemprompt>` alias and the
+literal `system` intent extra. The chosen system prompt also overrides any
+system text embedded in the chosen Parameters preset. An explicit `prompt`
+extra or a template selected with `<prompt>` takes precedence over
+`<default>`. Without `<default>`, worker defaults behave as before.
+
+The chosen settings appear in confirmation and remain available in the
+report's model/worker selection flow, including `<edit>` and `<select>`.
+Named system and default prompts receive the placeholder substitutions
+described below. Generation saves the resolved prompt and parameter values
+for replay; saved definitions and worker assignments are unchanged.
+
 ## Prompt placeholders
 
 The `instructions` intent extra (held internally as `externalInstructions`)
@@ -62,7 +99,8 @@ provider, external `system` extra, or application default.
   system parameters for retry and regeneration.
 
 An instruction-only request that names an Agent, Flock or Swarm uses those
-workers' defaults. Without a worker selection, it opens the saved-prompt
+workers' defaults unless `<default>` selects a report-wide default. Without
+a worker selection or `<default>`, it opens the saved-prompt
 picker. An explicit `<prompt>name-or-id</prompt>` still selects a saved
 template; `<systemprompt>name-or-id</systemprompt>` selects a saved system
 prompt. See [default-prompts.md](default-prompts.md) for worker defaults.

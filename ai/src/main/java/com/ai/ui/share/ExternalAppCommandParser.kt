@@ -30,7 +30,7 @@ object ExternalAppCommandParser {
     private const val MARKER = "-- end prompt --"
     private val ENTRY_BLOCKS = Regex("<([A-Za-z_][A-Za-z0-9_.:-]*)>(.*?)</\\1>",
         setOf(RegexOption.DOT_MATCHES_ALL, RegexOption.IGNORE_CASE))
-    private val COMMAND_TAGS = setOf("prompt", "systemprompt", "type", "email", "next",
+    private val COMMAND_TAGS = setOf("prompt", "systemprompt", "system", "parameters", "default", "type", "email", "next",
         "agent", "flock", "swarm", "model", "return", "edit", "select")
     private val RAW_TAGS = setOf("open", "close", "board")
 
@@ -79,9 +79,11 @@ object ExternalAppCommandParser {
                 systemPrompt = systemPrompt,
                 aiPrompt = context.expand(aiPrompt),
                 context = context,
-                needsStoredPrompt = (aiPrompt.isBlank() && !hasWorkers) || extractTag("prompt", commands) != null,
+                needsStoredPrompt = (aiPrompt.isBlank() && !hasWorkers && extractTag("default", commands) == null) || extractTag("prompt", commands) != null,
                 promptReference = extractTag("prompt", commands),
-                systemReference = extractTag("systemprompt", commands),
+                systemReference = extractTag("system", commands) ?: extractTag("systemprompt", commands),
+                parametersReference = extractTag("parameters", commands),
+                defaultReference = extractTag("default", commands),
                 openHtml = presentationBody("open")?.let { context.expand(it, presentation = true) },
                 closeHtml = presentationBody("close")?.let { context.expand(it, presentation = true) },
                 reportType = extractTag("type", commands),
@@ -100,8 +102,8 @@ object ExternalAppCommandParser {
 
     /** First `<tag>…</tag>` body, trimmed, or null. */
     private fun extractTag(tag: String, text: String): String? =
-        Regex("<$tag>(.*?)</$tag>", RegexOption.DOT_MATCHES_ALL)
-            .find(text)?.groupValues?.get(1)?.trim()
+        Regex("<$tag>(.*?)</$tag>", setOf(RegexOption.DOT_MATCHES_ALL, RegexOption.IGNORE_CASE))
+            .find(text)?.groupValues?.get(1)?.let { ExternalReportContext.decode(it).trim() }
 
     /** Every non-empty `<tag>…</tag>` body, trimmed, in order. */
     private fun extractAllTags(tag: String, text: String): List<String> =

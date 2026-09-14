@@ -108,9 +108,12 @@ fun NewReportScreen(
     var title by rememberSaveable {
         mutableStateOf(initialTitle.ifEmpty { prefs.getString(SettingsPreferences.KEY_LAST_AI_REPORT_TITLE, "") ?: "" })
     }
-    val rawPrompt = remember { initialPrompt.ifEmpty { prefs.getString(SettingsPreferences.KEY_LAST_AI_REPORT_PROMPT, "") ?: "" } }
+    val rawPrompt = remember {
+        if (uiState.externalIntent.defaultPrompt != null) initialPrompt
+        else initialPrompt.ifEmpty { prefs.getString(SettingsPreferences.KEY_LAST_AI_REPORT_PROMPT, "") ?: "" }
+    }
     var userTagBlock by rememberSaveable { mutableStateOf(userTagRegex.find(rawPrompt)?.value ?: "") }
-    val hasWorkerDefaultPrompt = uiState.aiSettings.run {
+    val hasWorkerDefaultPrompt = uiState.externalIntent.defaultPrompt != null || uiState.aiSettings.run {
         agents.any { resolveDefaultPrompt(it.id) != null } ||
             flocks.any { resolveDefaultPrompt(null, "flock", it.id) != null } ||
             swarms.any { resolveDefaultPrompt(null, "swarm", it.id) != null }

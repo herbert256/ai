@@ -87,6 +87,12 @@ external `system` extra. The saved system template remains unchanged; the
 expanded text is captured in the report's execution parameters. See
 [custom-intent.md](custom-intent.md#prompt-placeholders).
 
+`<system>Name</system>` in those instructions selects a saved system prompt
+as the report-level override. It takes precedence over the legacy
+`<systemprompt>` alias, the literal `system` extra, and system text in a
+`<parameters>Name</parameters>` preset. Names ignore case; stable IDs also
+work. Unknown or ambiguous names prevent confirmation.
+
 ### Agent
 
 ```

@@ -427,6 +427,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         reportGenerationJob = appViewModel.viewModelScope.launch(Dispatchers.IO + com.ai.data.CrashReporter.coroutineHandler) {
             val state = appViewModel.uiState.value
             val aiSettings = state.aiSettings
+            val effectiveParametersIds = (parametersIds + state.reportParametersIds).distinct()
             val prompt = state.genericPromptText
             val title = state.genericPromptTitle
             val externalSystemPrompt = state.externalSystemPrompt
@@ -450,7 +451,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             // tweaks win over preset defaults instead of being shadowed by
             // them. Bool fields OR upward.
             val overrideParams = resolveReportOverrideParams(
-                aiSettings, parametersIds, state.reportAdvancedParameters,
+                aiSettings, effectiveParametersIds, state.reportAdvancedParameters,
                 state.reportWebSearchTool, state.reportReasoningEffort, state.reportSystemPromptId
             )?.let { params ->
                 params.systemPrompt?.let { params.copy(systemPrompt = state.externalIntent.context.expandPrompt(it)) } ?: params
@@ -519,7 +520,8 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             try {
                 com.ai.data.ReportWorkLimits.checkSize(reportTasks.size)
                 preparePrimaryExecution(context, aiPrompt, reportTasks, overrideParams,
-                    state.attachedKnowledgeBaseIds, aiSettings, appViewModel.repository, state.externalIntent.context)
+                    state.attachedKnowledgeBaseIds, aiSettings, appViewModel.repository, state.externalIntent.context,
+                    state.externalIntent.defaultPrompt?.prompt)
             } catch (e: Exception) {
                 if (reportGenerationJob == kotlin.coroutines.coroutineContext[Job]) {
                     appViewModel.updateUiState { it.copy(showGenericReportsDialog=false,showGenericAgentSelection=true,
@@ -547,7 +549,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                     runId = runId,
                     // Capture the generation config so Regenerate replays these
                     // exact selections instead of the live UiState/Settings.
-                    parameterPresetIds = parametersIds,
+                    parameterPresetIds = effectiveParametersIds,
                     advancedParameters = state.reportAdvancedParameters,
                     selectionParamsById = selectionParamsById,
                     reportSystemPromptId = state.reportSystemPromptId

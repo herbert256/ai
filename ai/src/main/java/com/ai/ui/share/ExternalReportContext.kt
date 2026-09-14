@@ -57,17 +57,34 @@ internal fun selectExternalPrompt(request: PendingExternalReport, settings: Sett
 }
 
 fun resolveNamedExternalPrompt(request: PendingExternalReport, settings: Settings): PendingExternalReport {
-    val ref = request.promptReference ?: run {
-        val systemRef = request.systemReference ?: return request
-        val system = settings.getSystemPromptByIdOrName(systemRef)
-            ?: return request.copy(needsStoredPrompt = true)
-        return request.copy(systemPrompt = system.prompt, selectedSystemPromptId = system.id)
+    val errors = mutableListOf<String>()
+    fun <T> resolve(ref: String, items: List<T>, id: (T) -> String, name: (T) -> String, label: String): T? {
+        val value = ref.trim()
+        items.firstOrNull { id(it) == value }?.let { return it }
+        val matches = items.filter { name(it).trim().equals(value, ignoreCase = true) }
+        return matches.singleOrNull() ?: run {
+            errors += if (matches.isEmpty()) "$label not found: $ref" else "$label name is ambiguous: $ref"
+            null
+        }
     }
-    val prompt = externalPromptChoices(settings).firstOrNull { it.id == ref }
-        ?: externalPromptChoices(settings).filter { it.name.equals(ref, ignoreCase = true) }.singleOrNull()
-        ?: return request.copy(needsStoredPrompt = true)
-    val systemRef = request.systemReference ?: prompt.system
-    if (!request.systemReference.isNullOrBlank() && settings.getSystemPromptByIdOrName(request.systemReference) == null)
-        return request.copy(needsStoredPrompt = true)
-    return selectExternalPrompt(request, settings, prompt, systemRef)
+    val parameters = request.parametersReference?.let { ref ->
+        resolve(ref, settings.parameters, { it.id }, { it.name }, "Parameters")
+    }
+    val defaultPrompt = request.defaultReference?.let { ref ->
+        resolve(ref, settings.defaultPrompts, { it.id }, { it.name }, "Default prompt")
+            ?.also { if (it.prompt.isBlank()) errors += "Default prompt is empty: ${it.name}" }
+    }
+    var resolved = request.copy(selectedParameters = parameters, selectedDefaultPrompt = defaultPrompt)
+    val prompt = request.promptReference?.let { ref ->
+        // Preserve the legacy saved-prompt picker for unresolved <prompt> references.
+        val choices = externalPromptChoices(settings)
+        choices.firstOrNull { it.id == ref }
+            ?: choices.filter { it.name.equals(ref, ignoreCase = true) }.singleOrNull()
+    }
+    if (prompt != null) resolved = selectExternalPrompt(resolved, settings, prompt, request.systemReference ?: prompt.system)
+    val system = request.systemReference?.let { ref ->
+        resolve(ref, settings.systemPrompts, { it.id }, { it.name }, "System prompt")
+    }
+    if (system != null) resolved = resolved.copy(systemPrompt = system.prompt, selectedSystemPromptId = system.id)
+    return resolved.copy(resolutionErrors = errors)
 }

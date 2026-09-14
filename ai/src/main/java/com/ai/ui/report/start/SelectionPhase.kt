@@ -70,11 +70,12 @@ internal fun ColumnScope.SelectionPhase(
     selectedSystemPromptId: String? = null,
     onSystemPromptChange: (String?) -> Unit = {},
     useDefaultPrompts: Boolean = false,
-    externalContext: com.ai.ui.share.ExternalReportContext = com.ai.ui.share.ExternalReportContext()
+    externalContext: com.ai.ui.share.ExternalReportContext = com.ai.ui.share.ExternalReportContext(),
+    externalDefaultPrompt: DefaultPrompt? = null
 ) {
     val context = LocalContext.current
     val missingDefaultPrompts = if (useDefaultPrompts) models.filter {
-        aiSettings.resolveDefaultPrompt(it.agentId, it.sourceType, it.sourceId)
+        (externalDefaultPrompt ?: aiSettings.resolveDefaultPrompt(it.agentId, it.sourceType, it.sourceId))
             ?.prompt?.let { prompt -> externalContext.expandPrompt(prompt) }.isNullOrBlank()
     } else emptyList()
 
@@ -104,7 +105,8 @@ internal fun ColumnScope.SelectionPhase(
 
     if (useDefaultPrompts) {
         Text(
-            if (missingDefaultPrompts.isEmpty()) "Each model will use its assigned default prompt."
+            if (missingDefaultPrompts.isEmpty()) externalDefaultPrompt?.let { "Each model will use default prompt: ${it.name}." }
+                ?: "Each model will use its assigned default prompt."
             else "${missingDefaultPrompts.size} selected model(s) have no default prompt. Assign one, remove those models, or go back and enter a report prompt.",
             color = if (missingDefaultPrompts.isEmpty()) AppColors.TextSecondary else AppColors.DangerAccent,
             fontSize = 12.sp, modifier = Modifier.padding(bottom = 8.dp)
@@ -288,7 +290,7 @@ internal fun ColumnScope.SelectionPhase(
                     Text(com.ai.data.MetadataIconsHolder.current.closeMark, color = AppColors.DangerAccent, fontSize = 14.sp, modifier = Modifier.clickable { onRemoveModel(index) })
                 }
                 if (useDefaultPrompts) {
-                    val preset = aiSettings.resolveDefaultPrompt(entry.agentId, entry.sourceType, entry.sourceId)
+                    val preset = externalDefaultPrompt ?: aiSettings.resolveDefaultPrompt(entry.agentId, entry.sourceType, entry.sourceId)
                     Text(preset?.let { "Default prompt: ${it.name}\n${externalContext.expandPrompt(it.prompt)}" } ?: "No default prompt assigned",
                         color = if (preset == null) AppColors.DangerAccent else AppColors.TextSecondary,
                         fontSize = 12.sp, modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp))

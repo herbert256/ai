@@ -661,7 +661,8 @@ data class ExternalIntent(
     val flockNames: List<String> = emptyList(),
     val swarmNames: List<String> = emptyList(),
     val modelSpecs: List<String> = emptyList(),
-    val context: com.ai.ui.share.ExternalReportContext = com.ai.ui.share.ExternalReportContext()
+    val context: com.ai.ui.share.ExternalReportContext = com.ai.ui.share.ExternalReportContext(),
+    val defaultPrompt: com.ai.model.DefaultPrompt? = null
 )
 
 // ===== Refresh-all state (lives on AppViewModel so the run survives

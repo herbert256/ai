@@ -15,7 +15,9 @@ Each primary run freezes its effective prompt in `ReportAgent.executionConfig`, 
 For `com.ai.ACTION_NEW_REPORT`, named entries in the `instructions` extra
 replace matching `@name@` placeholders in the selected default prompt and
 effective system prompt. For example, `<topic>Amsterdam</topic>` supplies
-`@topic@`. The resolved text is captured in the report; the saved template
+`@topic@`. `<default>Name</default>` selects one saved default for every
+model in that request, ahead of worker assignments; explicit prompt text
+still takes priority. The resolved text is captured in the report; the saved template
 is unchanged. See [custom-intent.md](custom-intent.md#prompt-placeholders).
 
 `DefaultPrompt(id, name, prompt)` lives in `Settings.defaultPrompts`, saved under `ai_default_prompts`. Agent, Flock and Swarm each store a nullable `defaultPromptId`. Fresh installs start with an empty catalog and no assignments; existing workers load with no assignment. No personal prompts or reports are bundled as defaults.

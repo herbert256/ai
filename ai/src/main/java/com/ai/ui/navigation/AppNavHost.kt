@@ -150,7 +150,7 @@ fun AppNavHost(
     }
 
     pendingExternalReport.value?.let { staged ->
-        if (staged.needsStoredPrompt) {
+        if (staged.needsStoredPrompt && staged.resolutionErrors.isEmpty()) {
             val state by appViewModel.uiState.collectAsState()
             com.ai.ui.share.ExternalPromptPickerScreen(
                 settings = state.aiSettings,
@@ -179,11 +179,16 @@ fun AppNavHost(
                     select = staged.hasSelect,
                     openHtml = staged.openHtml,
                     systemPrompt = staged.systemPrompt,
-                    context = staged.context
+                    context = staged.context,
+                    defaultPrompt = staged.selectedDefaultPrompt
                 )
                 if (staged.context.values.isNotEmpty()) appViewModel.setReportSystemPromptId(staged.selectedSystemPromptId)
+                staged.selectedParameters?.let { appViewModel.setReportParametersIds(listOf(it.id)) }
                 if (staged.hasEdit) {
-                    navController.navigate(NavRoutes.aiNewReportWithParams(staged.title ?: "", staged.aiPrompt)) {
+                    val editorPrompt = staged.aiPrompt.ifBlank {
+                        staged.selectedDefaultPrompt?.let { staged.context.expandPrompt(it.prompt) }.orEmpty()
+                    }
+                    navController.navigate(NavRoutes.aiNewReportWithParams(staged.title ?: "", editorPrompt)) {
                         popUpTo(NavRoutes.AI) { inclusive = false }
                     }
                 } else {

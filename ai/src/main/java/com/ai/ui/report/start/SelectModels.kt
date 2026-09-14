@@ -114,7 +114,8 @@ internal fun ReportSelectModelsScreen(
             onPickRowParams = onPickRowParams,
             useDefaultPrompts = uiState.editModeReportId == null &&
                 uiState.genericPromptText.replace(com.ai.viewmodel.AppViewModel.USER_TAG_REGEX, "").isBlank(),
-            externalContext = uiState.externalIntent.context
+            externalContext = uiState.externalIntent.context,
+            externalDefaultPrompt = uiState.externalIntent.defaultPrompt
         )
     }
 }
