@@ -13,15 +13,13 @@ data class ExternalReportContext(val values: Map<String, String> = emptyMap()) {
             values[match.groupValues[1].lowercase(Locale.US)] ?: fallback(match.value)
         }
 
-    fun expand(template: String, presentation: Boolean = false): String {
+    /** Apply the same supplied-value substitution to questions and report presentation. */
+    fun expand(template: String): String {
         if (values.isEmpty()) return template
-        return PLACEHOLDERS.replace(template) { match ->
-            val key = match.groupValues[1].lowercase(Locale.US)
-            when (key) {
-                "date" -> values[key] ?: SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
-                "board" -> if (presentation) values[key] ?: match.value else ""
-                else -> values[key] ?: match.value
-            }
+        return expandPrompt(template) { token ->
+            if (token.equals("@date@", ignoreCase = true))
+                SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
+            else token
         }
     }
 

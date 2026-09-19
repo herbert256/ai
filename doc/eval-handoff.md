@@ -4,7 +4,7 @@ Eval stores named instruction entries (`id`, `name`, `instructions`). Both posit
 
 Eval sends `com.ai.ACTION_NEW_REPORT`, restricted to package `com.ai`, with `title` and `instructions` extras. There are no `prompt` or `system` extras.
 
-The selected instruction text is followed by these six tags, in this order, even when a value is unavailable:
+Eval leaves placeholders in the selected instruction text unchanged and sends the six standard context tags below, even when a value is unavailable. Repeated placeholders share one data field. When the interface uses a date placeholder, Eval also sends one `date` tag with the actual current local date. Existing top-level declarations of these supplied fields are deduplicated.
 
 ```xml
 <fen>r4rk1/1b2bppp/ppq1p3/2ppB2n/5P2/1P1BP3/P1PPQ1PP/R4RK1 w - - 0 15</fen>
@@ -35,7 +35,7 @@ Instructions may use `@FEN@`, `@COLOR@`, `@SERVER@`, `@PLAYER@`, `@PGN@`, `@BOAR
 <open>@BOARD@</open>
 ```
 
-The AI receiver uses worker defaults for an instruction-only request naming an Agent, Flock or Swarm; otherwise it opens its saved-prompt picker. The user reviews the existing external-request confirmation. Context placeholders in normal, system and default templates are resolved in the AI app. In caller-supplied normal prompts, `@BOARD@` remains presentation-only; a system or worker default template that explicitly includes `@BOARD@` receives the supplied value, like any other named entry. See [custom-intent.md](custom-intent.md#prompt-placeholders).
+The AI receiver resolves placeholders in the selected prompt, system prompt and opening/closing report content. Eval never expands those templates. Standard context remains available to templates saved only in AI. A prompt or system template explicitly using the board placeholder receives its supplied value; merely sending board data does not include it in model requests. See the shared custom-intent contract for selection and substitution details.
 
 Optional references can select AI-owned templates by stable ID or unique name:
 
