@@ -47,7 +47,6 @@ uppercase/mixed-case tag names.
 | `<system>Name</system>` | Select a saved **System prompt** as the report-level override for all selected models. |
 | `<parameters>Name</parameters>` | Select a saved **Parameters** preset as the report-level generation settings. |
 | `<default>Name</default>` | Select a saved **Default prompt** for every selected model when no explicit question is present, ahead of worker defaults. Works with bare models too. |
-| `<systemprompt>Name</systemprompt>` | Older alias for selecting a saved system prompt; `<system>` wins when both are present. |
 | `<prompt>Name</prompt>` | Select an existing Example Prompt or eligible Internal Prompt, by ID or unique name. This is a different catalog from Default prompts. |
 | `<agent>Name</agent>` | Select a configured Agent by name; repeatable. |
 | `<flock>Name</flock>` | Select a configured Flock by name; repeatable. |
@@ -77,7 +76,7 @@ back to its members' Agent defaults; directly selected Agents use their own
 defaults, and Swarm members use their Swarm's default. Bare models have no
 worker default.
 
-`<system>` / `<systemprompt>` set the report-level system choice, above
+`<system>` sets the report-level system choice, above
 worker/provider defaults, the literal `system` extra and system text inside
 a Parameters preset. The parameter preset applies above worker/provider
 parameter defaults. Users can change report-level choices in report setup.

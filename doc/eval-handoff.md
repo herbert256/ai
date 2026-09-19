@@ -41,12 +41,12 @@ Optional references can select AI-owned templates by stable ID or unique name:
 
 ```xml
 <prompt>Chess position analysis</prompt>
-<systemprompt>Chess coach</systemprompt>
+<system>Chess coach</system>
 <type>Classic</type><select>
 <open>@BOARD@</open>
 ```
 
-The referenced templates must already exist in the AI app. A missing or ambiguous reference returns to the picker. Older callers that supply a prompt extra remain supported by the AI app.
+The referenced templates must already exist in the AI app. A missing or ambiguous `<prompt>` reference returns to the picker; an unresolved `<system>` reference prevents confirmation. Older callers that supply a prompt extra remain supported by the AI app.
 
 ## Existing Eval settings
 
