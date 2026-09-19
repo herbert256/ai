@@ -98,7 +98,7 @@ viewer.
 ## Context and placeholder substitution
 
 1. **Eval sends templates and data separately.** It does not replace tokens
-   in prompt, system-prompt or presentation text. The standard six context
+   in prompt, system-prompt or presentation text. The standard seven context
    fields below are always sent so templates saved only in AI can use them.
    Each unique supported placeholder has one matching lowercase data tag;
    repeated tokens reuse that value. `@DATE@` additionally supplies `<date>`
@@ -117,9 +117,21 @@ viewer.
 | `<player>…</player>` | Side-to-move player's name for a position report; selected player for a profile report. May be empty when unknown. |
 | `<pgn>…</pgn>` | Available game PGN; the separate FEN is authoritative for the current position. |
 | `<board>…</board>` | Generated board HTML/JavaScript. |
+| `<moves>…</moves>` | All legal moves at the current FEN, each with SAN, UCI, Stockfish evaluation and search depth. |
 | `<date>…</date>` | Current local date when a date placeholder is used in the interface text. |
 
-A player-only request sends empty `fen`, `color`, `pgn` and `board`; it does
+For position reports, Eval evaluates every legal move before handoff using
+Settings → Stockfish → **Moves list for AI** (time per move, threads, hash
+memory and NNUE). The default is 0.25 seconds per move, one thread, 32 MB
+and NNUE on. Progress can be cancelled; a failed search does not send a
+partial list. Scores are in pawns from White's perspective: positive favors
+White, negative favors Black, and `+M3` / `-M3` means White / Black mates
+in three moves. All four promotion choices are included. A terminal
+position supplies “No legal moves in this position.” `@MOVES@` works in
+prompts and system prompts saved only in AI because `<moves>` is always
+supplied; Eval leaves the template token unchanged.
+
+A player-only request sends empty `fen`, `color`, `pgn`, `board` and `moves`; it does
 not reuse the last opened position. Plain fields are XML-escaped (`&amp;`,
 `&lt;`, `&gt;`, `&quot;`, `&#39;`); `board` is raw markup. Eval replaces
 existing top-level declarations for supplied context fields with one
@@ -159,7 +171,7 @@ when written inside a JavaScript string.
 ## Examples
 
 The definition and worker names below are examples: create them in AI first
-or substitute names/IDs that already exist. Eval automatically supplies the six
+or substitute names/IDs that already exist. Eval automatically supplies the seven
 standard context tags and any requested date value; do not paste a fixed
 FEN or duplicate context values into an Eval instruction entry.
 
@@ -171,7 +183,7 @@ Create these definitions in AI:
 |---|---|
 | System prompt **Chess coach** | `You are a chess coach. Respond in @language@. Report date: @date@.` |
 | Parameters **Careful analysis** | Temperature `0.2`, max tokens `2048` (choose a model supporting them). |
-| Default prompt **Analyse a position** | `Analyse @fen@ for @color@. Player: @player@. Explain plans and candidate moves.` |
+| Default prompt **Analyse a position** | `Analyse @fen@ for @color@. Player: @player@. Use @MOVES@ to explain plans and candidate moves.` |
 
 Save this instruction text in Eval:
 
