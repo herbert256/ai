@@ -194,7 +194,7 @@ class AnalysisRepository(
     private fun withRagPrefix(prompt: String, ragPrefix: String): String =
         if (ragPrefix.isBlank()) prompt else "$ragPrefix\n\n$prompt"
 
-    internal fun resolveReportPrompt(prompt: String, agent: com.ai.model.Agent): String = buildPrompt(prompt,"",agent)
+    internal fun resolveReportPrompt(prompt: String, agent: com.ai.model.Agent): String = buildPrompt(prompt, agent)
     internal fun effectiveReportParameters(base: AgentParameters, overlay: AgentParameters?, provider: AppService,
         model: String, context: Context): AgentParameters {
         // Snapshot the requested values. Unsupported controls become explicit errors at
@@ -202,8 +202,8 @@ class AnalysisRepository(
         return mergeParameters(base, overlay)
     }
 
-    private fun buildPrompt(promptTemplate: String, content: String, agent: com.ai.model.Agent? = null): String {
-        var result = promptTemplate.replace("@FEN@", content).replace("@DATE@", formatCurrentDate())
+    private fun buildPrompt(promptTemplate: String, agent: com.ai.model.Agent? = null): String {
+        var result = promptTemplate.replace("@DATE@", formatCurrentDate())
         if (agent != null) {
             result = result.replace("@MODEL@", agent.model).replace("@PROVIDER@", agent.provider.id).replace("@AGENT@", agent.name)
         }
@@ -302,7 +302,7 @@ class AnalysisRepository(
             }
             if (unsupported.isNotEmpty()) return@withContext AnalysisResponse(agent.provider, null,
                 "Local runtime does not support: ${unsupported.joinToString()}. Clear these controls before running.", agentName = agent.name)
-            val userPrompt = withRagPrefix(if (literalPrompt) prompt else buildPrompt(prompt, content, agent), ragPrefix)
+            val userPrompt = withRagPrefix(if (literalPrompt) prompt else buildPrompt(prompt, agent), ragPrefix)
             val finalPrompt = localParams.systemPrompt?.takeIf { it.isNotBlank() }?.let { "System instructions:\n$it\n\nUser request:\n$userPrompt" } ?: userPrompt
             val out = LocalLlm.generate(context, agent.model, finalPrompt, localParams)
             return@withContext if (out != null) {
@@ -315,7 +315,7 @@ class AnalysisRepository(
         if (agent.apiKey.isBlank()) {
             return@withContext AnalysisResponse(agent.provider, null, "API key not configured for agent ${agent.name}", agentName = agent.name)
         }
-        val finalPrompt = withRagPrefix(if (literalPrompt) prompt else buildPrompt(prompt, content, agent), ragPrefix)
+        val finalPrompt = withRagPrefix(if (literalPrompt) prompt else buildPrompt(prompt, agent), ragPrefix)
         suspend fun makeApiCall(): AnalysisResponse {
             val params = mergeParameters(agentResolvedParams, overrideParams)
             val effectiveBaseUrl = baseUrl ?: agent.provider.baseUrl
@@ -446,7 +446,7 @@ class AnalysisRepository(
                 KnowledgeService.formatContextBlock(hits)
             }.getOrDefault("")
         } else ""
-        val finalPrompt = withRagPrefix(buildPrompt(prompt, content, agent), ragPrefix)
+        val finalPrompt = withRagPrefix(buildPrompt(prompt, agent), ragPrefix)
         val params = merged
         val effectiveBaseUrl = baseUrl ?: agent.provider.baseUrl
         val answerFilter = ReportAnswerFilter()
@@ -493,7 +493,7 @@ class AnalysisRepository(
     }
 
     /**
-     * Analyze without FEN content (player analysis).
+     * Analyze a prepared player prompt without additional content.
      */
     suspend fun analyzePlayerWithAgent(
         agent: com.ai.model.Agent,
