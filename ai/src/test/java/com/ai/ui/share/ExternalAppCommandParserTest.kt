@@ -90,12 +90,11 @@ class ExternalAppCommandParserTest {
     @Test
     fun extractsMultiValueTags_inOrder_droppingEmpties() {
         val instr = "<agent>Alice</agent><agent></agent><agent>Bob</agent>" +
-            "<flock>F1</flock><swarm>S1</swarm><model>openai/gpt-4o</model><model>x/y</model>"
+            "<flock>F1</flock><swarm>S1</swarm>"
         val staged = confirm(ExternalAppCommandParser.parse("p", instr, null, null))
         assertThat(staged.agentNames).containsExactly("Alice", "Bob").inOrder()
         assertThat(staged.flockNames).containsExactly("F1")
         assertThat(staged.swarmNames).containsExactly("S1")
-        assertThat(staged.modelSpecs).containsExactly("openai/gpt-4o", "x/y").inOrder()
     }
 
     @Test
@@ -110,7 +109,6 @@ class ExternalAppCommandParserTest {
     fun booleanFlags_detectPresence_caseInsensitively() {
         val staged = confirm(ExternalAppCommandParser.parse("p", "<RETURN><Edit><select>", null, null))
         assertThat(staged.hasReturn).isTrue()
-        assertThat(staged.hasEdit).isTrue()
         assertThat(staged.hasSelect).isTrue()
     }
 
@@ -118,27 +116,26 @@ class ExternalAppCommandParserTest {
     fun booleanFlags_absent_areFalse() {
         val staged = confirm(ExternalAppCommandParser.parse("p", "<type>x</type>", null, null))
         assertThat(staged.hasReturn).isFalse()
-        assertThat(staged.hasEdit).isFalse()
         assertThat(staged.hasSelect).isFalse()
     }
 
     // ---- Derived willAutoGenerate predicate -----------------------------
 
     @Test
-    fun willAutoGenerate_whenTypedWithWorkersAndNoEditOrSelect() {
+    fun willAutoGenerate_whenTypedWithWorkersAndNoSelect() {
         val staged = confirm(ExternalAppCommandParser.parse("p", "<type>brief</type><agent>Alice</agent>", null, null))
         assertThat(staged.willAutoGenerate).isTrue()
     }
 
     @Test
-    fun willNotAutoGenerate_whenEditRequested() {
+    fun removedEditFlag_doesNotChangeRouting() {
         val staged = confirm(ExternalAppCommandParser.parse("p", "<type>brief</type><agent>Alice</agent><edit>", null, null))
-        assertThat(staged.willAutoGenerate).isFalse()
+        assertThat(staged.willAutoGenerate).isTrue()
     }
 
     @Test
-    fun willNotAutoGenerate_withoutAnyWorkers() {
-        val staged = confirm(ExternalAppCommandParser.parse("p", "<type>brief</type>", null, null))
+    fun removedModelTag_doesNotSupplyWorkersOrEnableAutoGeneration() {
+        val staged = confirm(ExternalAppCommandParser.parse("p", "<type>brief</type><model>OpenAI/gpt-4o</model><default>Unused</default>", null, null))
         assertThat(staged.willAutoGenerate).isFalse()
     }
 }

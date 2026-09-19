@@ -520,8 +520,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             try {
                 com.ai.data.ReportWorkLimits.checkSize(reportTasks.size)
                 preparePrimaryExecution(context, aiPrompt, reportTasks, overrideParams,
-                    state.attachedKnowledgeBaseIds, aiSettings, appViewModel.repository, state.externalIntent.context,
-                    state.externalIntent.defaultPrompt?.prompt)
+                    state.attachedKnowledgeBaseIds, aiSettings, appViewModel.repository, state.externalIntent.context)
             } catch (e: Exception) {
                 if (reportGenerationJob == kotlin.coroutines.coroutineContext[Job]) {
                     appViewModel.updateUiState { it.copy(showGenericReportsDialog=false,showGenericAgentSelection=true,

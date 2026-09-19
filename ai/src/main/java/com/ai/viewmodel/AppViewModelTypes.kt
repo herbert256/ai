@@ -629,7 +629,7 @@ data class UiState(
     val chatParameters: ChatParameters = ChatParameters(),
     val dualChatConfig: DualChatConfig? = null
 ) {
-    // Flat accessors preserved so call sites don't need updating. Grouping the 13 external
+    // Flat accessors preserved so call sites don't need updating. Grouping external
     // fields into a nested ExternalIntent struct makes "is anything external set?" checks
     // and reset operations trivial, and shrinks the top-level UiState surface.
     val externalSystemPrompt: String? get() = externalIntent.systemPrompt
@@ -638,13 +638,11 @@ data class UiState(
     val externalEmail: String? get() = externalIntent.email
     val externalNextAction: String? get() = externalIntent.nextAction
     val externalReturn: Boolean get() = externalIntent.returnAfterNext
-    val externalEdit: Boolean get() = externalIntent.edit
     val externalSelect: Boolean get() = externalIntent.select
     val externalOpenHtml: String? get() = externalIntent.openHtml
     val externalAgentNames: List<String> get() = externalIntent.agentNames
     val externalFlockNames: List<String> get() = externalIntent.flockNames
     val externalSwarmNames: List<String> get() = externalIntent.swarmNames
-    val externalModelSpecs: List<String> get() = externalIntent.modelSpecs
 }
 
 data class ExternalIntent(
@@ -654,15 +652,12 @@ data class ExternalIntent(
     val email: String? = null,
     val nextAction: String? = null,
     val returnAfterNext: Boolean = false,
-    val edit: Boolean = false,
     val select: Boolean = false,
     val openHtml: String? = null,
     val agentNames: List<String> = emptyList(),
     val flockNames: List<String> = emptyList(),
     val swarmNames: List<String> = emptyList(),
-    val modelSpecs: List<String> = emptyList(),
-    val context: com.ai.ui.share.ExternalReportContext = com.ai.ui.share.ExternalReportContext(),
-    val defaultPrompt: com.ai.model.DefaultPrompt? = null
+    val context: com.ai.ui.share.ExternalReportContext = com.ai.ui.share.ExternalReportContext()
 )
 
 // ===== Refresh-all state (lives on AppViewModel so the run survives

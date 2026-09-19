@@ -60,46 +60,17 @@ internal fun selectExternalPrompt(request: PendingExternalReport, settings: Sett
     )
 }
 
-fun resolveNamedExternalPrompt(request: PendingExternalReport, settings: Settings): PendingExternalReport {
-    val errors = mutableListOf<String>()
-    fun <T> resolve(ref: String, items: List<T>, id: (T) -> String, name: (T) -> String, label: String): T? {
-        val value = ref.trim()
-        items.firstOrNull { id(it) == value }?.let { return it }
-        val matches = items.filter { name(it).trim().equals(value, ignoreCase = true) }
-        return matches.singleOrNull() ?: run {
-            errors += if (matches.isEmpty()) "$label not found: $ref" else "$label name is ambiguous: $ref"
-            null
-        }
-    }
-    val parameters = request.parametersReference?.let { ref ->
-        resolve(ref, settings.parameters, { it.id }, { it.name }, "Parameters")
-    }
-    val defaultPrompt = request.defaultReference?.let { ref ->
-        resolve(ref, settings.defaultPrompts, { it.id }, { it.name }, "Default prompt")
-            ?.also { if (it.prompt.isBlank()) errors += "Default prompt is empty: ${it.name}" }
-    }
-    var resolved = request.copy(selectedParameters = parameters, selectedDefaultPrompt = defaultPrompt)
-    request.promptReference?.let { ref ->
-        val choices = externalPromptChoices(settings)
-        val prompt = choices.firstOrNull { it.id == ref }
-            ?: choices.filter { it.name.equals(ref, ignoreCase = true) }.singleOrNull()
-        resolved = if (prompt != null) {
-            selectExternalPrompt(resolved, settings, prompt, request.systemReference ?: prompt.system)
-        } else {
-            // A caller can supply the report question directly instead of a saved prompt name.
-            resolved.copy(
-                aiPrompt = request.context.expand(ref),
-                needsStoredPrompt = false
-            )
-        }
-    }
-    request.systemReference?.let { ref ->
-        val system = externalSystemPrompt(settings, ref)
-        resolved = resolved.copy(
-            systemPrompt = system?.prompt ?: ref,
-            selectedSystemPromptId = system?.id,
-            literalSystemPrompt = ref.takeIf { system == null }
+/** Only parameter presets are resolved by name; prompt and system tags are literal text. */
+fun resolveExternalParameters(request: PendingExternalReport, settings: Settings): PendingExternalReport {
+    val ref = request.parametersReference ?: return request
+    val value = ref.trim()
+    val byId = settings.parameters.firstOrNull { it.id == value }
+    val matches = settings.parameters.filter { it.name.trim().equals(value, ignoreCase = true) }
+    val parameters = byId ?: matches.singleOrNull()
+    return request.copy(
+        selectedParameters = parameters,
+        resolutionErrors = if (parameters != null) emptyList() else listOf(
+            if (matches.isEmpty()) "Parameters not found: $ref" else "Parameters name is ambiguous: $ref"
         )
-    }
-    return resolved.copy(resolutionErrors = errors)
+    )
 }

@@ -33,28 +33,22 @@ data class PendingExternalReport(
     val email: String?,
     val nextAction: String?,
     val hasReturn: Boolean,
-    val hasEdit: Boolean,
     val hasSelect: Boolean,
     val agentNames: List<String>,
     val flockNames: List<String>,
     val swarmNames: List<String>,
-    val modelSpecs: List<String>,
     val context: ExternalReportContext = ExternalReportContext(),
     val needsStoredPrompt: Boolean = false,
-    val promptReference: String? = null,
-    val systemReference: String? = null,
     val selectedSystemPromptId: String? = null,
     val literalSystemPrompt: String? = null,
     val parametersReference: String? = null,
-    val defaultReference: String? = null,
     val selectedParameters: com.ai.model.Parameters? = null,
-    val selectedDefaultPrompt: com.ai.model.DefaultPrompt? = null,
     val resolutionErrors: List<String> = emptyList()
 ) {
-    val willAutoGenerate: Boolean get() = !hasEdit && !hasSelect &&
+    val willAutoGenerate: Boolean get() = !hasSelect &&
         reportType != null &&
         (agentNames.isNotEmpty() || flockNames.isNotEmpty() ||
-            swarmNames.isNotEmpty() || modelSpecs.isNotEmpty())
+            swarmNames.isNotEmpty())
 }
 
 /**
@@ -129,15 +123,10 @@ private fun SourceCard(intent: PendingExternalReport) {
                 Text(it, fontSize = 13.sp, color = AppColors.TextPrimary, fontWeight = FontWeight.SemiBold)
             }
             val previewLimit = 400
-            val prompt = intent.aiPrompt.ifBlank {
-                intent.selectedDefaultPrompt?.let { intent.context.expandPrompt(it.prompt) }.orEmpty()
-            }
+            val prompt = intent.aiPrompt
             val preview = if (prompt.length > previewLimit)
                 prompt.take(previewLimit) + "…" else prompt
             Text(preview.ifBlank { "Use the selected workers' default prompts." }, fontSize = 12.sp, color = AppColors.TextSecondary)
-            intent.selectedDefaultPrompt?.let {
-                Text("Default prompt: ${it.name}", fontSize = 11.sp, color = AppColors.TextTertiary)
-            }
             intent.selectedParameters?.let {
                 Text("Parameters: ${it.name}", fontSize = 11.sp, color = AppColors.TextTertiary)
             }
@@ -157,19 +146,16 @@ private fun ActionCard(intent: PendingExternalReport) {
         Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text("Will do", fontSize = 11.sp, color = AppColors.TextTertiary, fontWeight = FontWeight.SemiBold)
             val headline = when {
-                intent.hasEdit -> "Open the new-report editor with the prompt pre-filled"
                 intent.willAutoGenerate -> "Generate a report immediately"
                 intent.hasSelect -> "Open agent/model selection for a report"
-                // No edit / auto / explicit select: a degenerate or
-                // malformed intent. Don't over-promise a selection screen.
-                else -> "Open the new-report screen"
+                else -> "Open agent/model selection for a report"
             }
             Text(headline, fontSize = 13.sp, color = AppColors.TextPrimary)
 
             intent.reportType?.takeIf { it.isNotBlank() }?.let {
                 Text("Report type: $it", fontSize = 12.sp, color = AppColors.TextSecondary)
             }
-            val agents = (intent.agentNames + intent.flockNames + intent.swarmNames + intent.modelSpecs)
+            val agents = (intent.agentNames + intent.flockNames + intent.swarmNames)
                 .filter { it.isNotBlank() }
             if (agents.isNotEmpty()) {
                 Text("Targets:", fontSize = 11.sp, color = AppColors.TextTertiary)

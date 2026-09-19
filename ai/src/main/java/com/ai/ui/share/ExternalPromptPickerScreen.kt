@@ -33,7 +33,7 @@ fun ExternalPromptPickerScreen(
             title = if (selectedPrompt == null) "Choose saved prompt" else "Choose system prompt",
             subject = request.title.orEmpty(), onBackClick = { back() }
         )
-        Text("Eval supplied the chess context. Choose a prompt stored in this AI app.", color = AppColors.TextSecondary)
+        Text("Choose a report prompt stored in this AI app.", color = AppColors.TextSecondary)
         OutlinedTextField(search, { search = it }, label = { Text("Search") }, modifier = Modifier.fillMaxWidth())
         LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             val prompt = selectedPrompt
@@ -41,7 +41,10 @@ fun ExternalPromptPickerScreen(
                 val choices = externalPromptChoices(settings).filter { it.name.contains(search, ignoreCase = true) }
                 if (choices.isEmpty()) item { Text("No matching saved prompts. Manage prompts in AI setup.", color = AppColors.TextSecondary) }
                 items(choices) { choice ->
-                    OutlinedButton(onClick = { selectedPrompt = choice; search = "" }, modifier = Modifier.fillMaxWidth()) {
+                    OutlinedButton(onClick = {
+                        if (request.literalSystemPrompt != null) onSelected(selectExternalPrompt(request, settings, choice, null))
+                        else { selectedPrompt = choice; search = "" }
+                    }, modifier = Modifier.fillMaxWidth()) {
                         Text(choice.name)
                     }
                 }
@@ -49,7 +52,7 @@ fun ExternalPromptPickerScreen(
                 item {
                     OutlinedButton(onClick = {
                         onSelected(selectExternalPrompt(request, settings, prompt,
-                            request.systemReference ?: prompt.system.takeIf { request.literalSystemPrompt == null }))
+                            prompt.system.takeIf { request.literalSystemPrompt == null }))
                     }, modifier = Modifier.fillMaxWidth()) { Text("Use configured system prompts") }
                 }
                 items(settings.systemPrompts.filter { it.name.contains(search, ignoreCase = true) }.sortedBy { it.name.lowercase() }) { system ->

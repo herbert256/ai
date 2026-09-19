@@ -1174,12 +1174,13 @@ care don't recompose. `runningFanMetaPairs` /
 directly on `AppViewModel`) cover the other in-flight sets.
 
 ### `ExternalIntent`
-Bundle of all 13 fields a launching intent (`com.ai.ACTION_NEW_REPORT`
+Bundle of the fields a launching intent (`com.ai.ACTION_NEW_REPORT`
 or similar) can stuff into UiState.
 
 | systemPrompt, closeHtml, reportType, email, nextAction, openHtml | `String?` |
-| returnAfterNext, edit, select | `Boolean` |
-| agentNames, flockNames, swarmNames, modelSpecs | `List<String>` |
+| returnAfterNext, select | `Boolean` |
+| agentNames, flockNames, swarmNames | `List<String>` |
+| context | `ExternalReportContext` |
 
 ### `PromptHistoryEntry`
 | timestamp | `Long` |

@@ -281,86 +281,28 @@ flow wrote the Uri list, then conditionally overwrote it with a
 URL-only list only when the Uri list was empty.</p>
 
 <h2 id="external-intent">Custom external intent — separate codepath</h2>
-
-<p>The exported <code>com.ai.ACTION_NEW_REPORT</code> intent is a
-distinct contract handled by <code>MainActivity.handleIntent</code>
-(it stages <code>externalTitle</code> / <code>externalSystem</code> /
-<code>externalPrompt</code> / <code>externalInstructions</code>) and
-processed in <code>AppNavHost</code>. It is <strong>not</strong> part
-of the share-sheet flow.</p>
-
-<p>Two behaviours, by how much the intent asks for:</p>
-
-<ul>
-<li><strong>Bare prompt</strong> (no <code>&lt;instructions&gt;</code>
-block and no <code>-- end prompt --</code> marker) → merely pre-fills
-the New Report editor via <code>aiNewReportWithParams</code>. The user
-still picks models and taps Generate, so no credits move without
-consent.</li>
-<li><strong>Prompt + instructions</strong> (an
-<code>instructions</code> string extra, or a
-<code>-- end prompt --</code> marker splitting prompt from
-instructions) → the instructions are parsed into a
-<code>PendingExternalReport</code> and an
-<code>ExternalIntentConfirmScreen</code> is shown first.</li>
-</ul>
-
-<details>
-<summary><code>PendingExternalReport</code> — 15 fields</summary>
-<div class="body">
-<p>Extracted from <code>&lt;open&gt;</code>, <code>&lt;close&gt;</code>,
-<code>&lt;type&gt;</code>, <code>&lt;email&gt;</code>,
-<code>&lt;next&gt;</code>, <code>&lt;return&gt;</code>,
-<code>&lt;edit&gt;</code>, <code>&lt;select&gt;</code>,
-<code>&lt;agent&gt;</code>, <code>&lt;flock&gt;</code>,
-<code>&lt;swarm&gt;</code>, <code>&lt;model&gt;</code> tags:</p>
-<ul>
-<li><code>title</code>, <code>systemPrompt</code>, <code>aiPrompt</code></li>
-<li><code>openHtml</code>, <code>closeHtml</code></li>
-<li><code>reportType</code>, <code>email</code>, <code>nextAction</code></li>
-<li><code>hasReturn</code>, <code>hasEdit</code>, <code>hasSelect</code></li>
-<li><code>agentNames</code>, <code>flockNames</code>, <code>swarmNames</code></li>
-<li><code>modelSpecs</code></li>
-</ul>
-</div>
-</details>
-
-<p><code>&lt;open&gt;</code> and <code>&lt;close&gt;</code> supply opening and
-closing report content. HTML bodies are inserted verbatim, including CSS,
-scripts and event handlers, in Complete / Short HTML and the zipped HTML
-index. They run in the app's HTML preview and in a browser opening the export.
-Reports with either field show an <strong>HTML</strong> tile in
-<strong>View</strong>; Export → HTML → View in app also opens the preview.
-Text without HTML keeps Markdown formatting, including fenced code examples.
-When HTML is present, the entire body is treated as HTML.</p>
-<p>Instruction tags are read only outside these bodies: an HTML
-<code>&lt;select&gt;</code> or script string containing
-<code>&lt;email&gt;</code> is not an app command. The matching literal
-<code>&lt;/open&gt;</code> or <code>&lt;/close&gt;</code> ends its body, so
-avoid it inside script strings. This content is separate from the AI prompt.</p>
-
-<p>The confirmation overlay (help topic <code>external_intent</code>,
-title "External request") lays out exactly what will happen — which
-models get called, which side effects fire (<code>&lt;email&gt;</code>,
-<code>&lt;next&gt;</code>, return-on-completion), and a prompt preview
-— with <strong>Cancel</strong> and a confirm button labelled
-<strong>Generate</strong> when the intent would auto-generate
-(<code>willAutoGenerate</code> = no <code>&lt;edit&gt;</code>/<code>&lt;select&gt;</code>,
-a <code>&lt;type&gt;</code>, and at least one model source) or
-<strong>Continue</strong> otherwise. On confirm with
-<code>&lt;edit&gt;</code>, the user lands in the New Report editor;
-otherwise the agent-selection / generation flow runs.</p>
-
-<div class="callout">
-<p>This explicit consent step matches the app's "no background
-billing without acknowledgement" posture — previously such intents
-could run silently and mask surprise spend.</p>
-</div>
-
-<p>The launch intent is staged once
-(<code>savedInstanceState == null</code>) and the source extras are
-cleared after staging so a configuration change can't re-stage the
-confirmation after the user has cancelled or confirmed.</p>
+<p><code>com.ai.ACTION_NEW_REPORT</code> accepts <code>title</code>,
+<code>instructions</code> and optional legacy <code>prompt</code>/<code>system</code> extras.
+Instruction-bearing requests show confirmation before generation; a bare prompt pre-fills New Report.</p>
+<p><code>&lt;prompt&gt;text&lt;/prompt&gt;</code> supplies the literal question and
+<code>&lt;system&gt;text&lt;/system&gt;</code> supplies the literal system prompt.
+They never look up saved prompts, even when the text matches a name or ID.
+Only <code>&lt;parameters&gt;</code> resolves a saved Parameters preset.
+Agents, Flocks and Swarms may still be selected by name.</p>
+<p><code>&lt;default&gt;</code>, <code>&lt;model&gt;</code> and <code>&lt;edit&gt;</code>
+no longer control the handoff. After confirmation, requests with a worker and
+<code>&lt;type&gt;</code> generate unless <code>&lt;select&gt;</code> is present;
+other requests open model selection.</p>
+<p>Eval sends a data tag only when its matching <code>@name@</code> placeholder
+is used in the instruction text. Prompt, system and presentation text stay unchanged
+until AI expands matching values once, ignoring case. Tokens inside data values
+are literal and never cause recursive expansion. Nested tags inside a value cannot
+become commands. Stockfish searches run only for requested <code>@MOVES@</code>
+or <code>@ENGINE@</code> data.</p>
+<p><code>&lt;open&gt;</code> and <code>&lt;close&gt;</code> provide report presentation,
+including HTML, CSS and JavaScript in the HTML view and exports.
+<code>&lt;next&gt;</code>, <code>&lt;email&gt;</code> and <code>&lt;return&gt;</code>
+retain their completion behavior. Share and Email open Android choosers.</p>
 
 <h2 id="files">Files</h2>
 

@@ -140,7 +140,7 @@ fun AppNavHost(
                 }
                 // Instruction-bearing — stage the confirmation overlay.
                 is com.ai.ui.share.ExternalReportCommand.Confirm ->
-                    pendingExternalReport.value = com.ai.ui.share.resolveNamedExternalPrompt(cmd.staged, appViewModel.uiState.value.aiSettings)
+                    pendingExternalReport.value = com.ai.ui.share.resolveExternalParameters(cmd.staged, appViewModel.uiState.value.aiSettings)
             }
             // Clear the source-of-truth extras so a configuration
             // change doesn't re-stage the confirmation after the user
@@ -174,13 +174,10 @@ fun AppNavHost(
                     agentNames = staged.agentNames,
                     flockNames = staged.flockNames,
                     swarmNames = staged.swarmNames,
-                    modelSpecs = staged.modelSpecs,
-                    edit = staged.hasEdit,
                     select = staged.hasSelect,
                     openHtml = staged.openHtml,
                     systemPrompt = staged.systemPrompt,
-                    context = staged.context,
-                    defaultPrompt = staged.selectedDefaultPrompt
+                    context = staged.context
                 )
                 if (staged.context.values.isNotEmpty()) appViewModel.setReportSystemPromptId(staged.selectedSystemPromptId)
                 staged.selectedParameters?.let { appViewModel.setReportParametersIds(listOf(it.id)) }
@@ -189,19 +186,10 @@ fun AppNavHost(
                     val parameters = appViewModel.uiState.value.reportAdvancedParameters ?: com.ai.data.AgentParameters()
                     appViewModel.setReportAdvancedParameters(parameters.copy(systemPrompt = system))
                 }
-                if (staged.hasEdit) {
-                    val editorPrompt = staged.aiPrompt.ifBlank {
-                        staged.selectedDefaultPrompt?.let { staged.context.expandPrompt(it.prompt) }.orEmpty()
-                    }
-                    navController.navigate(NavRoutes.aiNewReportWithParams(staged.title ?: "", editorPrompt)) {
-                        popUpTo(NavRoutes.AI) { inclusive = false }
-                    }
-                } else {
-                    val fullPrompt = if (staged.openHtml != null)
-                        "${staged.aiPrompt}\n<user>${staged.openHtml}</user>" else staged.aiPrompt
-                    reportViewModel.showGenericAgentSelection(staged.title ?: "", fullPrompt)
-                    navController.navigate(NavRoutes.aiReports()) { popUpTo(NavRoutes.AI) { inclusive = false } }
-                }
+                val fullPrompt = if (staged.openHtml != null)
+                    "${staged.aiPrompt}\n<user>${staged.openHtml}</user>" else staged.aiPrompt
+                reportViewModel.showGenericAgentSelection(staged.title ?: "", fullPrompt)
+                navController.navigate(NavRoutes.aiReports()) { popUpTo(NavRoutes.AI) { inclusive = false } }
                 pendingExternalReport.value = null
             }
         )

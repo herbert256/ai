@@ -30,8 +30,6 @@ object ExternalAppCommandParser {
     private const val MARKER = "-- end prompt --"
     private val ENTRY_BLOCKS = Regex("<([A-Za-z_][A-Za-z0-9_.:-]*)>(.*?)</\\1>",
         setOf(RegexOption.DOT_MATCHES_ALL, RegexOption.IGNORE_CASE))
-    private val COMMAND_TAGS = setOf("prompt", "system", "parameters", "default", "type", "email", "next",
-        "agent", "flock", "swarm", "model", "return", "edit", "select")
     private val RAW_TAGS = setOf("open", "close", "board")
 
     fun parse(
@@ -63,54 +61,45 @@ object ExternalAppCommandParser {
             val tag = it.groupValues[1].lowercase(Locale.US)
             tag to if (tag in RAW_TAGS) it.groupValues[2] else ExternalReportContext.decode(it.groupValues[2])
         })
-        val commands = ENTRY_BLOCKS.replace(instructionText) {
-            if (it.groupValues[1].lowercase(Locale.US) in COMMAND_TAGS) it.value else ""
-        }
+        val standalone = ENTRY_BLOCKS.replace(instructionText, "")
+        fun extractTag(tag: String): String? = blocks
+            .firstOrNull { it.groupValues[1].equals(tag, ignoreCase = true) }
+            ?.groupValues?.get(2)?.let { ExternalReportContext.decode(it).trim() }
+        fun extractAllTags(tag: String): List<String> = blocks
+            .filter { it.groupValues[1].equals(tag, ignoreCase = true) }
+            .map { ExternalReportContext.decode(it.groupValues[2]).trim() }.filter { it.isNotEmpty() }
+        fun hasTag(tag: String): Boolean = blocks.any { it.groupValues[1].equals(tag, ignoreCase = true) } ||
+            Regex("<$tag>", RegexOption.IGNORE_CASE).containsMatchIn(standalone)
         fun presentationBody(tag: String): String? = blocks
             .firstOrNull { it.groupValues[1].equals(tag, ignoreCase = true) }?.groupValues?.get(2)?.trim()
-        val agentNames = extractAllTags("agent", commands)
-        val flockNames = extractAllTags("flock", commands)
-        val swarmNames = extractAllTags("swarm", commands)
+        val agentNames = extractAllTags("agent")
+        val flockNames = extractAllTags("flock")
+        val swarmNames = extractAllTags("swarm")
         val hasWorkers = agentNames.isNotEmpty() || flockNames.isNotEmpty() || swarmNames.isNotEmpty()
 
+        val promptText = extractTag("prompt")
+        val systemText = extractTag("system")
         return ExternalReportCommand.Confirm(
             PendingExternalReport(
                 title = title,
-                systemPrompt = systemPrompt,
-                aiPrompt = context.expand(aiPrompt),
+                systemPrompt = systemText ?: systemPrompt,
+                literalSystemPrompt = systemText,
+                aiPrompt = context.expand(promptText ?: aiPrompt),
                 context = context,
-                needsStoredPrompt = (aiPrompt.isBlank() && !hasWorkers && extractTag("default", commands) == null) || extractTag("prompt", commands) != null,
-                promptReference = extractTag("prompt", commands),
-                systemReference = extractTag("system", commands),
-                parametersReference = extractTag("parameters", commands),
-                defaultReference = extractTag("default", commands),
+                needsStoredPrompt = promptText == null && aiPrompt.isBlank() && !hasWorkers,
+                parametersReference = extractTag("parameters"),
                 openHtml = presentationBody("open")?.let { context.expand(it) },
                 closeHtml = presentationBody("close")?.let { context.expand(it) },
-                reportType = extractTag("type", commands),
-                email = extractTag("email", commands),
-                nextAction = extractTag("next", commands),
-                hasReturn = hasTag("return", commands),
-                hasEdit = hasTag("edit", commands),
-                hasSelect = hasTag("select", commands),
+                reportType = extractTag("type"),
+                email = extractTag("email"),
+                nextAction = extractTag("next"),
+                hasReturn = hasTag("return"),
+                hasSelect = hasTag("select"),
                 agentNames = agentNames,
                 flockNames = flockNames,
-                swarmNames = swarmNames,
-                modelSpecs = extractAllTags("model", commands)
+                swarmNames = swarmNames
             )
         )
     }
 
-    /** First `<tag>…</tag>` body, trimmed, or null. */
-    private fun extractTag(tag: String, text: String): String? =
-        Regex("<$tag>(.*?)</$tag>", setOf(RegexOption.DOT_MATCHES_ALL, RegexOption.IGNORE_CASE))
-            .find(text)?.groupValues?.get(1)?.let { ExternalReportContext.decode(it).trim() }
-
-    /** Every non-empty `<tag>…</tag>` body, trimmed, in order. */
-    private fun extractAllTags(tag: String, text: String): List<String> =
-        Regex("<$tag>(.*?)</$tag>", RegexOption.DOT_MATCHES_ALL)
-            .findAll(text).map { it.groupValues[1].trim() }.filter { it.isNotEmpty() }.toList()
-
-    /** True if a bare `<tag>` marker is present (case-insensitive). */
-    private fun hasTag(tag: String, text: String): Boolean =
-        Regex("<$tag>", RegexOption.IGNORE_CASE).containsMatchIn(text)
 }

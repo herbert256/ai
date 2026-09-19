@@ -19,12 +19,11 @@ internal fun preparePrimaryExecution(
     context: Context, question: String, tasks: List<ReportViewModel.ReportTask>,
     overlay: AgentParameters?, knowledgeBaseIds: List<String>,
     settings: Settings, repository: AnalysisRepository,
-    externalContext: ExternalReportContext = ExternalReportContext(),
-    externalDefaultPrompt: String? = null
+    externalContext: ExternalReportContext = ExternalReportContext()
 ) {
     tasks.forEach { task ->
         val effectiveQuestion = if (question.isNotBlank()) repository.resolveReportPrompt(question, task.runtimeAgent)
-            else externalContext.expandPrompt(externalDefaultPrompt ?: task.defaultPrompt.orEmpty()) {
+            else externalContext.expandPrompt(task.defaultPrompt.orEmpty()) {
                 repository.resolveReportPrompt(it, task.runtimeAgent)
             }
         require(effectiveQuestion.isNotBlank()) { "${task.runtimeAgent.name} has no default prompt. Enter a report prompt or assign a default prompt." }

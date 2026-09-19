@@ -459,8 +459,7 @@ internal fun HandleExternalReportInstructions(
     val externalRes = remember(
         uiState.externalAgentNames,
         uiState.externalFlockNames,
-        uiState.externalSwarmNames,
-        uiState.externalModelSpecs
+        uiState.externalSwarmNames
     ) {
         val result = mutableListOf<ReportModel>()
         val missing = mutableListOf<String>()
@@ -476,14 +475,6 @@ internal fun HandleExternalReportInstructions(
         uiState.externalSwarmNames.forEach { name ->
             val s = aiSettings.swarms.find { it.name.equals(name, ignoreCase = true) }
             if (s != null) result.addAll(expandSwarmToModels(s, aiSettings)) else missing.add("swarm: $name")
-        }
-        uiState.externalModelSpecs.forEach { spec ->
-            val parts = spec.split("/", limit = 2)
-            val provider = AppService.findById(parts.getOrNull(0) ?: "")
-                ?: AppService.entries.find { it.id.equals(parts.getOrNull(0), ignoreCase = true) }
-            val model = parts.getOrNull(1)
-            if (provider != null && model != null) result.add(toReportModel(provider, model))
-            else missing.add("model: $spec")
         }
         ExternalResolution(deduplicateModels(result), missing)
     }
@@ -546,8 +537,7 @@ internal fun HandleExternalReportInstructions(
                 uiState.externalReportType != null ||
                 uiState.externalAgentNames.isNotEmpty() ||
                 uiState.externalFlockNames.isNotEmpty() ||
-                uiState.externalSwarmNames.isNotEmpty() ||
-                uiState.externalModelSpecs.isNotEmpty()
+                uiState.externalSwarmNames.isNotEmpty()
             ) {
                 onClearExternalInstructions()
             }

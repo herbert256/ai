@@ -16,317 +16,194 @@ This is separate from Android's `ACTION_SEND` share-sheet flow.
 
 | String extra | Requirement | Meaning |
 |---|---|---|
-| `title` | Optional | Report title; generation uses `AI Report` when the title is blank. |
-| `instructions` | Required for Eval's current handoff | Paired instruction/data tags and standalone control flags. AI calls this state `externalInstructions` internally; the actual extra key is **`instructions`**. |
-| `prompt` | Optional | Explicit question, for other/older callers. It can be omitted when `instructions` is present. |
-| `system` | Optional | Literal system-prompt text, for other/older callers. It is a fallback below configured worker/provider/report prompts. |
+| `title` | Optional | Report title; generation uses `AI Report` when blank. |
+| `instructions` | Required for Eval's current handoff | Paired instruction/data tags and standalone control flags. The extra key is **`instructions`**, not `externalInstructions`. |
+| `prompt` | Optional | Question for other/older callers. `<prompt>` takes precedence when present. |
+| `system` | Optional | Literal system text for other/older callers, as a fallback below configured worker/provider/report prompts. |
 
-**Eval currently sends only `title` and `instructions`.** It stores named
-instruction entries; prompts, system prompts, parameter presets and worker
-configurations belong to the AI app. Do not send an extra named
-`externalInstructions`.
+**Eval sends only `title` and `instructions`.** Its named instruction entries
+contain literal prompt/system text, control tags and context placeholders.
+Parameters and worker configurations remain in the AI app.
 
-A bare `prompt` without instructions pre-fills the New Report editor.
-Instruction-bearing requests first resolve their saved definitions, then
-show **External request** confirmation. They never generate before that
-confirmation. When no explicit prompt, named default or Agent/Flock/Swarm
-selection supplies the question, AI opens its saved-prompt picker first.
+A bare `prompt` without instructions pre-fills New Report. Instruction-bearing
+requests show **External request** confirmation before generation. If neither
+`<prompt>`, a non-empty `prompt` extra nor Agent/Flock/Swarm selection supplies
+a question, AI offers its saved-prompt picker. A supplied `<prompt>` never
+selects or searches a saved definition, even if its text equals a saved name or ID.
 
 For older callers, `prompt` can contain `-- end prompt --`: text before the
 marker is the question and text after it is instructions. A supplied
-`instructions` extra takes precedence over this split, even when empty.
+`instructions` extra takes precedence over that split, even when empty.
 
 ## Instruction tags
 
-Use paired tags for values and standalone tags for flags. Use lowercase
-control tags as shown; the three new saved-definition selectors also accept
-uppercase/mixed-case tag names.
+Tag names ignore case. Use paired tags for values; flags may be standalone
+or empty pairs, such as `<select>` or `<select></select>`.
 
 | Tag | Meaning |
 |---|---|
-| `<system>Name or text</system>` | Select a saved **System prompt**; if no definition resolves, use the content as literal system-prompt text. Applies as the report-level override for all selected models. |
-| `<parameters>Name</parameters>` | Select a saved **Parameters** preset as the report-level generation settings. |
-| `<default>Name</default>` | Select a saved **Default prompt** for every selected model when no explicit question is present, ahead of worker defaults. Works with bare models too. |
-| `<prompt>Name or text</prompt>` | Select an existing Example Prompt or eligible Internal Prompt, by ID or unique name. If no definition resolves, use the content directly as the report prompt, without opening the saved-prompt picker. This is a different catalog from Default prompts. |
+| `<system>text</system>` | Use this literal system-prompt text as the report-level override for all selected models. Never look up a saved prompt. |
+| `<prompt>text</prompt>` | Use this literal report question. Never look up a saved prompt. |
+| `<parameters>Name</parameters>` | Select a saved Parameters preset by stable ID or unique name, ignoring name case. |
 | `<agent>Name</agent>` | Select a configured Agent by name; repeatable. |
 | `<flock>Name</flock>` | Select a configured Flock by name; repeatable. |
 | `<swarm>Name</swarm>` | Select a configured Swarm by name; repeatable. |
-| `<model>Provider/model-id</model>` | Select a model directly; repeatable. The first slash separates provider from model, so the model ID may contain more slashes. |
 | `<type>Classic</type>` / `<type>Table</type>` | Choose the report format. |
 | `<open>content</open>` / `<close>content</close>` | Opening/closing report presentation, including HTML, CSS and JavaScript. |
-| `<next>View</next>` | Completion action: `View`, `Share`, `Browser` or `Email`. `Email` uses AI's configured default email address. |
-| `<email>recipient@example.com</email>` | Open the email chooser with the completed HTML report attached and the recipient filled in. This does not silently send email. |
-| `<edit>` | After confirmation, open New Report for editing; a named default is pre-filled for editing when no explicit question was supplied. |
-| `<select>` | After confirmation, open model selection rather than immediately generating. |
-| `<return>` | Finish the AI activity after the requested email/next action; no report data is returned as an Android activity result. |
-| `<name>value</name>` | Supply a custom value for matching `@name@` placeholders in templates. |
+| `<next>View</next>` | Completion action: `View`, `Share`, `Browser` or `Email`. Email uses AI's configured default email address. |
+| `<email>recipient@example.com</email>` | Open the email chooser with the completed report attached and recipient filled in. |
+| `<select>` | Open model selection after confirmation. |
+| `<return>` | Finish AI after its completion action. No report data is returned as an Android activity result. |
+| `<name>value</name>` | Supply data for matching `@name@` placeholders. Send it only when that placeholder is used. |
 
-Names in `<system>`, `<parameters>` and `<default>` are trimmed and matched
-ignoring case. Stable definition IDs also work and take priority over name
-matches. XML-escape names containing special characters, for example
-`Research &amp; writing`. An unresolved `<system>` value (including an
-ambiguous name) becomes literal system-prompt text. An unresolved `<prompt>`
-value becomes the report prompt, with the same placeholder substitution as
-a saved prompt. It does not change the system prompt or open the saved-prompt picker.
-Missing, ambiguous or empty `<parameters>` / `<default>` names, and an
-empty saved default prompt, are shown on confirmation and disable continuation.
-Prompt precedence is: the saved template or literal text supplied with `<prompt>`,
-otherwise explicit `prompt` text, then `<default>`, then the selected
-workers' assigned defaults. Without a named default, a selected Flock falls
-back to its members' Agent defaults; directly selected Agents use their own
-defaults, and Swarm members use their Swarm's default. Bare models have no
-worker default.
+`<default>`, `<model>` and `<edit>` no longer control the handoff. They do
+not choose defaults or models, or route to editing. Like other custom names,
+a paired value can only supply data if explicitly referenced by a placeholder.
 
-`<system>` sets the report-level system choice, above
-worker/provider defaults, the literal `system` extra and system text inside
-a Parameters preset. `<prompt>` sets the question independently of `<system>`.
-Literal system text supports the same placeholder substitution as saved system
-templates. The parameter preset applies above worker/provider
-parameter defaults. Users can change report-level choices in report setup.
-Saved definitions and worker assignments are unchanged by a request.
-Generation captures the resolved prompt and parameters for retry/regenerate.
+`<prompt>` takes precedence over the `prompt` extra. If no question is supplied,
+selected workers can use their assigned default prompts. `<system>` overrides
+worker/provider defaults, the `system` extra and system text inside Parameters.
+Prompt and system bodies are trimmed, decoded once and substituted independently.
+Names or IDs matching saved prompts are still literal text. For example,
+`<prompt>Chess analysis</prompt>` asks exactly `Chess analysis`.
+
+Only `<parameters>` resolves a saved preset: stable IDs take precedence over
+unique names. Missing, empty or ambiguous references appear on confirmation and
+prevent continuation. Worker selection still resolves Agent/Flock/Swarm names.
+Requests do not change saved templates or worker assignments. Generation captures
+the effective prompt and parameters for retry/regenerate.
 
 After confirmation, immediate generation requires a `<type>`, at least one
-worker/model source, and neither `<edit>` nor `<select>`. Otherwise the user
-continues through editing/selection. A valid model selection, prompt and
-provider configuration are still required. Completion actions run only after
-generation; Share and Email open Android choosers, and Browser opens an HTML
-viewer.
+Agent/Flock/Swarm and no `<select>`. Other requests continue to model selection.
+A valid selection, question and provider configuration are still required.
+Completion actions run after generation; Share and Email open Android choosers.
 
 ## Context and placeholder substitution
 
-1. **Eval sends templates and data separately.** It does not replace tokens
-   in prompt, system-prompt or presentation text. The standard eight context
-   fields below are always sent so templates saved only in AI can use them.
-   Each unique supported placeholder has one matching lowercase data tag;
-   repeated tokens reuse that value. `@DATE@` additionally supplies `<date>`
-   with the current local date (`yyyy-MM-dd`). Token detection ignores case.
-2. **AI expands the text.** Matching `@name@` placeholders in the effective
-   prompt and system prompt use the supplied data, ignoring case. AI also
-   expands opening/closing report presentation. For example,
-   `<player>Alice</player>` supplies both `@PLAYER@` and `@player@`.
-   Supplied values are decoded and inserted literally in one pass.
+1. **Eval sends unchanged templates plus referenced data.** Only data whose
+   `@name@` placeholder occurs in the instruction/presentation text is included.
+   This applies to standard fields, the date and custom data. Control tags are
+   always retained. Repeated or differently cased placeholders share one
+   lowercase data tag. Unused data declarations are removed.
+2. **AI expands the text.** Matching placeholders in prompt/system text and
+   opening/closing presentation use supplied data, ignoring case. Values are
+   inserted literally in a single pass. A token inside a data value does not
+   request another field and is not recursively expanded.
 
-| Eval-supplied tag | Value |
+| Eval-supplied tag, when referenced | Value |
 |---|---|
 | `<fen>…</fen>` | Current position, including an explored variation. |
-| `<color>…</color>` | `White` or `Black`, from the FEN's side to move. |
-| `<server>…</server>` | Chess server when known, otherwise empty. |
-| `<player>…</player>` | Side-to-move player's name for a position report; selected player for a profile report. May be empty when unknown. |
-| `<pgn>…</pgn>` | Available game PGN; the separate FEN is authoritative for the current position. |
-| `<board>…</board>` | Generated board HTML/JavaScript. |
-| `<moves>…</moves>` | All legal moves at the current FEN, each with SAN, UCI, Stockfish evaluation and search depth. |
-| `<engine>…</engine>` | The best N Stockfish continuations at the current FEN, ranked for the side to move, with SAN, UCI, White-perspective scores and search depth. |
-| `<date>…</date>` | Current local date when a date placeholder is used in the interface text. |
+| `<color>…</color>` | White or Black, from the side to move. |
+| `<server>…</server>` | Chess server when known. |
+| `<player>…</player>` | Side-to-move player for a position report; selected player for a profile report. |
+| `<pgn>…</pgn>` | Available game PGN. |
+| `<board>…</board>` | Board HTML/JavaScript. |
+| `<moves>…</moves>` | Every legal move with SAN, UCI, Stockfish evaluation and depth. |
+| `<engine>…</engine>` | Best N Stockfish continuations with SAN, UCI, scores and depth. |
+| `<date>…</date>` | Current local date in `yyyy-MM-dd` format. |
 
-For position reports, Eval evaluates every legal move before handoff using
-Settings → Stockfish → **Moves list for AI** (time per move, threads, hash
-memory and NNUE). The default is 0.25 seconds per move, one thread, 32 MB
-and NNUE on. Progress can be cancelled; a failed search does not send a
-partial list. Scores are in pawns from White's perspective: positive favors
-White, negative favors Black, and `+M3` / `-M3` means White / Black mates
-in three moves. All four promotion choices are included. A terminal
-position supplies “No legal moves in this position.” `@MOVES@` works in
-prompts and system prompts saved only in AI because `<moves>` is always
-supplied; Eval leaves the template token unchanged.
+Eval runs **Moves list for AI** only when `@MOVES@` is used. It evaluates every
+legal move using that Stockfish settings card, showing cancellable progress.
+A failed search never sends a partial list. Scores are in pawns from White's
+perspective; positive favors White, and `+M3` / `-M3` denotes White / Black mate
+in three moves. All promotion choices are included.
 
-The fifth Stockfish card, **Engine moves for AI**, independently controls
-`@ENGINE@`: number of lines (1–32), seconds per position (shared across all
-lines), threads, hash memory and NNUE. Defaults are three lines, two seconds,
-one thread, 32 MB and NNUE on. Eval sends one complete MultiPV iteration at
-a common depth, best first for the side to move. When fewer legal root moves
-exist, that smaller number of lines is returned. Terminal positions supply
-“No legal moves in this position.” This data is included with every position
-handoff, so AI-saved prompt/system templates can use `@ENGINE@` without
-repeating it in Eval. AI performs the substitution; Eval sends the token
-unchanged in templates. Both searches use the same captured position.
+Eval runs **Engine moves for AI** only when `@ENGINE@` is used. That settings
+card controls line count (1–32), time per position, threads, memory and NNUE.
+The timed progress screen shows the same results card as Manual mode.
+**Stop and go to AI** sends the latest complete MultiPV iteration at a common
+depth. If none is ready, the handoff explains that the search stopped before
+results were available. Cancel sends no request. Fewer legal root moves means
+fewer returned lines. Both searches use the same captured position.
 
-A player-only request sends empty `fen`, `color`, `pgn`, `board`, `moves` and `engine`; it does
-not reuse the last opened position. Plain fields are XML-escaped (`&amp;`,
-`&lt;`, `&gt;`, `&quot;`, `&#39;`); `board` is raw markup. Eval replaces
-existing top-level declarations for supplied context fields with one
-actual-value tag per name, including a declaration such as
-`<date>@DATE@</date>`. Tokens inside prompt, system, presentation and custom
-text bodies remain unchanged. Optional `<instructions>` wrappers are supported.
+Terminal positions supply `No legal moves in this position.` Requested but
+unavailable fields are empty. Player-only requests never reuse the last game.
+If neither engine placeholder is used, Eval opens AI without either search.
+Templates saved only in AI do not cause Eval to send unrequested data.
 
-AI decodes plain entry values once and preserves raw `open`, `close` and
-`board` bodies. Custom names start with a letter or underscore and may also
-contain digits, dots, hyphens and colons. Values may span lines and retain
-whitespace. An empty entry replaces its token with empty text; when custom
-data entries repeat, the last value is used. Use each saved-definition
-selector once; the first selector of each kind is read for routing.
+Eval replaces top-level declarations of requested standard fields with the
+current actual value and keeps one value per name. Custom duplicates use the
+last value. A declaration such as `<fen>@FEN@</fen>` alone does not request FEN:
+put `@FEN@` in a prompt, system or presentation body where it is needed.
+An optional `<instructions>...</instructions>` wrapper is supported.
 
-Tokens inside an inserted value are not recursively expanded by external
-substitution. Unmatched tokens remain unchanged, apart from existing AI
-built-ins such as `@MODEL@`, `@PROVIDER@`, `@AGENT@` and `@DATE@` in default
-prompts. Supplied external values take precedence over those built-ins.
-For a saved system template that needs the date, include `@DATE@` in the
-Eval interface text, for example in `<date>@DATE@</date>`, to request the
-same explicit date value.
+Plain data is XML-escaped (`&amp;`, `&lt;`, `&gt;`, `&quot;`, `&#39;`). AI decodes
+it once; `open`, `close` and `board` remain raw markup. Custom names start with
+a letter or underscore and may include digits, dots, hyphens and colons.
+Values may span lines. Empty data replaces its token with empty text. Use each
+single-value control once; the first is read. Nested tags inside a value never
+become top-level commands.
 
-Keep `@BOARD@` in `<open>`/`<close>` for report presentation. Board markup is
-not added to model prompts merely because its data tag is supplied; a
-prompt or system template that explicitly uses `@BOARD@` receives its value.
-Data and presentation bodies are removed before interpreting commands, so
-`<select>` or `<email>` inside a data body is not executed.
+Unmatched tokens remain unchanged, apart from AI's existing built-ins such as
+`@MODEL@`, `@PROVIDER@`, `@AGENT@` and `@DATE@` in default prompts. Explicitly
+supplied data takes precedence over built-ins.
 
-HTML opening/closing bodies are inserted verbatim, including CSS, scripts
-and event handlers, in Complete/Short HTML and the zipped HTML index. They
-run in the in-app HTML preview and a browser opening the export. Reports
-with either field have an **HTML** tile in **View**. Text-only presentation
-keeps Markdown formatting; when supplying HTML, write the whole body as
-HTML. The literal `</open>` / `</close>` delimiter ends its body, including
-when written inside a JavaScript string.
+Keep `@BOARD@` in `<open>`/`<close>` for report presentation. The data tag does
+not add a board to model prompts unless the prompt/system explicitly uses it.
+HTML bodies, including CSS, scripts and event handlers, appear in the in-app
+HTML view, Complete/Short HTML and zipped HTML index. A literal `</open>` or
+`</close>` ends its body even inside a JavaScript string. Text-only presentation
+retains Markdown formatting; for HTML, write the whole body as HTML.
 
 ## Examples
 
-The definition and worker names below are examples: create them in AI first
-or substitute names/IDs that already exist. Eval automatically supplies the eight
-standard context tags and any requested date value; do not paste a fixed
-FEN or duplicate context values into an Eval instruction entry.
-
-### 1. Eval position report with all three named selections
-
-Create these definitions in AI:
-
-| Kind / name | Example contents |
-|---|---|
-| System prompt **Chess coach** | `You are a chess coach. Respond in @language@. Report date: @date@.` |
-| Parameters **Careful analysis** | Temperature `0.2`, max tokens `2048` (choose a model supporting them). |
-| Default prompt **Analyse a position** | `Analyse @fen@ for @color@. Player: @player@. Use @MOVES@ and @ENGINE@ to explain plans and candidate moves.` |
-
-Save this instruction text in Eval:
+### Eval position report
 
 ```xml
-<system>Chess coach</system>
-<parameters>Careful analysis</parameters>
-<default>Analyse a position</default>
+<system>You are a chess coach. Respond in @language@.</system>
+<prompt>Analyse @FEN@ for @COLOR@. Use @ENGINE@ to explain candidate moves.</prompt>
 <language>English</language>
-<date>@DATE@</date>
+<open>@BOARD@</open>
 <type>Classic</type>
 <select>
 <next>View</next>
-<open>@BOARD@</open>
 ```
 
-Eval keeps the template tokens unchanged, supplies the date, board, position
-and player values in separate data tags, and sends only `title` and `instructions`. AI shows the
-expanded default/system prompts on confirmation, then model selection and
-report setup. The named default applies even to a directly selected model.
-The user starts generation; completion opens the report view.
+Eval calculates the best lines and sends only `fen`, `color`, `engine`, `board`
+and `language` data. It leaves the prompt/system/presentation tokens unchanged.
+AI previews the expanded literal prompts, then lets the user select models.
 
-### 2. Use a Flock's defaults and generate after confirmation
-
-The AI Flock **Chess analysts** must exist and resolve a non-empty default
-prompt for every member. Save in Eval:
+### Eval player report without Stockfish
 
 ```xml
-<flock>Chess analysts</flock>
-<type>Classic</type>
-<next>View</next>
-<open>@BOARD@</open>
-```
-
-There is no `<select>` or `<edit>`, so AI's confirmation button is
-**Generate**. No API calls start before the user confirms. Each member uses
-its resolved worker default and the received position context.
-
-### 3. Eval player-only report
-
-Create a Default prompt named **Player profile** with this text:
-
-```text
-Summarize the playing style of @player@ on @server@. State what cannot be
-inferred from the supplied information.
-```
-
-Save this instruction entry in Eval:
-
-```xml
-<system>Chess coach</system>
-<default>Player profile</default>
-<language>English</language>
-<date>@DATE@</date>
-<type>Classic</type>
+<system>State what cannot be inferred from the supplied information.</system>
+<prompt>Summarize the playing style of @PLAYER@ on @SERVER@.</prompt>
 <select>
 ```
 
-For a synthetic player `ExamplePlayer` on `lichess.org`, AI resolves the
-question to `Summarize the playing style of ExamplePlayer on lichess.org…`.
-The position-related fields are empty. No old FEN or board is included.
+Only `player` and `server` data are sent. Neither Stockfish search runs.
 
-### 4. Another Android caller: complete named-template request
-
-Create System prompt **Short answers** (`Answer in @language@.`), Parameters
-**Concise** (max tokens `512`), and Default prompt **City summary**
-(`Describe @topic@ in three sentences.`) in AI. From an Android Activity:
+### Another Android caller
 
 ```kotlin
-import android.app.Activity
-import android.content.ActivityNotFoundException
-import android.content.Intent
-import android.widget.Toast
-
-fun Activity.openCityReport() {
-    val instructions = """
-        <system>Short answers</system>
-        <parameters>Concise</parameters>
-        <default>City summary</default>
-        <topic>Amsterdam</topic>
-        <language>Dutch</language>
-        <type>Classic</type>
-        <select>
-    """.trimIndent()
-    val request = Intent("com.ai.ACTION_NEW_REPORT")
-        .setPackage("com.ai")
-        .putExtra("title", "Amsterdam summary")
-        .putExtra("instructions", instructions)
-    try {
-        startActivity(request)
-    } catch (_: ActivityNotFoundException) {
-        Toast.makeText(this, "Install the AI app first", Toast.LENGTH_SHORT).show()
-    }
-}
+val instructions = """
+    <system>Answer in @language@.</system>
+    <prompt>Describe @topic@ in three sentences.</prompt>
+    <topic>Amsterdam &amp; Utrecht</topic>
+    <language>Dutch</language>
+    <select>
+""".trimIndent()
+startActivity(Intent("com.ai.ACTION_NEW_REPORT")
+    .setPackage("com.ai")
+    .putExtra("title", "City summary")
+    .putExtra("instructions", instructions))
 ```
 
-AI previews `Answer in Dutch.` and `Describe Amsterdam in three sentences.`.
-The user confirms, selects models and generates. No `prompt`, literal
-`system` or `externalInstructions` extra is needed. If the caller adds
-`.putExtra("prompt", "Compare Amsterdam and Utrecht.")`, that explicit
-question takes precedence over **City summary**.
+AI uses `Answer in Dutch.` and `Describe Amsterdam & Utrecht in three sentences.`
+exactly, regardless of any saved prompt names. No other extras are required.
 
-### 5. Literal system text and placeholder values
+### Generate with a configured worker after confirmation
 
 ```xml
-<system>Write about @topic@. Keep @literal@ unchanged.</system>
-<parameters>Concise</parameters>
-<default>City summary</default>
-<topic>Amsterdam &amp; Utrecht</topic>
-<language></language>
-<literal>@topic@</literal>
-<select>
+<prompt>Explain @topic@ simply.</prompt>
+<topic>Photosynthesis</topic>
+<agent>Science tutor</agent>
+<type>Classic</type>
+<next>View</next>
 ```
 
-If no saved system prompt matches that content, AI uses it directly and
-previews `Write about Amsterdam & Utrecht. Keep @topic@ unchanged.`.
-`@language@` becomes empty in system/default templates. Substitution runs
-once, so the inserted `@topic@` stays literal; an unmatched `@unknown@` also
-stays unchanged. In this example, `<default>City summary</default>` supplies
-the question.
-
-### 6. Literal report prompt without a saved template
-
-```xml
-<prompt>Analyze this position: @FEN@</prompt>
-<system>Explain your reasoning clearly.</system>
-<fen>rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1</fen>
-<select>
-```
-
-If neither value matches a saved definition, AI uses the `<prompt>` content
-as the question with `@FEN@` expanded, and the `<system>` content as the system
-prompt. The caller can omit the `prompt` extra. AI opens **External request**
-confirmation directly, then model selection; there is no saved-prompt picker.
+Create the Agent in AI first. Confirmation offers Generate because a worker
+and report type are supplied and `<select>` is absent.
 <!-- END SHARED AI INTENT CONTRACT -->
 
 ## AI implementation
@@ -339,17 +216,17 @@ confirmation directly, then model selection; there is no saved-prompt picker.
   separates paired data/presentation blocks from control tags and builds
   `PendingExternalReport`.
 - [`ExternalReportContext.kt`](../ai/src/main/java/com/ai/ui/share/ExternalReportContext.kt)
-  resolves named definitions, decodes values and expands templates.
+  resolves parameter presets, decodes values and expands literal text.
 - [`ExternalIntentConfirmScreen.kt`](../ai/src/main/java/com/ai/ui/share/ExternalIntentConfirmScreen.kt)
   previews the request and prevents continuing with unresolved definitions.
 - [`AppNavHost.kt`](../ai/src/main/java/com/ai/ui/navigation/AppNavHost.kt)
-  stages confirmation and routes to editing or model selection after consent.
+  stages confirmation and opens model selection after consent.
 - [`ReportLaunchPlan.kt`](../ai/src/main/java/com/ai/viewmodel/ReportLaunchPlan.kt)
   resolves effective default prompts and captures execution configurations.
 - [`ReportViewModel.kt`](../ai/src/main/java/com/ai/viewmodel/ReportViewModel.kt)
   applies report-level system/parameter selections and runs generation.
 - [`RuntimeState.kt`](../ai/src/main/java/com/ai/ui/report/manage/RuntimeState.kt)
-  handles external worker/model selections and completion actions.
+  handles external worker selections and completion actions.
 - [`AndroidManifest.xml`](../ai/src/main/AndroidManifest.xml) registers the
   exported custom action on `MainActivity`.
 
