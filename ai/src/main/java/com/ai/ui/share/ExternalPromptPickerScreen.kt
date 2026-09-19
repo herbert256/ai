@@ -48,7 +48,8 @@ fun ExternalPromptPickerScreen(
             } else {
                 item {
                     OutlinedButton(onClick = {
-                        onSelected(selectExternalPrompt(request, settings, prompt, request.systemReference ?: prompt.system))
+                        onSelected(selectExternalPrompt(request, settings, prompt,
+                            request.systemReference ?: prompt.system.takeIf { request.literalSystemPrompt == null }))
                     }, modifier = Modifier.fillMaxWidth()) { Text("Use configured system prompts") }
                 }
                 items(settings.systemPrompts.filter { it.name.contains(search, ignoreCase = true) }.sortedBy { it.name.lowercase() }) { system ->

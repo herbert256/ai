@@ -88,10 +88,14 @@ expanded text is captured in the report's execution parameters. See
 [custom-intent.md](custom-intent.md#prompt-placeholders).
 
 `<system>Name</system>` in those instructions selects a saved system prompt
-as the report-level override. It takes precedence over the literal `system`
-extra and system text in a
-`<parameters>Name</parameters>` preset. Names ignore case; stable IDs also
-work. Unknown or ambiguous names prevent confirmation.
+as the report-level override. If no saved definition resolves (including an
+ambiguous name), the tag content is used directly as system-prompt text at
+the same report-level precedence. It takes precedence over the literal
+`system` extra and system text in a `<parameters>Name</parameters>` preset.
+Names ignore case; stable IDs also work. An unresolved `<prompt>` similarly
+supplies literal system text without replacing the report question; an
+explicit `<system>` wins when both are present. Literal text supports the
+same placeholder expansion and is captured in report parameters for replay.
 
 ### Agent
 

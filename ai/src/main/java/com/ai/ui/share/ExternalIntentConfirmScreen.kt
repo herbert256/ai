@@ -44,6 +44,7 @@ data class PendingExternalReport(
     val promptReference: String? = null,
     val systemReference: String? = null,
     val selectedSystemPromptId: String? = null,
+    val literalSystemPrompt: String? = null,
     val parametersReference: String? = null,
     val defaultReference: String? = null,
     val selectedParameters: com.ai.model.Parameters? = null,

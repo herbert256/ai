@@ -46,7 +46,7 @@ Optional references can select AI-owned templates by stable ID or unique name:
 <open>@BOARD@</open>
 ```
 
-The referenced templates must already exist in the AI app. A missing or ambiguous `<prompt>` reference returns to the picker; an unresolved `<system>` reference prevents confirmation. Older callers that supply a prompt extra remain supported by the AI app.
+Matching templates are selected from the AI app. If a `<prompt>` or `<system>` value does not resolve to a saved definition (including an ambiguous name), its content is used as literal system-prompt text. `<system>` takes priority when both are present. An unresolved `<prompt>` leaves the question to the explicit prompt extra, named default, worker defaults or saved-prompt picker. Older callers that supply a prompt extra remain supported by the AI app.
 
 ## Existing Eval settings
 

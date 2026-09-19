@@ -45,13 +45,19 @@ internal fun externalPromptChoices(settings: Settings): List<SavedExternalPrompt
             SavedExternalPrompt(it.id, it.name, it.text, it.systemPrompt)
         }).filter { it.text.isNotBlank() }.sortedBy { it.name.lowercase() }
 
+private fun externalSystemPrompt(settings: Settings, ref: String?) = ref?.trim()?.let { value ->
+    settings.systemPrompts.firstOrNull { it.id == value }
+        ?: settings.systemPrompts.filter { it.name.trim().equals(value, ignoreCase = true) }.singleOrNull()
+}
+
 internal fun selectExternalPrompt(request: PendingExternalReport, settings: Settings, prompt: SavedExternalPrompt, systemRef: String?): PendingExternalReport {
-    val system = settings.getSystemPromptByIdOrName(systemRef)
+    val system = externalSystemPrompt(settings, systemRef)
     return request.copy(
         aiPrompt = request.context.expand(prompt.text),
         // Keep the template until final system-prompt precedence is resolved.
         systemPrompt = system?.prompt ?: request.systemPrompt,
         selectedSystemPromptId = system?.id,
+        literalSystemPrompt = request.literalSystemPrompt.takeIf { system == null },
         needsStoredPrompt = false
     )
 }
@@ -75,16 +81,30 @@ fun resolveNamedExternalPrompt(request: PendingExternalReport, settings: Setting
             ?.also { if (it.prompt.isBlank()) errors += "Default prompt is empty: ${it.name}" }
     }
     var resolved = request.copy(selectedParameters = parameters, selectedDefaultPrompt = defaultPrompt)
-    val prompt = request.promptReference?.let { ref ->
-        // Preserve the legacy saved-prompt picker for unresolved <prompt> references.
+    request.promptReference?.let { ref ->
         val choices = externalPromptChoices(settings)
-        choices.firstOrNull { it.id == ref }
+        val prompt = choices.firstOrNull { it.id == ref }
             ?: choices.filter { it.name.equals(ref, ignoreCase = true) }.singleOrNull()
+        resolved = if (prompt != null) {
+            selectExternalPrompt(resolved, settings, prompt, request.systemReference ?: prompt.system)
+        } else {
+            // An unresolved <prompt> supplies system text; it does not replace the question.
+            resolved.copy(
+                systemPrompt = ref,
+                literalSystemPrompt = ref,
+                selectedSystemPromptId = null,
+                needsStoredPrompt = request.aiPrompt.isBlank() && request.defaultReference == null &&
+                    request.agentNames.isEmpty() && request.flockNames.isEmpty() && request.swarmNames.isEmpty()
+            )
+        }
     }
-    if (prompt != null) resolved = selectExternalPrompt(resolved, settings, prompt, request.systemReference ?: prompt.system)
-    val system = request.systemReference?.let { ref ->
-        resolve(ref, settings.systemPrompts, { it.id }, { it.name }, "System prompt")
+    request.systemReference?.let { ref ->
+        val system = externalSystemPrompt(settings, ref)
+        resolved = resolved.copy(
+            systemPrompt = system?.prompt ?: ref,
+            selectedSystemPromptId = system?.id,
+            literalSystemPrompt = ref.takeIf { system == null }
+        )
     }
-    if (system != null) resolved = resolved.copy(systemPrompt = system.prompt, selectedSystemPromptId = system.id)
     return resolved.copy(resolutionErrors = errors)
 }

@@ -44,10 +44,10 @@ uppercase/mixed-case tag names.
 
 | Tag | Meaning |
 |---|---|
-| `<system>Name</system>` | Select a saved **System prompt** as the report-level override for all selected models. |
+| `<system>Name or text</system>` | Select a saved **System prompt**; if no definition resolves, use the content as literal system-prompt text. Applies as the report-level override for all selected models. |
 | `<parameters>Name</parameters>` | Select a saved **Parameters** preset as the report-level generation settings. |
 | `<default>Name</default>` | Select a saved **Default prompt** for every selected model when no explicit question is present, ahead of worker defaults. Works with bare models too. |
-| `<prompt>Name</prompt>` | Select an existing Example Prompt or eligible Internal Prompt, by ID or unique name. This is a different catalog from Default prompts. |
+| `<prompt>Name or text</prompt>` | Select an existing Example Prompt or eligible Internal Prompt, by ID or unique name. If no definition resolves, use the content as literal system-prompt text, leaving the report question unchanged. This is a different catalog from Default prompts. |
 | `<agent>Name</agent>` | Select a configured Agent by name; repeatable. |
 | `<flock>Name</flock>` | Select a configured Flock by name; repeatable. |
 | `<swarm>Name</swarm>` | Select a configured Swarm by name; repeatable. |
@@ -64,10 +64,13 @@ uppercase/mixed-case tag names.
 Names in `<system>`, `<parameters>` and `<default>` are trimmed and matched
 ignoring case. Stable definition IDs also work and take priority over name
 matches. XML-escape names containing special characters, for example
-`Research &amp; writing`. Missing, ambiguous or empty names, and an empty
-saved default prompt, are shown on confirmation and disable continuation.
-An unresolved legacy `<prompt>` reference instead opens the saved-prompt
-picker.
+`Research &amp; writing`. Unresolved `<system>` and `<prompt>` values
+(including ambiguous names) are used as literal system-prompt text instead.
+Missing, ambiguous or empty `<parameters>` / `<default>` names, and an
+empty saved default prompt, are shown on confirmation and disable continuation.
+When `<prompt>` falls back to system text, the question still comes from the
+explicit `prompt` extra, `<default>` or worker defaults; if none is supplied,
+the saved-prompt picker supplies the question.
 
 Prompt precedence is: a template selected with `<prompt>` (when supplied),
 otherwise explicit `prompt` text, then `<default>`, then the selected
@@ -78,7 +81,9 @@ worker default.
 
 `<system>` sets the report-level system choice, above
 worker/provider defaults, the literal `system` extra and system text inside
-a Parameters preset. The parameter preset applies above worker/provider
+a Parameters preset. An unresolved `<prompt>` has the same system precedence,
+but `<system>` wins when both are supplied. Literal system text supports the
+same placeholder substitution as saved system templates. The parameter preset applies above worker/provider
 parameter defaults. Users can change report-level choices in report setup.
 Saved definitions and worker assignments are unchanged by a request.
 Generation captures the resolved prompt and parameters for retry/regenerate.
@@ -267,10 +272,10 @@ The user confirms, selects models and generates. No `prompt`, literal
 `.putExtra("prompt", "Compare Amsterdam and Utrecht.")`, that explicit
 question takes precedence over **City summary**.
 
-### 5. Missing names and literal values
+### 5. Literal system text and placeholder values
 
 ```xml
-<system>System that does not exist</system>
+<system>Write about @topic@. Keep @literal@ unchanged.</system>
 <parameters>Concise</parameters>
 <default>City summary</default>
 <topic>Amsterdam &amp; Utrecht</topic>
@@ -279,12 +284,12 @@ question takes precedence over **City summary**.
 <select>
 ```
 
-Assuming only the system name is missing, AI shows
-`System prompt not found: System that does not exist` and disables
-continuation. Correct the name and resend. Once resolved, `@topic@` becomes
-`Amsterdam & Utrecht`, `@language@` becomes empty, and `@literal@` becomes the
-literal text `@topic@` in system/default templates. An unmatched `@unknown@`
-stays unchanged.
+If no saved system prompt matches that content, AI uses it directly and
+previews `Write about Amsterdam & Utrecht. Keep @topic@ unchanged.`.
+`@language@` becomes empty in system/default templates. Substitution runs
+once, so the inserted `@topic@` stays literal; an unmatched `@unknown@` also
+stays unchanged. An unresolved `<prompt>` supplies literal system text in
+the same way, while `<default>City summary</default>` supplies the question.
 <!-- END SHARED AI INTENT CONTRACT -->
 
 ## AI implementation

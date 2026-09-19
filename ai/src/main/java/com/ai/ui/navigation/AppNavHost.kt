@@ -184,6 +184,11 @@ fun AppNavHost(
                 )
                 if (staged.context.values.isNotEmpty()) appViewModel.setReportSystemPromptId(staged.selectedSystemPromptId)
                 staged.selectedParameters?.let { appViewModel.setReportParametersIds(listOf(it.id)) }
+                staged.literalSystemPrompt?.let { system ->
+                    // Literal instruction tags have the same report-level precedence as saved systems.
+                    val parameters = appViewModel.uiState.value.reportAdvancedParameters ?: com.ai.data.AgentParameters()
+                    appViewModel.setReportAdvancedParameters(parameters.copy(systemPrompt = system))
+                }
                 if (staged.hasEdit) {
                     val editorPrompt = staged.aiPrompt.ifBlank {
                         staged.selectedDefaultPrompt?.let { staged.context.expandPrompt(it.prompt) }.orEmpty()
