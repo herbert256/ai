@@ -86,13 +86,10 @@ fun resolveNamedExternalPrompt(request: PendingExternalReport, settings: Setting
         resolved = if (prompt != null) {
             selectExternalPrompt(resolved, settings, prompt, request.systemReference ?: prompt.system)
         } else {
-            // An unresolved <prompt> supplies system text; it does not replace the question.
+            // A caller can supply the report question directly instead of a saved prompt name.
             resolved.copy(
-                systemPrompt = ref,
-                literalSystemPrompt = ref,
-                selectedSystemPromptId = null,
-                needsStoredPrompt = request.aiPrompt.isBlank() && request.defaultReference == null &&
-                    request.agentNames.isEmpty() && request.flockNames.isEmpty() && request.swarmNames.isEmpty()
+                aiPrompt = request.context.expand(ref),
+                needsStoredPrompt = false
             )
         }
     }

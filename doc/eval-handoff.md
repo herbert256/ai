@@ -50,7 +50,7 @@ Optional references can select AI-owned templates by stable ID or unique name:
 <open>@BOARD@</open>
 ```
 
-Matching templates are selected from the AI app. If a `<prompt>` or `<system>` value does not resolve to a saved definition (including an ambiguous name), its content is used as literal system-prompt text. `<system>` takes priority when both are present. An unresolved `<prompt>` leaves the question to the explicit prompt extra, named default, worker defaults or saved-prompt picker. Older callers that supply a prompt extra remain supported by the AI app.
+Matching templates are selected from the AI app. If a `<prompt>` value does not resolve to a saved definition (including an ambiguous name), its content becomes the normal report prompt with placeholders expanded; AI skips the saved-prompt picker. An unresolved `<system>` value becomes literal system-prompt text independently. Older callers that supply a prompt extra remain supported by the AI app.
 
 ## Existing Eval settings
 

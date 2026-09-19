@@ -92,10 +92,10 @@ as the report-level override. If no saved definition resolves (including an
 ambiguous name), the tag content is used directly as system-prompt text at
 the same report-level precedence. It takes precedence over the literal
 `system` extra and system text in a `<parameters>Name</parameters>` preset.
-Names ignore case; stable IDs also work. An unresolved `<prompt>` similarly
-supplies literal system text without replacing the report question; an
-explicit `<system>` wins when both are present. Literal text supports the
-same placeholder expansion and is captured in report parameters for replay.
+Names ignore case; stable IDs also work. An unresolved `<prompt>` supplies
+the normal report question and does not change the system prompt. Literal
+system text supports the same placeholder expansion and is captured in report
+parameters for replay.
 
 ### Agent
 
