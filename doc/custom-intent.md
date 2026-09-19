@@ -98,7 +98,7 @@ viewer.
 ## Context and placeholder substitution
 
 1. **Eval sends templates and data separately.** It does not replace tokens
-   in prompt, system-prompt or presentation text. The standard seven context
+   in prompt, system-prompt or presentation text. The standard eight context
    fields below are always sent so templates saved only in AI can use them.
    Each unique supported placeholder has one matching lowercase data tag;
    repeated tokens reuse that value. `@DATE@` additionally supplies `<date>`
@@ -118,6 +118,7 @@ viewer.
 | `<pgn>…</pgn>` | Available game PGN; the separate FEN is authoritative for the current position. |
 | `<board>…</board>` | Generated board HTML/JavaScript. |
 | `<moves>…</moves>` | All legal moves at the current FEN, each with SAN, UCI, Stockfish evaluation and search depth. |
+| `<engine>…</engine>` | The best N Stockfish continuations at the current FEN, ranked for the side to move, with SAN, UCI, White-perspective scores and search depth. |
 | `<date>…</date>` | Current local date when a date placeholder is used in the interface text. |
 
 For position reports, Eval evaluates every legal move before handoff using
@@ -131,7 +132,18 @@ position supplies “No legal moves in this position.” `@MOVES@` works in
 prompts and system prompts saved only in AI because `<moves>` is always
 supplied; Eval leaves the template token unchanged.
 
-A player-only request sends empty `fen`, `color`, `pgn`, `board` and `moves`; it does
+The fifth Stockfish card, **Engine moves for AI**, independently controls
+`@ENGINE@`: number of lines (1–32), seconds per position (shared across all
+lines), threads, hash memory and NNUE. Defaults are three lines, two seconds,
+one thread, 32 MB and NNUE on. Eval sends one complete MultiPV iteration at
+a common depth, best first for the side to move. When fewer legal root moves
+exist, that smaller number of lines is returned. Terminal positions supply
+“No legal moves in this position.” This data is included with every position
+handoff, so AI-saved prompt/system templates can use `@ENGINE@` without
+repeating it in Eval. AI performs the substitution; Eval sends the token
+unchanged in templates. Both searches use the same captured position.
+
+A player-only request sends empty `fen`, `color`, `pgn`, `board`, `moves` and `engine`; it does
 not reuse the last opened position. Plain fields are XML-escaped (`&amp;`,
 `&lt;`, `&gt;`, `&quot;`, `&#39;`); `board` is raw markup. Eval replaces
 existing top-level declarations for supplied context fields with one
@@ -171,7 +183,7 @@ when written inside a JavaScript string.
 ## Examples
 
 The definition and worker names below are examples: create them in AI first
-or substitute names/IDs that already exist. Eval automatically supplies the seven
+or substitute names/IDs that already exist. Eval automatically supplies the eight
 standard context tags and any requested date value; do not paste a fixed
 FEN or duplicate context values into an Eval instruction entry.
 
@@ -183,7 +195,7 @@ Create these definitions in AI:
 |---|---|
 | System prompt **Chess coach** | `You are a chess coach. Respond in @language@. Report date: @date@.` |
 | Parameters **Careful analysis** | Temperature `0.2`, max tokens `2048` (choose a model supporting them). |
-| Default prompt **Analyse a position** | `Analyse @fen@ for @color@. Player: @player@. Use @MOVES@ to explain plans and candidate moves.` |
+| Default prompt **Analyse a position** | `Analyse @fen@ for @color@. Player: @player@. Use @MOVES@ and @ENGINE@ to explain plans and candidate moves.` |
 
 Save this instruction text in Eval:
 
