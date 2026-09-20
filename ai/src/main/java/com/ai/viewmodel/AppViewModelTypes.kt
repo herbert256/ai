@@ -634,7 +634,6 @@ data class UiState(
     // and reset operations trivial, and shrinks the top-level UiState surface.
     val externalSystemPrompt: String? get() = externalIntent.systemPrompt
     val externalCloseHtml: String? get() = externalIntent.closeHtml
-    val externalReportType: String? get() = externalIntent.reportType
     val externalEmail: String? get() = externalIntent.email
     val externalNextAction: String? get() = externalIntent.nextAction
     val externalReturn: Boolean get() = externalIntent.returnAfterNext
@@ -648,7 +647,6 @@ data class UiState(
 data class ExternalIntent(
     val systemPrompt: String? = null,
     val closeHtml: String? = null,
-    val reportType: String? = null,
     val email: String? = null,
     val nextAction: String? = null,
     val returnAfterNext: Boolean = false,

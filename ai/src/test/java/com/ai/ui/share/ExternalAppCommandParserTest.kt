@@ -46,7 +46,7 @@ class ExternalAppCommandParserTest {
         )
         val staged = confirm(cmd)
         assertThat(staged.aiPrompt).isEqualTo("Write a poem")
-        assertThat(staged.reportType).isEqualTo("poem")
+        assertThat(staged.context.values["type"]).isEqualTo("poem")
     }
 
     @Test
@@ -62,7 +62,7 @@ class ExternalAppCommandParserTest {
         val staged = confirm(cmd)
         assertThat(staged.aiPrompt).isEqualTo("Body -- end prompt -- still body")
         assertThat(staged.systemPrompt).isEqualTo("be terse")
-        assertThat(staged.reportType).isEqualTo("note")
+        assertThat(staged.context.values["type"]).isEqualTo("note")
     }
 
     // ---- Tag extraction -------------------------------------------------
@@ -74,7 +74,7 @@ class ExternalAppCommandParserTest {
         val staged = confirm(ExternalAppCommandParser.parse("p", instr, null, null))
         assertThat(staged.openHtml).isEqualTo("intro")
         assertThat(staged.closeHtml).isEqualTo("outro")
-        assertThat(staged.reportType).isEqualTo("brief")
+        assertThat(staged.context.values["type"]).isEqualTo("brief")
         assertThat(staged.email).isEqualTo("a@b.com")
         assertThat(staged.nextAction).isEqualTo("share")
     }
@@ -122,8 +122,8 @@ class ExternalAppCommandParserTest {
     // ---- Derived willAutoGenerate predicate -----------------------------
 
     @Test
-    fun willAutoGenerate_whenTypedWithWorkersAndNoSelect() {
-        val staged = confirm(ExternalAppCommandParser.parse("p", "<type>brief</type><agent>Alice</agent>", null, null))
+    fun willAutoGenerate_withWorkersAndNoTypeOrSelect() {
+        val staged = confirm(ExternalAppCommandParser.parse("p", "<agent>Alice</agent>", null, null))
         assertThat(staged.willAutoGenerate).isTrue()
     }
 

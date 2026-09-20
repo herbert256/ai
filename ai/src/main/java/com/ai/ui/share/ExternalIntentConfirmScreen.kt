@@ -29,7 +29,6 @@ data class PendingExternalReport(
     val aiPrompt: String,
     val openHtml: String?,
     val closeHtml: String?,
-    val reportType: String?,
     val email: String?,
     val nextAction: String?,
     val hasReturn: Boolean,
@@ -46,7 +45,6 @@ data class PendingExternalReport(
     val resolutionErrors: List<String> = emptyList()
 ) {
     val willAutoGenerate: Boolean get() = !hasSelect &&
-        reportType != null &&
         (agentNames.isNotEmpty() || flockNames.isNotEmpty() ||
             swarmNames.isNotEmpty())
 }
@@ -152,9 +150,6 @@ private fun ActionCard(intent: PendingExternalReport) {
             }
             Text(headline, fontSize = 13.sp, color = AppColors.TextPrimary)
 
-            intent.reportType?.takeIf { it.isNotBlank() }?.let {
-                Text("Report type: $it", fontSize = 12.sp, color = AppColors.TextSecondary)
-            }
             val agents = (intent.agentNames + intent.flockNames + intent.swarmNames)
                 .filter { it.isNotBlank() }
             if (agents.isNotEmpty()) {

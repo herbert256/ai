@@ -132,7 +132,7 @@ fun AppNavHost(
                 // Bare prompt — pre-fill the editor, no side effects.
                 is com.ai.ui.share.ExternalReportCommand.Prefill -> {
                     appViewModel.setExternalInstructions(
-                        closeHtml = null, reportType = null, email = null,
+                        closeHtml = null, email = null,
                         systemPrompt = cmd.systemPrompt)
                     navController.navigate(NavRoutes.aiNewReportWithParams(cmd.title, cmd.prompt)) {
                         popUpTo(NavRoutes.AI) { inclusive = false }
@@ -167,7 +167,6 @@ fun AppNavHost(
             onConfirm = {
                 appViewModel.setExternalInstructions(
                     closeHtml = staged.closeHtml,
-                    reportType = staged.reportType,
                     email = staged.email,
                     nextAction = staged.nextAction,
                     returnAfterNext = staged.hasReturn,

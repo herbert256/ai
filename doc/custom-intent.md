@@ -48,7 +48,6 @@ or empty pairs, such as `<select>` or `<select></select>`.
 | `<agent>Name</agent>` | Select a configured Agent by name; repeatable. |
 | `<flock>Name</flock>` | Select a configured Flock by name; repeatable. |
 | `<swarm>Name</swarm>` | Select a configured Swarm by name; repeatable. |
-| `<type>Classic</type>` / `<type>Table</type>` | Choose the report format. |
 | `<open>content</open>` / `<close>content</close>` | Opening/closing report presentation, including HTML, CSS and JavaScript. |
 | `<next>View</next>` | Completion action: `View`, `Share`, `Browser` or `Email`. Email uses AI's configured default email address. |
 | `<email>recipient@example.com</email>` | Open the email chooser with the completed report attached and recipient filled in. |
@@ -56,8 +55,8 @@ or empty pairs, such as `<select>` or `<select></select>`.
 | `<return>` | Finish AI after its completion action. No report data is returned as an Android activity result. |
 | `<name>value</name>` | Supply data for matching `@name@` placeholders. Send it only when that placeholder is used. |
 
-`<default>`, `<model>` and `<edit>` no longer control the handoff. They do
-not choose defaults or models, or route to editing. Like other custom names,
+`<default>`, `<model>`, `<edit>` and `<type>` no longer control the handoff. They do
+not choose defaults, models or layouts, or route to editing. Like other custom names,
 a paired value can only supply data if explicitly referenced by a placeholder.
 
 `<prompt>` takes precedence over the `prompt` extra. If no question is supplied,
@@ -73,8 +72,9 @@ prevent continuation. Worker selection still resolves Agent/Flock/Swarm names.
 Requests do not change saved templates or worker assignments. Generation captures
 the effective prompt and parameters for retry/regenerate.
 
-After confirmation, immediate generation requires a `<type>`, at least one
-Agent/Flock/Swarm and no `<select>`. Other requests continue to model selection.
+External reports use Classic (One by one) as their initial layout.
+After confirmation, immediate generation requires at least one Agent/Flock/Swarm
+and no `<select>`. Other requests continue to model selection.
 A valid selection, question and provider configuration are still required.
 Completion actions run after generation; Share and Email open Android choosers.
 
@@ -154,7 +154,6 @@ retains Markdown formatting; for HTML, write the whole body as HTML.
 <prompt>Analyse @FEN@ for @COLOR@. Use @ENGINE@ to explain candidate moves.</prompt>
 <language>English</language>
 <open>@BOARD@</open>
-<type>Classic</type>
 <select>
 <next>View</next>
 ```
@@ -198,12 +197,11 @@ exactly, regardless of any saved prompt names. No other extras are required.
 <prompt>Explain @topic@ simply.</prompt>
 <topic>Photosynthesis</topic>
 <agent>Science tutor</agent>
-<type>Classic</type>
 <next>View</next>
 ```
 
 Create the Agent in AI first. Confirmation offers Generate because a worker
-and report type are supplied and `<select>` is absent.
+is supplied and `<select>` is absent.
 <!-- END SHARED AI INTENT CONTRACT -->
 
 ## AI implementation

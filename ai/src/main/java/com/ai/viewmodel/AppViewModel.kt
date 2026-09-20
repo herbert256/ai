@@ -2321,7 +2321,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     // ===== External Intent =====
 
     fun setExternalInstructions(
-        closeHtml: String?, reportType: String?, email: String?,
+        closeHtml: String?, email: String?,
         nextAction: String? = null, returnAfterNext: Boolean = false,
         agentNames: List<String> = emptyList(), flockNames: List<String> = emptyList(),
         swarmNames: List<String> = emptyList(),
@@ -2331,7 +2331,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     ) {
         _uiState.update { it.copy(externalIntent = ExternalIntent(
             systemPrompt = systemPrompt, closeHtml = closeHtml, context = context,
-            reportType = reportType, email = email,
+            email = email,
             nextAction = nextAction, returnAfterNext = returnAfterNext,
             select = select, openHtml = openHtml,
             agentNames = agentNames, flockNames = flockNames,

@@ -90,7 +90,6 @@ object ExternalAppCommandParser {
                 parametersReference = extractTag("parameters"),
                 openHtml = presentationBody("open")?.let { context.expand(it) },
                 closeHtml = presentationBody("close")?.let { context.expand(it) },
-                reportType = extractTag("type"),
                 email = extractTag("email"),
                 nextAction = extractTag("next"),
                 hasReturn = hasTag("return"),
