@@ -120,7 +120,9 @@ internal data class HtmlAgentData(
     /** [com.ai.data.ReportAgent.icon] — prefixed (additive) on every
      *  agent heading / card across the export renderers. Null / blank
      *  → no prefix added. */
-    val icon: String? = null
+    val icon: String? = null,
+    /** Saved title for this model response, when available. */
+    val modelTitle: String? = null
 )
 
 internal data class HtmlSecondaryData(
@@ -361,7 +363,8 @@ internal fun buildHtmlReportData(context: android.content.Context, report: Repor
                 inputTokens = tu?.inputTokens, outputTokens = tu?.outputTokens, inputCost = inCost, outputCost = outCost, durationMs = agent.durationMs,
                 pricingTier = pricing?.source,
                 anchorIndex = anchorByAgentId[agent.agentId],
-                icon = agent.icon
+                icon = agent.icon,
+                modelTitle = agent.modelTitle?.takeIf { it.isNotBlank() }
             )
         }
 
@@ -547,7 +550,10 @@ internal fun buildLanguageViews(base: HtmlReportData): List<HtmlLanguageView> {
         val translatedPrompt = byTarget["PROMPT:prompt"]?.content ?: base.prompt
         val translatedAgents = base.agents.map { a ->
             val tx = byTarget["AGENT:${a.agentId}"]?.content
-            if (tx != null) a.copy(responseText = tx) else a
+            a.copy(
+                responseText = tx ?: a.responseText,
+                modelTitle = byTarget["AGENT_TITLE:${a.agentId}"]?.content ?: a.modelTitle
+            )
         }
         // Chat-type META rows for this language come in two flavours:
         // native per-language batch rows tagged with
@@ -772,25 +778,29 @@ private fun renderLanguageBlock(
 
 /** Reports view — agents in either One-by-one or All-together layout.
  *  Default layout follows the report's reportType (CLASSIC=oneByOne,
- *  TABLE=allTogether). The sub-toggle is always shown for this view since
- *  even a single agent might benefit from the All-together card layout.
+ *  TABLE=allTogether). The sub-toggle is shown only for multiple agents.
  *  [emitAnchors] is true only for the Original language block; rerank
  *  hyperlinks like `#result-N` jump to the Original's per-agent cards
  *  and emitting duplicate `id` attributes in translated language blocks
  *  would shadow the lookup. */
 private fun renderReportsView(sb: StringBuilder, data: HtmlReportData, defaultAllTogether: Boolean, emitAnchors: Boolean) {
-    sb.append("<div class='layout-toggle'>")
-    sb.append("<button class='layout-btn${if (!defaultAllTogether) " active" else ""}' data-layout='oneByOne' onclick=\"showLayout(this,'oneByOne')\">One by one</button>")
-    sb.append("<button class='layout-btn${if (defaultAllTogether) " active" else ""}' data-layout='allTogether' onclick=\"showLayout(this,'allTogether')\">All together</button>")
-    sb.append("</div>")
+    if (data.agents.size > 1) {
+        sb.append("<div class='layout-toggle'>")
+        sb.append("<button class='layout-btn${if (!defaultAllTogether) " active" else ""}' data-layout='oneByOne' onclick=\"showLayout(this,'oneByOne')\">One by one</button>")
+        sb.append("<button class='layout-btn${if (defaultAllTogether) " active" else ""}' data-layout='allTogether' onclick=\"showLayout(this,'allTogether')\">All together</button>")
+        sb.append("</div>")
+    }
 
     sb.append("<div class='layout' data-layout='oneByOne'${if (defaultAllTogether) " style='display:none'" else ""}>")
     sb.append("<div class='agent-buttons'>")
-    data.agents.forEachIndexed { i, a -> sb.append("<button class='agent-btn${if (i == 0) " active" else ""}' data-agent='${escId(a.agentId)}' onclick=\"showAgent(this,'${escId(a.agentId)}')\">${iconPrefixHtml(a.icon)}${esc(a.agentName)}</button>") }
+    data.agents.forEachIndexed { i, a -> sb.append("<button class='agent-btn${if (i == 0) " active" else ""}' data-agent='${escId(a.agentId)}' onclick=\"showAgent(this,'${escId(a.agentId)}')\">${iconPrefixHtml(a.icon)}${esc(a.modelTitle?.takeIf { it.isNotBlank() } ?: a.agentName)}</button>") }
     sb.append("</div>")
     data.agents.forEachIndexed { i, a ->
         val resultIdAttr = if (emitAnchors) a.anchorIndex?.let { " id='result-$it'" } ?: "" else ""
         sb.append("<div class='agent-result${if (i == 0) " active" else ""}' data-agent='${escId(a.agentId)}'$resultIdAttr>")
+        a.modelTitle?.takeIf { it.isNotBlank() }?.let { title ->
+            sb.append("<h2 class='model-title'>${esc(title)}</h2>")
+        }
         sb.append("<div class='agent-header'>${iconPrefixHtml(a.icon)}${esc(a.providerDisplay)} - ${esc(com.ai.ui.shared.shortModelName(a.model))}</div>")
         sb.append("<div class='report-content'>")
         if (a.errorMessage != null) sb.append("<div class='error'>Error: ${esc(a.errorMessage)}</div>")
@@ -818,6 +828,9 @@ private fun renderReportsView(sb: StringBuilder, data: HtmlReportData, defaultAl
     sb.append("<div class='table-grid'>")
     data.agents.forEach { a ->
         sb.append("<div class='table-card'>")
+        a.modelTitle?.takeIf { it.isNotBlank() }?.let { title ->
+            sb.append("<h2 class='model-title'>${esc(title)}</h2>")
+        }
         sb.append("<div class='card-header'>${iconPrefixHtml(a.icon)}${esc(a.providerDisplay)}</div>")
         sb.append("<div class='card-model'>${esc(com.ai.ui.shared.shortModelName(a.model))}</div>")
         if (a.errorMessage != null) {
@@ -1465,6 +1478,7 @@ h1{color:#fff;font-size:24px;margin-bottom:16px}
 .item-btn{background:transparent;color:#e0e0e0;border:1px solid #555;border-radius:16px;padding:4px 12px;cursor:pointer;font-size:13px}
 .item-btn.active{background:#FF9800;color:#fff;border-color:#FF9800}
 .item-content{display:none}.item-content.active{display:block}
+.model-title{margin:0 0 8px}
 .agent-header{color:#6B9BFF;font-size:18px;font-weight:600;margin-bottom:12px}
 .agent-response{line-height:1.6}
 .error{color:#ff6b6b;padding:8px;background:#2a1a1a;border-radius:4px;margin-bottom:8px}

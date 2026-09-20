@@ -319,6 +319,9 @@ internal fun buildShortHtmlFromData(data: HtmlReportData): String {
 
     sb.append("<h2>Results</h2>")
     for (a in agents) {
+        a.modelTitle?.takeIf { it.isNotBlank() }?.let { title ->
+            sb.append("<h3>").append(esc(title)).append("</h3>")
+        }
         sb.append("<h3>").append(iconPrefixHtml(a.icon)).append(esc(a.providerDisplay))
             .append(" / ").append(esc(a.model)).append("</h3>")
         if (!a.errorMessage.isNullOrBlank()) {

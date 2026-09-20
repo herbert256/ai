@@ -482,7 +482,11 @@ same Export sheet on those scopes.
 
 The HTML export contains:
 - A toggle to switch between **One by one** (tabbed) and **All
-  together** (grid card layout).
+  together** (grid card layout), shown only when there is more than
+  one model response.
+- Saved per-model report titles appear above their responses, alongside
+  the provider and model identity. Complete, Short, and Zipped HTML
+  use the titles, including translated titles when available.
 - The original prompt and a Costs view with three in-page tabs:
   **By type** rollup, **By model** rollup, and **All** — every
   individual call as its own row (including the per-report icon-gen

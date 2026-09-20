@@ -394,7 +394,8 @@ private fun languageIndex(data: HtmlReportData, lv: HtmlLanguageView, basePath: 
 private fun emitReports(zos: ZipOutputStream, data: HtmlReportData, traceIndex: List<TraceLoc>, basePath: String, langDisplay: String?) {
     val maxAnchor = data.agents.mapNotNull { it.anchorIndex }.maxOrNull() ?: 0
     val items = data.agents.mapIndexed { idx, a ->
-        Triple(itemFilename(idx, "${a.providerDisplay}_${a.model}"), a.providerDisplay + " / " + a.model, a)
+        Triple(itemFilename(idx, "${a.providerDisplay}_${a.model}"),
+            a.modelTitle?.takeIf { it.isNotBlank() } ?: (a.providerDisplay + " / " + a.model), a)
     }
     // Section index
     val sb = StringBuilder()
@@ -423,8 +424,11 @@ private fun reportPage(label: String, a: HtmlAgentData, data: HtmlReportData, ma
     // (the response carries over from the source), so the lookup
     // naturally lands on a source-side trace.
     val match = traceIndex.findMatch(a.providerDisplay, a.model, "report/prompt")
-    sb.append("<h1>").append(iconPrefixHtml(a.icon)).append(esc(a.providerDisplay)).append(" / ").append(esc(a.model))
+    sb.append("<h1>").append(iconPrefixHtml(a.icon)).append(esc(label))
         .append(bugLink(match, pageDepth = 1, basePath = basePath)).append("</h1>")
+    if (!a.modelTitle.isNullOrBlank()) {
+        sb.append("<p>").append(esc(a.providerDisplay)).append(" / ").append(esc(a.model)).append("</p>")
+    }
     if (a.errorMessage != null) sb.append("<div class='error'>Error: ${esc(a.errorMessage)}</div>")
     if (!a.responseText.isNullOrBlank()) sb.append("<div class='response'>${processThinkSections(a.responseText, a.agentId)}</div>")
     a.citations?.takeIf { it.isNotEmpty() }?.let { cites ->
