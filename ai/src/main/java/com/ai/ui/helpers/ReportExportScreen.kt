@@ -25,6 +25,9 @@ import com.ai.ui.shared.IconCardHeader
 import com.ai.ui.shared.TitleBar
 import kotlinx.coroutines.launch
 
+// Keep the bulk ZIP action available in code without showing it on the Export screen.
+private const val SHOW_EXPORT_ALL_ZIP = false
+
 /**
  * Full-screen overlay that lets the user pick the export format (HTML / PDF /
  * MS Word / OpenDocument / JSON) and, when relevant, the detail level (Short /
@@ -41,10 +44,10 @@ internal fun ReportExportScreen(
     onExportAll: suspend (ExportLanguage, (Int, Int) -> Unit) -> Unit,
     /** Open the in-app HTML viewer (the same screen the AI Report
      *  "HTML" action-row button reaches). Surfaced as a third button
-     *  next to Android share / View in browser whenever the format
+     *  next to Android share / Browser whenever the format
      *  is HTML; the picked Detail (Short / Complete) and language
      *  are passed through so the preview renders the same body
-     *  that Android share / View in browser would produce. */
+     *  that Android share / Browser would produce. */
     onViewInApp: (ReportExportDetail, ExportLanguage) -> Unit = { _, _ -> },
     /** Original + one entry per TRANSLATE language on the report.
      *  Empty / single-entry => Language card hidden + ALL_LANGUAGES
@@ -150,48 +153,6 @@ internal fun ReportExportScreen(
 
     Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(helpTopic = "report_export_sheet", title = "Export", subject = "Pick a format and save or share it", onBackClick = onBack)
-        // Both CTAs hoisted to the top — Export (green) dispatches
-        // based on the Target chip; Export all (purple) bundles the
-        // full set into a single zip. Sit on the same row so the
-        // user sees both options without scrolling.
-        Spacer(modifier = Modifier.height(8.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(
-                onClick = {
-                    when (target) {
-                        ReportExportTarget.ANDROID_SHARE -> runExport(ReportExportAction.SHARE)
-                        ReportExportTarget.VIEW_BROWSER -> runExport(ReportExportAction.VIEW)
-                        ReportExportTarget.VIEW_APP -> onViewInApp(detail, exportLanguage)
-                    }
-                },
-                enabled = progress == null,
-                modifier = Modifier.weight(1f),
-                colors = AppColors.outlinedButtonColors()
-            ) { Text("Export", maxLines = 1, softWrap = false) }
-            OutlinedButton(
-                onClick = {
-                    scope.launch {
-                        progress = 0 to 1
-                        try {
-                            onExportAll(ExportLanguage.All) { d, t -> progress = d to t }
-                            progress = null
-                            onBack()
-                        } catch (e: Exception) {
-                            AppLog.e("ReportExport", "Export all failed", e)
-                            progress = null
-                            android.widget.Toast.makeText(
-                                context,
-                                "Export all failed: ${e.javaClass.simpleName}: ${e.message}",
-                                android.widget.Toast.LENGTH_LONG
-                            ).show()
-                        }
-                    }
-                },
-                enabled = progress == null,
-                modifier = Modifier.weight(1f),
-                colors = AppColors.outlinedButtonColors()
-            ) { Text("Export all (zip)", maxLines = 1, softWrap = false) }
-        }
         Spacer(modifier = Modifier.height(8.dp))
 
         Column(
@@ -226,7 +187,7 @@ internal fun ReportExportScreen(
                         Text(
                             when (languageScope) {
                                 ExportLanguageScope.ALL_LANGUAGES ->
-                                    "Render every language present on the report. Export-all (zip) lays out one top-level directory per language."
+                                    "Render every language present on the report."
                                 ExportLanguageScope.ONE_LANGUAGE ->
                                     "Render only the selected language. JSON traces are not language-specific and are hidden in this mode."
                             },
@@ -312,6 +273,47 @@ internal fun ReportExportScreen(
                     )
                 }
             }
+
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(
+                    onClick = {
+                        when (target) {
+                            ReportExportTarget.ANDROID_SHARE -> runExport(ReportExportAction.SHARE)
+                            ReportExportTarget.VIEW_BROWSER -> runExport(ReportExportAction.VIEW)
+                            ReportExportTarget.VIEW_APP -> onViewInApp(detail, exportLanguage)
+                        }
+                    },
+                    enabled = progress == null,
+                    modifier = Modifier.weight(1f),
+                    colors = AppColors.outlinedButtonColors()
+                ) { Text("Export", maxLines = 1, softWrap = false) }
+                if (SHOW_EXPORT_ALL_ZIP) {
+                    OutlinedButton(
+                        onClick = {
+                            scope.launch {
+                                progress = 0 to 1
+                                try {
+                                    onExportAll(ExportLanguage.All) { d, t -> progress = d to t }
+                                    progress = null
+                                    onBack()
+                                } catch (e: Exception) {
+                                    AppLog.e("ReportExport", "Export all failed", e)
+                                    progress = null
+                                    android.widget.Toast.makeText(
+                                        context,
+                                        "Export all failed: ${e.javaClass.simpleName}: ${e.message}",
+                                        android.widget.Toast.LENGTH_LONG
+                                    ).show()
+                                }
+                            }
+                        },
+                        enabled = progress == null,
+                        modifier = Modifier.weight(1f),
+                        colors = AppColors.outlinedButtonColors()
+                    ) { Text("Export all (zip)", maxLines = 1, softWrap = false) }
+                }
+            }
+            Spacer(modifier = Modifier.height(4.dp))
         }
     }
 }

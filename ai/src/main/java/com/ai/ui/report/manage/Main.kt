@@ -560,7 +560,7 @@ fun ReportsScreen(
     var showExport by st.showExport
     // Tracks the in-app HTML preview's selected detail level. Null →
     // not shown. Default-COMPLETE when the action-row HTML button
-    // opens it; the Export screen's "View in app" pipes its own
+    // opens it; the Export screen's "App" pipes its own
     // detail picker through.
     var htmlPreviewDetail by st.htmlPreviewDetail
     // Optional language filter piped through from the Export screen's

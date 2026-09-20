@@ -53,8 +53,8 @@ enum class ReportExportAction { SHARE, VIEW }
  *  (calls onViewInApp directly, bypasses the runExport path). */
 enum class ReportExportTarget(val displayName: String) {
     ANDROID_SHARE("Android share"),
-    VIEW_BROWSER("View in browser"),
-    VIEW_APP("View in app")
+    VIEW_BROWSER("Browser"),
+    VIEW_APP("App")
 }
 
 /** Drives the Language card on [com.ai.ui.helpers.ReportExportScreen].

@@ -43,9 +43,10 @@ class ReportExportScreenTest {
         rule.onNodeWithText("Short").assertIsDisplayed()
         rule.onNodeWithText("Complete").assertIsDisplayed()
 
-        // Action buttons.
+        // Target chips and the hidden bulk action.
         rule.onNodeWithText("Android share").assertIsDisplayed()
-        rule.onNodeWithText("View in browser").assertIsDisplayed()
-        rule.onNodeWithText("Export all (zip)").assertIsDisplayed()
+        rule.onNodeWithText("Browser").assertIsDisplayed()
+        rule.onNodeWithText("App").assertIsDisplayed()
+        rule.onNodeWithText("Export all (zip)").assertDoesNotExist()
     }
 }
