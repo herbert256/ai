@@ -32,7 +32,7 @@ data class PendingExternalReport(
     val email: String?,
     val nextAction: String?,
     val hasReturn: Boolean,
-    val hasSelect: Boolean,
+    val modelReferences: List<String> = emptyList(),
     val agentNames: List<String>,
     val flockNames: List<String>,
     val swarmNames: List<String>,
@@ -44,9 +44,8 @@ data class PendingExternalReport(
     val selectedParameters: com.ai.model.Parameters? = null,
     val resolutionErrors: List<String> = emptyList()
 ) {
-    val willAutoGenerate: Boolean get() = !hasSelect &&
-        (agentNames.isNotEmpty() || flockNames.isNotEmpty() ||
-            swarmNames.isNotEmpty())
+    val hasModelSelection: Boolean get() = modelReferences.isNotEmpty() ||
+        agentNames.isNotEmpty() || flockNames.isNotEmpty() || swarmNames.isNotEmpty()
 }
 
 /**
@@ -107,7 +106,7 @@ fun ExternalIntentConfirmScreen(
                 enabled = intent.resolutionErrors.isEmpty(),
                 modifier = Modifier.weight(1f),
                 colors = AppColors.outlinedButtonColors()
-            ) { Text(if (intent.willAutoGenerate) "Generate" else "Continue") }
+            ) { Text("Continue") }
         }
     }
 }
@@ -144,18 +143,17 @@ private fun ActionCard(intent: PendingExternalReport) {
         Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text("Will do", fontSize = 11.sp, color = AppColors.TextTertiary, fontWeight = FontWeight.SemiBold)
             val headline = when {
-                intent.willAutoGenerate -> "Generate a report immediately"
-                intent.hasSelect -> "Open agent/model selection for a report"
+                intent.hasModelSelection -> "Open Report - setup"
                 else -> "Open agent/model selection for a report"
             }
             Text(headline, fontSize = 13.sp, color = AppColors.TextPrimary)
 
-            val agents = (intent.agentNames + intent.flockNames + intent.swarmNames)
+            val agents = (intent.modelReferences + intent.agentNames + intent.flockNames + intent.swarmNames)
                 .filter { it.isNotBlank() }
             if (agents.isNotEmpty()) {
                 Text("Targets:", fontSize = 11.sp, color = AppColors.TextTertiary)
                 agents.forEach { Text("• $it", fontSize = 12.sp, color = AppColors.TextSecondary) }
-            } else if (intent.willAutoGenerate.not()) {
+            } else if (!intent.hasModelSelection) {
                 Text("You pick the models on the next screen.", fontSize = 11.sp, color = AppColors.TextTertiary)
             }
         }

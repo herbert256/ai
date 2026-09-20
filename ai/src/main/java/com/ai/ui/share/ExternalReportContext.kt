@@ -1,6 +1,7 @@
 package com.ai.ui.share
 
-import com.ai.model.Settings
+import com.ai.data.AppService
+import com.ai.model.*
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -62,15 +63,55 @@ internal fun selectExternalPrompt(request: PendingExternalReport, settings: Sett
 
 /** Only parameter presets are resolved by name; prompt and system tags are literal text. */
 fun resolveExternalParameters(request: PendingExternalReport, settings: Settings): PendingExternalReport {
-    val ref = request.parametersReference ?: return request
+    val selection = resolveExternalModels(request.modelReferences, request.agentNames, request.flockNames, request.swarmNames, settings)
+    val ref = request.parametersReference ?: return request.copy(resolutionErrors = selection.errors)
     val value = ref.trim()
     val byId = settings.parameters.firstOrNull { it.id == value }
     val matches = settings.parameters.filter { it.name.trim().equals(value, ignoreCase = true) }
     val parameters = byId ?: matches.singleOrNull()
     return request.copy(
         selectedParameters = parameters,
-        resolutionErrors = if (parameters != null) emptyList() else listOf(
+        resolutionErrors = selection.errors + if (parameters != null) emptyList() else listOf(
             if (matches.isEmpty()) "Parameters not found: $ref" else "Parameters name is ambiguous: $ref"
         )
     )
+}
+
+/** Shared by confirmation validation and the report selection handoff. */
+internal data class ExternalModelSelection(val models: List<ReportModel>, val errors: List<String>)
+
+internal fun resolveExternalModels(
+    modelReferences: List<String>, agentNames: List<String>, flockNames: List<String>,
+    swarmNames: List<String>, settings: Settings
+): ExternalModelSelection {
+    val models = mutableListOf<ReportModel>()
+    val errors = mutableListOf<String>()
+    modelReferences.forEach { reference ->
+        val separator = reference.lastIndexOf('@')
+        val model = if (separator > 0) reference.substring(0, separator).trim() else ""
+        val providerName = if (separator >= 0) reference.substring(separator + 1).trim() else ""
+        val provider = (AppService.entries + AppService.LOCAL)
+            .firstOrNull { it.id.equals(providerName, ignoreCase = true) }
+        when {
+            model.isBlank() || providerName.isBlank() -> errors.add("Invalid model: $reference. Use model@provider.")
+            provider == null -> errors.add("Provider not found: $providerName")
+            !settings.isProviderActive(provider) -> errors.add("Provider is inactive: ${provider.id}")
+            else -> models.add(toReportModel(provider, model))
+        }
+    }
+    fun <T> addNamed(names: List<String>, entries: List<T>, kind: String, nameOf: (T) -> String, expand: (T) -> List<ReportModel>) {
+        names.forEach { name ->
+            val matches = entries.filter { nameOf(it).trim().equals(name, ignoreCase = true) }
+            if (matches.size != 1) {
+                errors.add(if (matches.isEmpty()) "$kind not found: $name" else "$kind name is ambiguous: $name")
+            } else {
+                val expanded = expand(matches.single())
+                if (expanded.isEmpty()) errors.add("$kind has no available models: $name") else models.addAll(expanded)
+            }
+        }
+    }
+    addNamed(agentNames, settings.agents, "Agent", { it.name }) { listOfNotNull(expandAgentToModel(it, settings)) }
+    addNamed(flockNames, settings.flocks, "Flock", { it.name }) { expandFlockToModels(it, settings) }
+    addNamed(swarmNames, settings.swarms, "Swarm", { it.name }) { expandSwarmToModels(it, settings) }
+    return ExternalModelSelection(deduplicateModels(models), errors)
 }

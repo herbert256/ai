@@ -223,7 +223,7 @@ internal data class RuntimePromptReq(
 )
 
 @Composable
-internal fun rememberReportsScreenState(initialModels: List<ReportModel>): ReportsScreenState {
+internal fun rememberReportsScreenState(initialModels: List<ReportModel>, skipModelSelection: Boolean = false): ReportsScreenState {
     val openMetaResultId = rememberSaveable { mutableStateOf<String?>(null) }
     val openTranslationRunId = rememberSaveable { mutableStateOf<String?>(null) }
     val viewerLockedLanguage = rememberSaveable { mutableStateOf<String?>(null) }
@@ -311,7 +311,7 @@ internal fun rememberReportsScreenState(initialModels: List<ReportModel>): Repor
     val pendingBuildNav = remember { mutableStateOf<(() -> Unit)?>(null) }
     val pendingBuildCancel = remember { mutableStateOf<(() -> Unit)?>(null) }
     val runtimeWorkerPick = remember { mutableStateOf<RuntimeWorkerPick?>(null) }
-    val showSelectWorkers = rememberSaveable { mutableStateOf(false) }
+    val showSelectWorkers = rememberSaveable { mutableStateOf(skipModelSelection) }
     val workerConfig = rememberSaveable(stateSaver = ReportWorkerConfigSaver) { mutableStateOf(ReportWorkerConfig()) }
     val pendingReportType = rememberSaveable { mutableStateOf(ReportType.CLASSIC) }
     val screenScope = rememberCoroutineScope()

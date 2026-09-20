@@ -637,7 +637,7 @@ data class UiState(
     val externalEmail: String? get() = externalIntent.email
     val externalNextAction: String? get() = externalIntent.nextAction
     val externalReturn: Boolean get() = externalIntent.returnAfterNext
-    val externalSelect: Boolean get() = externalIntent.select
+    val externalModelReferences: List<String> get() = externalIntent.modelReferences
     val externalOpenHtml: String? get() = externalIntent.openHtml
     val externalAgentNames: List<String> get() = externalIntent.agentNames
     val externalFlockNames: List<String> get() = externalIntent.flockNames
@@ -650,7 +650,7 @@ data class ExternalIntent(
     val email: String? = null,
     val nextAction: String? = null,
     val returnAfterNext: Boolean = false,
-    val select: Boolean = false,
+    val modelReferences: List<String> = emptyList(),
     val openHtml: String? = null,
     val agentNames: List<String> = emptyList(),
     val flockNames: List<String> = emptyList(),

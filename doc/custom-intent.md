@@ -38,25 +38,25 @@ marker is the question and text after it is instructions. A supplied
 ## Instruction tags
 
 Tag names ignore case. Use paired tags for values; flags may be standalone
-or empty pairs, such as `<select>` or `<select></select>`.
+or empty pairs, such as `<return>` or `<return></return>`.
 
 | Tag | Meaning |
 |---|---|
 | `<system>text</system>` | Use this literal system-prompt text as the report-level override for all selected models. Never look up a saved prompt. |
 | `<prompt>text</prompt>` | Use this literal report question. Never look up a saved prompt. |
 | `<parameters>Name</parameters>` | Select a saved Parameters preset by stable ID or unique name, ignoring name case. |
+| `<model>model@provider</model>` | Select a model by exact model ID and provider ID (provider matching ignores case); repeatable. |
 | `<agent>Name</agent>` | Select a configured Agent by name; repeatable. |
 | `<flock>Name</flock>` | Select a configured Flock by name; repeatable. |
 | `<swarm>Name</swarm>` | Select a configured Swarm by name; repeatable. |
 | `<open>content</open>` / `<close>content</close>` | Opening/closing report presentation, including HTML, CSS and JavaScript. |
 | `<next>View</next>` | Completion action: `View`, `Share`, `Browser` or `Email`. Email uses AI's configured default email address. |
 | `<email>recipient@example.com</email>` | Open the email chooser with the completed report attached and recipient filled in. |
-| `<select>` | Open model selection after confirmation. |
 | `<return>` | Finish AI after its completion action. No report data is returned as an Android activity result. |
 | `<name>value</name>` | Supply data for matching `@name@` placeholders. Send it only when that placeholder is used. |
 
-`<default>`, `<model>`, `<edit>` and `<type>` no longer control the handoff. They do
-not choose defaults, models or layouts, or route to editing. Like other custom names,
+`<default>`, `<edit>`, `<type>` and `<select>` no longer control the handoff. They do
+not choose defaults or layouts, or control navigation. Like other custom names,
 a paired value can only supply data if explicitly referenced by a placeholder.
 
 `<prompt>` takes precedence over the `prompt` extra. If no question is supplied,
@@ -73,8 +73,11 @@ Requests do not change saved templates or worker assignments. Generation capture
 the effective prompt and parameters for retry/regenerate.
 
 External reports use Classic (One by one) as their initial layout.
-After confirmation, immediate generation requires at least one Agent/Flock/Swarm
-and no `<select>`. Other requests continue to model selection.
+After confirmation, any supplied Model/Agent/Flock/Swarm selection skips model
+selection and opens **Report - setup**, the same screen reached by Next.
+With no supplied selection, AI opens model selection. Generation starts only when
+you choose Generate report on the worker screen. Invalid or unresolved selections
+are shown on confirmation and prevent continuation.
 A valid selection, question and provider configuration are still required.
 Completion actions run after generation; Share and Email open Android choosers.
 
@@ -154,7 +157,6 @@ retains Markdown formatting; for HTML, write the whole body as HTML.
 <prompt>Analyse @FEN@ for @COLOR@. Use @ENGINE@ to explain candidate moves.</prompt>
 <language>English</language>
 <open>@BOARD@</open>
-<select>
 <next>View</next>
 ```
 
@@ -167,7 +169,6 @@ AI previews the expanded literal prompts, then lets the user select models.
 ```xml
 <system>State what cannot be inferred from the supplied information.</system>
 <prompt>Summarize the playing style of @PLAYER@ on @SERVER@.</prompt>
-<select>
 ```
 
 Only `player` and `server` data are sent. Neither Stockfish search runs.
@@ -180,7 +181,6 @@ val instructions = """
     <prompt>Describe @topic@ in three sentences.</prompt>
     <topic>Amsterdam &amp; Utrecht</topic>
     <language>Dutch</language>
-    <select>
 """.trimIndent()
 startActivity(Intent("com.ai.ACTION_NEW_REPORT")
     .setPackage("com.ai")
@@ -191,7 +191,7 @@ startActivity(Intent("com.ai.ACTION_NEW_REPORT")
 AI uses `Answer in Dutch.` and `Describe Amsterdam & Utrecht in three sentences.`
 exactly, regardless of any saved prompt names. No other extras are required.
 
-### Generate with a configured worker after confirmation
+### Continue with a configured worker after confirmation
 
 ```xml
 <prompt>Explain @topic@ simply.</prompt>
@@ -200,8 +200,9 @@ exactly, regardless of any saved prompt names. No other extras are required.
 <next>View</next>
 ```
 
-Create the Agent in AI first. Confirmation offers Generate because a worker
-is supplied and `<select>` is absent.
+Create the Agent in AI first. Continue opens Report - setup.
+Alternatively, use `<model>gpt-4o@OpenAI</model>` for a direct model selection.
+Models, Agents, Flocks and Swarms can be combined; duplicate selections are merged.
 <!-- END SHARED AI INTENT CONTRACT -->
 
 ## AI implementation
@@ -218,7 +219,7 @@ is supplied and `<select>` is absent.
 - [`ExternalIntentConfirmScreen.kt`](../ai/src/main/java/com/ai/ui/share/ExternalIntentConfirmScreen.kt)
   previews the request and prevents continuing with unresolved definitions.
 - [`AppNavHost.kt`](../ai/src/main/java/com/ai/ui/navigation/AppNavHost.kt)
-  stages confirmation and opens model selection after consent.
+  stages confirmation and opens model selection or worker settings after consent.
 - [`ReportLaunchPlan.kt`](../ai/src/main/java/com/ai/viewmodel/ReportLaunchPlan.kt)
   resolves effective default prompts and captures execution configurations.
 - [`ReportViewModel.kt`](../ai/src/main/java/com/ai/viewmodel/ReportViewModel.kt)

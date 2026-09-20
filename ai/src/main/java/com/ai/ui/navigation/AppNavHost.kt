@@ -173,7 +173,7 @@ fun AppNavHost(
                     agentNames = staged.agentNames,
                     flockNames = staged.flockNames,
                     swarmNames = staged.swarmNames,
-                    select = staged.hasSelect,
+                    modelReferences = staged.modelReferences,
                     openHtml = staged.openHtml,
                     systemPrompt = staged.systemPrompt,
                     context = staged.context

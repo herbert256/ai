@@ -35,7 +35,7 @@ Plain values use XML escaping (`&amp;`, `&lt;`, `&gt;`, `&quot;`, `&#39;`). The 
 Instructions may use `@FEN@`, `@COLOR@`, `@SERVER@`, `@PLAYER@`, `@PGN@`, `@BOARD@` and `@DATE@`. For example:
 
 ```xml
-<select><next>View</next>
+<next>View</next>
 <open>@BOARD@</open>
 ```
 
@@ -46,7 +46,7 @@ Optional references can select AI-owned templates by stable ID or unique name:
 ```xml
 <prompt>Chess position analysis</prompt>
 <system>Chess coach</system>
-<select>
+
 <open>@BOARD@</open>
 ```
 

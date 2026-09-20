@@ -2325,7 +2325,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         nextAction: String? = null, returnAfterNext: Boolean = false,
         agentNames: List<String> = emptyList(), flockNames: List<String> = emptyList(),
         swarmNames: List<String> = emptyList(),
-        select: Boolean = false, openHtml: String? = null,
+        modelReferences: List<String> = emptyList(), openHtml: String? = null,
         systemPrompt: String? = null,
         context: com.ai.ui.share.ExternalReportContext = com.ai.ui.share.ExternalReportContext()
     ) {
@@ -2333,7 +2333,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             systemPrompt = systemPrompt, closeHtml = closeHtml, context = context,
             email = email,
             nextAction = nextAction, returnAfterNext = returnAfterNext,
-            select = select, openHtml = openHtml,
+            modelReferences = modelReferences, openHtml = openHtml,
             agentNames = agentNames, flockNames = flockNames,
             swarmNames = swarmNames
         )) }

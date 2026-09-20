@@ -72,6 +72,7 @@ object ExternalAppCommandParser {
             Regex("<$tag>", RegexOption.IGNORE_CASE).containsMatchIn(standalone)
         fun presentationBody(tag: String): String? = blocks
             .firstOrNull { it.groupValues[1].equals(tag, ignoreCase = true) }?.groupValues?.get(2)?.trim()
+        val modelReferences = extractAllTags("model")
         val agentNames = extractAllTags("agent")
         val flockNames = extractAllTags("flock")
         val swarmNames = extractAllTags("swarm")
@@ -93,7 +94,7 @@ object ExternalAppCommandParser {
                 email = extractTag("email"),
                 nextAction = extractTag("next"),
                 hasReturn = hasTag("return"),
-                hasSelect = hasTag("select"),
+                modelReferences = modelReferences,
                 agentNames = agentNames,
                 flockNames = flockNames,
                 swarmNames = swarmNames

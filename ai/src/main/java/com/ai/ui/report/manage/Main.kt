@@ -448,7 +448,10 @@ fun ReportsScreen(
     // remember{} state would reset on back-pop and the user would
     // land back at the report root instead of the overlay they came
     // from. rememberSaveable persists through the back-stack.
-    val st = rememberReportsScreenState(initialModels)
+    val st = rememberReportsScreenState(initialModels,
+        skipModelSelection = uiState.externalModelReferences.isNotEmpty() ||
+            uiState.externalAgentNames.isNotEmpty() || uiState.externalFlockNames.isNotEmpty() ||
+            uiState.externalSwarmNames.isNotEmpty())
     // After starting a secondary (Meta/Rerank/Moderation), surface the
     // "Report - second results" screen — closing Get-info if it was open — so the
     // newly-running result is visible instead of staying on the overview.
@@ -737,9 +740,11 @@ fun ReportsScreen(
         isComplete = isComplete,
         currentReportId = currentReportId,
         models = models,
-        selectedParametersIds = selectedParametersIds,
         onModelsChange = { models = it },
-        onGenerate = onGenerate,
+        onContinueToWorkers = {
+            st.pendingReportType.value = ReportType.CLASSIC
+            st.showSelectWorkers.value = true
+        },
         onOpenView = {
             // Report - Manage entry: clear any stale lock left over
             // from a previous View-tile flow so this open shows the

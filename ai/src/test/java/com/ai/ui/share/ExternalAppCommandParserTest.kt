@@ -109,33 +109,32 @@ class ExternalAppCommandParserTest {
     fun booleanFlags_detectPresence_caseInsensitively() {
         val staged = confirm(ExternalAppCommandParser.parse("p", "<RETURN><Edit><select>", null, null))
         assertThat(staged.hasReturn).isTrue()
-        assertThat(staged.hasSelect).isTrue()
     }
 
     @Test
     fun booleanFlags_absent_areFalse() {
         val staged = confirm(ExternalAppCommandParser.parse("p", "<type>x</type>", null, null))
         assertThat(staged.hasReturn).isFalse()
-        assertThat(staged.hasSelect).isFalse()
     }
 
-    // ---- Derived willAutoGenerate predicate -----------------------------
+    // ---- Derived hasModelSelection predicate -----------------------------
 
     @Test
-    fun willAutoGenerate_withWorkersAndNoTypeOrSelect() {
+    fun hasModelSelection_withWorkersAndNoTypeOrSelect() {
         val staged = confirm(ExternalAppCommandParser.parse("p", "<agent>Alice</agent>", null, null))
-        assertThat(staged.willAutoGenerate).isTrue()
+        assertThat(staged.hasModelSelection).isTrue()
     }
 
     @Test
     fun removedEditFlag_doesNotChangeRouting() {
-        val staged = confirm(ExternalAppCommandParser.parse("p", "<type>brief</type><agent>Alice</agent><edit>", null, null))
-        assertThat(staged.willAutoGenerate).isTrue()
+        val staged = confirm(ExternalAppCommandParser.parse("p", "<type>brief</type><agent>Alice</agent><select><edit>", null, null))
+        assertThat(staged.hasModelSelection).isTrue()
     }
 
     @Test
-    fun removedModelTag_doesNotSupplyWorkersOrEnableAutoGeneration() {
-        val staged = confirm(ExternalAppCommandParser.parse("p", "<type>brief</type><model>OpenAI/gpt-4o</model><default>Unused</default>", null, null))
-        assertThat(staged.willAutoGenerate).isFalse()
+    fun modelTag_suppliesDirectSelection() {
+        val staged = confirm(ExternalAppCommandParser.parse("p", "<type>brief</type><model>gpt-4o@OpenAI</model><default>Unused</default>", null, null))
+        assertThat(staged.modelReferences).containsExactly("gpt-4o@OpenAI")
+        assertThat(staged.hasModelSelection).isTrue()
     }
 }
