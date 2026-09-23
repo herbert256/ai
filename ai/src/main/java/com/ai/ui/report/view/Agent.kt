@@ -33,7 +33,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
@@ -64,6 +63,8 @@ import com.ai.ui.shared.modelInfoViewClickable
 import com.ai.ui.shared.shortModelName
 import com.ai.ui.shared.shortModelName2
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.withContext
 
 data class ReportFanOutRun(
@@ -137,45 +138,56 @@ fun ReportsViewScreen(
         val agentTitleByLang: Map<String, Map<String, String>>
     )
 
-    val reportDataVersion by ReportDataVersion.versionFor(currentReportId).collectAsState()
-    val secondaryDataVersion by SecondaryDataVersion.versionFor(currentReportId, SecondaryKind.TRANSLATE).collectAsState()
-    val loadedState = produceState<Loaded>(
-        initialValue = Loaded(null, emptyMap(), emptyMap(), emptyMap()),
-        currentReportId, reportDataVersion, secondaryDataVersion
-    ) {
-        value = withContext(Dispatchers.IO) {
-            val rep = com.ai.ui.report.view.helpers.ViewReportCache.get(context, currentReportId)
-            val translateRows = SecondaryResultStorage
-                .listForReport(context, currentReportId, SecondaryKind.TRANSLATE)
-                .filter {
-                    !it.content.isNullOrBlank() &&
-                        !it.targetLanguage.isNullOrBlank()
-                }
-            val byLang = translateRows
-                .filter {
-                    it.translateSourceKind == "AGENT" &&
-                        !it.translateSourceTargetId.isNullOrBlank()
-                }
-                .groupBy { it.targetLanguage!! }
-                .mapValues { (_, list) ->
-                    list.associate { it.translateSourceTargetId!! to it.content!! }
-                }
-            val promptByLang = translateRows
-                .filter { it.translateSourceKind == "PROMPT" }
-                .associate { it.targetLanguage!! to it.content!! }
-            val titleByLang = translateRows
-                .filter {
-                    it.translateSourceKind == "AGENT_TITLE" &&
-                        !it.translateSourceTargetId.isNullOrBlank()
-                }
-                .groupBy { it.targetLanguage!! }
-                .mapValues { (_, list) ->
-                    list.associate { it.translateSourceTargetId!! to it.content!! }
-                }
-            Loaded(rep, byLang, promptByLang, titleByLang)
+    val notLoaded = Loaded(null, emptyMap(), emptyMap(), emptyMap())
+    // Reload on every write to this report or its translations, but let
+    // each load FINISH: bumps arriving mid-load are conflated into one
+    // follow-up load. Keying produceState on the version numbers restarted
+    // (and discarded) the load on every bump, so while a swiped-to report
+    // was busy (a running batch writes several times a second) its load
+    // never landed and the previous report's answers stayed on screen.
+    val loadedState = produceState(initialValue = notLoaded, currentReportId) {
+        val rid = currentReportId
+        combine(
+            ReportDataVersion.versionFor(rid),
+            SecondaryDataVersion.versionFor(rid, SecondaryKind.TRANSLATE)
+        ) { _, _ -> }.conflate().collect {
+            value = withContext(Dispatchers.IO) {
+                val rep = com.ai.ui.report.view.helpers.ViewReportCache.get(context, rid)
+                val translateRows = SecondaryResultStorage
+                    .listForReport(context, rid, SecondaryKind.TRANSLATE)
+                    .filter {
+                        !it.content.isNullOrBlank() &&
+                            !it.targetLanguage.isNullOrBlank()
+                    }
+                val byLang = translateRows
+                    .filter {
+                        it.translateSourceKind == "AGENT" &&
+                            !it.translateSourceTargetId.isNullOrBlank()
+                    }
+                    .groupBy { it.targetLanguage!! }
+                    .mapValues { (_, list) ->
+                        list.associate { it.translateSourceTargetId!! to it.content!! }
+                    }
+                val promptByLang = translateRows
+                    .filter { it.translateSourceKind == "PROMPT" }
+                    .associate { it.targetLanguage!! to it.content!! }
+                val titleByLang = translateRows
+                    .filter {
+                        it.translateSourceKind == "AGENT_TITLE" &&
+                            !it.translateSourceTargetId.isNullOrBlank()
+                    }
+                    .groupBy { it.targetLanguage!! }
+                    .mapValues { (_, list) ->
+                        list.associate { it.translateSourceTargetId!! to it.content!! }
+                    }
+                Loaded(rep, byLang, promptByLang, titleByLang)
+            }
         }
     }
-    val loaded = loadedState.value
+    // produceState keeps its previous value until the new report's load
+    // lands — after a title-bar swipe that is the PREVIOUS report. Never
+    // render another report's answers under this one; show Loading instead.
+    val loaded = loadedState.value.takeIf { it.report?.id == currentReportId } ?: notLoaded
     val report = loaded.report
 
     // Normalise / dedupe — Original ("") is always present so the pager
