@@ -540,6 +540,22 @@ unit tests verify code correctness, not feature correctness here.
 
 ## Common gotchas
 
+- **Model / agent ids repeat across reports.** Direct-model rows are
+  `swarm:provider:model` and configured agents use their settings UUID
+  in *every* report, and translation item ids (`prompt`, `agent:<id>`)
+  repeat across runs. Never key report-scoped runtime state by them
+  alone — include the report id (or run id), and check ownership inside
+  the same atomic `update {}` as the write (see `ReportAgentResults` /
+  `ReportViewModel.updateAgentResults`).
+- **Screens that swap their target in place** (title-bar report swipe,
+  chevrons, pagers) must load through
+  `ui/report/view/helpers/KeyedLoad.kt` → `rememberKeyedLoad(key,
+  versionFlows…) { load }`, never `produceState(init, id, version)`:
+  produceState keeps rendering the previous target's value until the new
+  load lands, and version keys restart — and so starve — the load while
+  the new report is busy. Dialogs/overlays that act on "the current
+  report" must be keyed on it (`remember(reportId)`) or use
+  `confirmStillForOpenedReport`.
 - **Anthropic `max_tokens` is supplied at dispatch, not hardcoded.**
   The `ClaudeRequest` field is nullable; `defaultMaxTokens` resolves
   in order: `service.maxTokensDefaults.resolveMaxTokens(model)` (the

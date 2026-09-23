@@ -146,26 +146,26 @@ fun ViewTitleBar(
     val titleClick: () -> Unit = onTitleClick ?: navToCurrentReport ?: onBack
     // When a non-Original language is active, swap the orange report
     // title to its translated variant (TITLE_LONG when the report has a
-    // long title, else TITLE). produceState is called unconditionally
-    // and re-keys on (reportId, activeLanguage); it resolves to null —
-    // leaving the original [reportTitle] — when there's no language
-    // context or no translation row.
+    // long title, else TITLE). Null — leaving the original [reportTitle] —
+    // when there's no language context, no translation row, or nothing
+    // loaded yet for THIS (report, language): a stale translated title from
+    // the previous report must never win after an in-place swipe.
     val context = LocalContext.current
-    val reportDataVersion by ReportDataVersion.versionFor(reportId).collectAsState()
-    val secondaryDataVersion by SecondaryDataVersion.versionFor(reportId, SecondaryKind.TRANSLATE).collectAsState()
-    val translatedTitle by produceState<String?>(null, reportId, activeLanguage, reportDataVersion, secondaryDataVersion) {
-        value = if (reportId != null && !activeLanguage.isNullOrBlank()) {
-            withContext(Dispatchers.IO) {
-                val rep = ViewReportCache.get(context, reportId)
-                val rows = SecondaryResultStorage
-                    .listForReport(context, reportId, SecondaryKind.TRANSLATE)
-                    .filter { it.targetLanguage == activeLanguage && !it.content.isNullOrBlank() }
-                val shortT = rows.firstOrNull { it.translateSourceKind == "TITLE" }?.content
-                val longT = rows.firstOrNull { it.translateSourceKind == "TITLE_LONG" }?.content
-                if (!rep?.titleLong.isNullOrBlank()) (longT ?: shortT) else shortT
-            }
-        } else null
-    }
+    val translatedTitle = if (reportId != null && !activeLanguage.isNullOrBlank()) {
+        rememberKeyedLoad(
+            reportId to activeLanguage,
+            ReportDataVersion.versionFor(reportId),
+            SecondaryDataVersion.versionFor(reportId, SecondaryKind.TRANSLATE)
+        ) { (rid, lang) ->
+            val rep = ViewReportCache.get(context, rid)
+            val rows = SecondaryResultStorage
+                .listForReport(context, rid, SecondaryKind.TRANSLATE)
+                .filter { it.targetLanguage == lang && !it.content.isNullOrBlank() }
+            val shortT = rows.firstOrNull { it.translateSourceKind == "TITLE" }?.content
+            val longT = rows.firstOrNull { it.translateSourceKind == "TITLE_LONG" }?.content
+            LoadedValue(if (!rep?.titleLong.isNullOrBlank()) (longT ?: shortT) else shortT)
+        }?.value
+    } else null
     val effectiveReportTitle = translatedTitle ?: reportTitle
     // Full screen hides the status bar and the Home icon bar is suppressed on
     // report View screens, so this title bar is the topmost element. Push it

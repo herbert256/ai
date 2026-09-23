@@ -84,6 +84,7 @@ import com.ai.ui.helpers.ViewSwipeFilter
 import com.ai.ui.helpers.findSwipeMatch
 import com.ai.ui.helpers.parseRerankRows
 import com.ai.ui.report.view.helpers.ViewReportCache
+import com.ai.ui.report.view.helpers.rememberKeyedLoad
 import com.ai.ui.report.view.helpers.ViewTitleBar
 import com.ai.ui.report.view.helpers.viewBodySwipe
 import com.ai.ui.shared.AppColors
@@ -459,154 +460,152 @@ fun ValueViewScreen(
         val m = findSwipeMatch(context, reportIdsList, currentReportId, SwipeDirection.Next, ViewSwipeFilter.HasValueSource)
         if (m != null) { currentReportId = m.reportId; switchReport?.invoke(m.reportId); true } else false
     }
-    val reportDataVersion by ReportDataVersion.versionFor(currentReportId).collectAsState()
-    val secondaryDataVersion by SecondaryDataVersion.versionFor(currentReportId).collectAsState()
-
-    val loadedState = produceState(
-        ValueViewData(null, emptyList(), null, null, null, null, emptyList(), null, emptyMap(), false, emptyMap()),
-        currentReportId, reportDataVersion, secondaryDataVersion
-    ) {
-        value = withContext(Dispatchers.IO) {
-            val report = ViewReportCache.get(context, currentReportId)
-            val rows = SecondaryResultStorage.listForReport(context, currentReportId)
-                .filter { report != null && !com.ai.data.ReportEvidenceStore.isStale(report,it) }
-            val rerank = rows
-                .filter { it.kind == SecondaryKind.RERANK && !it.content.isNullOrBlank() }
-                .maxByOrNull { it.timestamp }
-            val rerankRows = com.ai.ui.helpers.currentRerankRows(report, rerank)
-            val aggRow = rows
-                .filter { it.kind == SecondaryKind.TOURNAMENT && it.tournamentRole == "AGGREGATE" }
-                .maxByOrNull { it.timestamp }
-            val decoded = decodeTournamentMatrix(aggRow?.tournamentMatrix)
-            // Participant → SUCCESS renumbering for the tournament matrix,
-            // derived from the run's MATCH rows exactly like the podium
-            // loader. Resolving matrix ids straight through the current
-            // success set mapped scores to the wrong models whenever the
-            // two sets drifted (model added post-tournament, failed agent
-            // regenerated to SUCCESS, participant dipped out of SUCCESS).
-            val tournamentIdToSuccessId: Map<Int, Int> = run {
-                if (decoded == null || report == null) return@run emptyMap()
-                val matchRows = aggRow?.tournamentJudgeRunId?.let { runId ->
-                    rows.filter {
-                        it.kind == SecondaryKind.TOURNAMENT &&
-                            it.tournamentRole == "MATCH" &&
-                            it.tournamentJudgeRunId == runId
-                    }
-                }.orEmpty()
-                val participantIds = matchRows
-                    .flatMap { listOf(it.matchResponseAId, it.matchResponseBId) }
-                    .filterNotNull()
-                    .toHashSet()
-                if (participantIds.isEmpty()) return@run emptyMap()
-                val successIdByAgent = report.agents
-                    .filter { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
-                    .mapIndexed { idx, a -> a.agentId to (idx + 1) }.toMap()
-                report.agents.filter { it.agentId in participantIds }
-                    .mapIndexedNotNull { idx, a -> successIdByAgent[a.agentId]?.let { (idx + 1) to it } }
-                    .toMap()
-            }
-            // Judge-the-judges → a per-answer consensus ranking. Pick the
-            // latest run (by its AGGREGATE row, else newest cell), fold its
-            // judge cells' consensus through the tournament win matrix. The
-            // ids are 1-based SUCCESS positions, the same numbering buildValuePoints uses.
-            val judgesMatrix = run {
-                val judgeCellRows = rows.filter {
-                    it.kind == SecondaryKind.JUDGES && it.tournamentRole == "MATCH"
+    // Only THIS report's chart is rendered — never the previous report's
+    // after a title-bar swipe, where a row tap would open this report at
+    // the other report's model (see rememberKeyedLoad).
+    val loaded = rememberKeyedLoad(
+        currentReportId,
+        ReportDataVersion.versionFor(currentReportId),
+        SecondaryDataVersion.versionFor(currentReportId)
+    ) { rid ->
+        val report = ViewReportCache.get(context, rid)
+        val rows = SecondaryResultStorage.listForReport(context, rid)
+            .filter { report != null && !com.ai.data.ReportEvidenceStore.isStale(report,it) }
+        val rerank = rows
+            .filter { it.kind == SecondaryKind.RERANK && !it.content.isNullOrBlank() }
+            .maxByOrNull { it.timestamp }
+        val rerankRows = com.ai.ui.helpers.currentRerankRows(report, rerank)
+        val aggRow = rows
+            .filter { it.kind == SecondaryKind.TOURNAMENT && it.tournamentRole == "AGGREGATE" }
+            .maxByOrNull { it.timestamp }
+        val decoded = decodeTournamentMatrix(aggRow?.tournamentMatrix)
+        // Participant → SUCCESS renumbering for the tournament matrix,
+        // derived from the run's MATCH rows exactly like the podium
+        // loader. Resolving matrix ids straight through the current
+        // success set mapped scores to the wrong models whenever the
+        // two sets drifted (model added post-tournament, failed agent
+        // regenerated to SUCCESS, participant dipped out of SUCCESS).
+        val tournamentIdToSuccessId: Map<Int, Int> = run {
+            if (decoded == null || report == null) return@run emptyMap()
+            val matchRows = aggRow?.tournamentJudgeRunId?.let { runId ->
+                rows.filter {
+                    it.kind == SecondaryKind.TOURNAMENT &&
+                        it.tournamentRole == "MATCH" &&
+                        it.tournamentJudgeRunId == runId
                 }
-                if (judgeCellRows.isEmpty()) return@run null
-                val runId = rows
-                    .filter { it.kind == SecondaryKind.JUDGES && it.tournamentRole == "AGGREGATE" }
-                    .maxByOrNull { it.timestamp }?.tournamentJudgeRunId
-                    ?: judgeCellRows.maxByOrNull { it.timestamp }?.tournamentJudgeRunId
-                val cells = judgeCellRows
-                    .filter { it.tournamentJudgeRunId == runId }
-                    .mapNotNull { it.toJudgeCellState() }
-                if (cells.isEmpty()) return@run null
-                val successIds = report?.agents
-                    ?.filter { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
-                    ?.mapIndexed { idx, a -> a.agentId to (idx + 1) }?.toMap() ?: emptyMap()
-                judgesConsensusWinMatrix(cells) { successIds[it] }.takeIf { it.n >= 2 }
-            }
-            // Every "Rank the translators" run → per-translator-model average
-            // scores. Grouped by the source translation run (one per language).
-            val transRankRuns: List<TransRankSource> = run {
-                val cellRows = rows.filter {
-                    it.kind == SecondaryKind.TRANSRANK && it.tournamentRole == TRANSRANK_ROLE_CELL
-                }
-                if (cellRows.isEmpty()) return@run emptyList()
-                cellRows.groupBy { it.translationRunId.orEmpty() }
-                    .filterKeys { it.isNotBlank() }
-                    .map { (srcRunId, group) ->
-                        val ranking = aggregateTranslatorRanks(group.mapNotNull { it.toTransRankCellState() })
-                        val first = group.first()
-                        val lang = first.targetLanguageNative?.takeIf { it.isNotBlank() }
-                            ?: first.targetLanguage?.takeIf { it.isNotBlank() } ?: "Translation"
-                        TransRankSource(srcRunId, lang, ranking.associate { vvModelKey(it.providerId, it.model) to it.avgScore })
-                    }
-                    .filter { it.scoreByModelKey.isNotEmpty() }
-                    .sortedBy { it.language.lowercase() }
-            }
-            // Fan-out cost fold-in. Only when the report's own models were ALSO
-            // the fan-out answerers — i.e. the answerer model set equals the
-            // report's success-model set — does it make sense to add each
-            // model's fan-out RESPONSE spend onto its Value-view cost; a
-            // partial-scope fan-out (some models didn't answer) would skew the
-            // comparison, so we leave the map empty there. The on-disk pair row
-            // stores only the answerer's (provider, model), so we match on that
-            // (case-insensitive, alias-resolved), the same way FanOutEngine
-            // hydration does. Icon/title Fan-Meta spend is excluded — those
-            // aren't "responses".
-            val successAgents = report?.agents?.filter {
-                it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank()
-            } ?: emptyList()
-            fun modelKey(provider: String, model: String): String =
-                "${(AppService.findById(provider)?.id ?: provider).lowercase()}|${model.trim().lowercase()}"
-            val fanOutPairs = rows.filter {
-                it.kind == SecondaryKind.META && it.fanOutSourceAgentId != null
-            }
-            val answererKeys = fanOutPairs.map { modelKey(it.providerId, it.model) }.toSet()
-            val successKeyList = successAgents.map { modelKey(it.provider, it.model) }
-            val successKeys = successKeyList.toSet()
-            // Skip the fold-in when two success agents share a provider/model key:
-            // they collapse to one key, so the per-key fan-out total would be
-            // double-assigned to both agents. See audit bug 11.
-            val noDuplicateModels = successKeyList.size == successKeys.size
-            // Compare-with-meta: reduce the latest run's CELL rows to each
-            // answer's mean match % (agentId → 0..100), the result screen's
-            // first column. No AGGREGATE row exists, so average the cells here.
-            val compareScoreByAgentId: Map<String, Double> = run {
-                val byRun = rows.filter { it.kind == SecondaryKind.COMPARE && !it.compareRunId.isNullOrBlank() }
-                    .groupBy { it.compareRunId!! }
-                val group = byRun.maxByOrNull { (_, g) -> g.maxOf { it.timestamp } }?.value ?: return@run emptyMap()
-                group.mapNotNull { it.toCompareCellState() }
-                    .filter { it.percent != null }
-                    .groupBy { it.agentId }
-                    .mapValues { (_, cs) -> cs.sumOf { it.percent!! }.toDouble() / cs.size }
-            }
-            val fanOutCostByAgentId: Map<String, Double> =
-                if (fanOutPairs.isNotEmpty() && successKeys.isNotEmpty() && noDuplicateModels && answererKeys == successKeys) {
-                    val costByKey = fanOutPairs
-                        .groupBy { modelKey(it.providerId, it.model) }
-                        .mapValues { (_, list) -> list.sumOf { (it.inputCost ?: 0.0) + (it.outputCost ?: 0.0) } }
-                    successAgents.associate { it.agentId to (costByKey[modelKey(it.provider, it.model)] ?: 0.0) }
-                } else emptyMap()
-            ValueViewData(
-                report = report,
-                rerankRows = rerankRows,
-                rerankModel = rerank?.let { shortModelName(it.model) },
-                tournamentMatrix = decoded?.first,
-                tournamentDefaultMethod = decoded?.second,
-                judgesMatrix = judgesMatrix,
-                transRankRuns = transRankRuns,
-                reportTitle = report?.barTitle,
-                fanOutCostByAgentId = fanOutCostByAgentId,
-                includesFanOut = fanOutCostByAgentId.isNotEmpty(),
-                compareScoreByAgentId = compareScoreByAgentId,
-                tournamentIdToSuccessId = tournamentIdToSuccessId
-            )
+            }.orEmpty()
+            val participantIds = matchRows
+                .flatMap { listOf(it.matchResponseAId, it.matchResponseBId) }
+                .filterNotNull()
+                .toHashSet()
+            if (participantIds.isEmpty()) return@run emptyMap()
+            val successIdByAgent = report.agents
+                .filter { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
+                .mapIndexed { idx, a -> a.agentId to (idx + 1) }.toMap()
+            report.agents.filter { it.agentId in participantIds }
+                .mapIndexedNotNull { idx, a -> successIdByAgent[a.agentId]?.let { (idx + 1) to it } }
+                .toMap()
         }
-    }
-    val loaded = loadedState.value
+        // Judge-the-judges → a per-answer consensus ranking. Pick the
+        // latest run (by its AGGREGATE row, else newest cell), fold its
+        // judge cells' consensus through the tournament win matrix. The
+        // ids are 1-based SUCCESS positions, the same numbering buildValuePoints uses.
+        val judgesMatrix = run {
+            val judgeCellRows = rows.filter {
+                it.kind == SecondaryKind.JUDGES && it.tournamentRole == "MATCH"
+            }
+            if (judgeCellRows.isEmpty()) return@run null
+            val runId = rows
+                .filter { it.kind == SecondaryKind.JUDGES && it.tournamentRole == "AGGREGATE" }
+                .maxByOrNull { it.timestamp }?.tournamentJudgeRunId
+                ?: judgeCellRows.maxByOrNull { it.timestamp }?.tournamentJudgeRunId
+            val cells = judgeCellRows
+                .filter { it.tournamentJudgeRunId == runId }
+                .mapNotNull { it.toJudgeCellState() }
+            if (cells.isEmpty()) return@run null
+            val successIds = report?.agents
+                ?.filter { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
+                ?.mapIndexed { idx, a -> a.agentId to (idx + 1) }?.toMap() ?: emptyMap()
+            judgesConsensusWinMatrix(cells) { successIds[it] }.takeIf { it.n >= 2 }
+        }
+        // Every "Rank the translators" run → per-translator-model average
+        // scores. Grouped by the source translation run (one per language).
+        val transRankRuns: List<TransRankSource> = run {
+            val cellRows = rows.filter {
+                it.kind == SecondaryKind.TRANSRANK && it.tournamentRole == TRANSRANK_ROLE_CELL
+            }
+            if (cellRows.isEmpty()) return@run emptyList()
+            cellRows.groupBy { it.translationRunId.orEmpty() }
+                .filterKeys { it.isNotBlank() }
+                .map { (srcRunId, group) ->
+                    val ranking = aggregateTranslatorRanks(group.mapNotNull { it.toTransRankCellState() })
+                    val first = group.first()
+                    val lang = first.targetLanguageNative?.takeIf { it.isNotBlank() }
+                        ?: first.targetLanguage?.takeIf { it.isNotBlank() } ?: "Translation"
+                    TransRankSource(srcRunId, lang, ranking.associate { vvModelKey(it.providerId, it.model) to it.avgScore })
+                }
+                .filter { it.scoreByModelKey.isNotEmpty() }
+                .sortedBy { it.language.lowercase() }
+        }
+        // Fan-out cost fold-in. Only when the report's own models were ALSO
+        // the fan-out answerers — i.e. the answerer model set equals the
+        // report's success-model set — does it make sense to add each
+        // model's fan-out RESPONSE spend onto its Value-view cost; a
+        // partial-scope fan-out (some models didn't answer) would skew the
+        // comparison, so we leave the map empty there. The on-disk pair row
+        // stores only the answerer's (provider, model), so we match on that
+        // (case-insensitive, alias-resolved), the same way FanOutEngine
+        // hydration does. Icon/title Fan-Meta spend is excluded — those
+        // aren't "responses".
+        val successAgents = report?.agents?.filter {
+            it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank()
+        } ?: emptyList()
+        fun modelKey(provider: String, model: String): String =
+            "${(AppService.findById(provider)?.id ?: provider).lowercase()}|${model.trim().lowercase()}"
+        val fanOutPairs = rows.filter {
+            it.kind == SecondaryKind.META && it.fanOutSourceAgentId != null
+        }
+        val answererKeys = fanOutPairs.map { modelKey(it.providerId, it.model) }.toSet()
+        val successKeyList = successAgents.map { modelKey(it.provider, it.model) }
+        val successKeys = successKeyList.toSet()
+        // Skip the fold-in when two success agents share a provider/model key:
+        // they collapse to one key, so the per-key fan-out total would be
+        // double-assigned to both agents. See audit bug 11.
+        val noDuplicateModels = successKeyList.size == successKeys.size
+        // Compare-with-meta: reduce the latest run's CELL rows to each
+        // answer's mean match % (agentId → 0..100), the result screen's
+        // first column. No AGGREGATE row exists, so average the cells here.
+        val compareScoreByAgentId: Map<String, Double> = run {
+            val byRun = rows.filter { it.kind == SecondaryKind.COMPARE && !it.compareRunId.isNullOrBlank() }
+                .groupBy { it.compareRunId!! }
+            val group = byRun.maxByOrNull { (_, g) -> g.maxOf { it.timestamp } }?.value ?: return@run emptyMap()
+            group.mapNotNull { it.toCompareCellState() }
+                .filter { it.percent != null }
+                .groupBy { it.agentId }
+                .mapValues { (_, cs) -> cs.sumOf { it.percent!! }.toDouble() / cs.size }
+        }
+        val fanOutCostByAgentId: Map<String, Double> =
+            if (fanOutPairs.isNotEmpty() && successKeys.isNotEmpty() && noDuplicateModels && answererKeys == successKeys) {
+                val costByKey = fanOutPairs
+                    .groupBy { modelKey(it.providerId, it.model) }
+                    .mapValues { (_, list) -> list.sumOf { (it.inputCost ?: 0.0) + (it.outputCost ?: 0.0) } }
+                successAgents.associate { it.agentId to (costByKey[modelKey(it.provider, it.model)] ?: 0.0) }
+            } else emptyMap()
+        ValueViewData(
+            report = report,
+            rerankRows = rerankRows,
+            rerankModel = rerank?.let { shortModelName(it.model) },
+            tournamentMatrix = decoded?.first,
+            tournamentDefaultMethod = decoded?.second,
+            judgesMatrix = judgesMatrix,
+            transRankRuns = transRankRuns,
+            reportTitle = report?.barTitle,
+            fanOutCostByAgentId = fanOutCostByAgentId,
+            includesFanOut = fanOutCostByAgentId.isNotEmpty(),
+            compareScoreByAgentId = compareScoreByAgentId,
+            tournamentIdToSuccessId = tournamentIdToSuccessId
+        )
+    } ?: ValueViewData(null, emptyList(), null, null, null, null, emptyList(), null, emptyMap(), false, emptyMap())
 
     // Ranking weights (Settings → Ranking weights) for the "Combined" source.
     val generalSettings = com.ai.ui.shared.LocalGeneralSettings.current

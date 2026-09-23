@@ -1149,6 +1149,20 @@ internal fun decodeSavedReportModelSelection(selection: String, aiSettings: Sett
 
 
 
+/** True while [reportId] is still the report this confirm dialog opened
+ *  on. The Manage screen can switch reports in place underneath an open
+ *  dialog (title-bar swipe, chevrons, a Duplicate that lands on the copy);
+ *  when that happens the dialog is dismissed via [onDismiss] so its Confirm
+ *  can never act on — delete, re-bill — a report it wasn't opened for.
+ *  Call inside the dialog's `if (open)` block so the capture resets per open. */
+@Composable
+internal fun confirmStillForOpenedReport(reportId: String, onDismiss: () -> Unit): Boolean {
+    val openedFor = remember { reportId }
+    val same = openedFor == reportId
+    if (!same) LaunchedEffect(Unit) { onDismiss() }
+    return same
+}
+
 /** Report delete confirmation, lifted out of [ReportsScreen]. */
 @Composable
 internal fun DeleteReportConfirmDialog(
@@ -1156,10 +1170,11 @@ internal fun DeleteReportConfirmDialog(
     onDismiss: () -> Unit,
     onDelete: (String) -> Unit
 ) {
-    // Capture the report id at dialog-open time so a background
-    // mutation of currentReportId between Delete tap and lambda
-    // execution can't end up deleting the wrong report.
-    val ridAtOpen = reportId
+    // Capture the report id at dialog-open time (remembered — a plain val
+    // re-read the live id on every recomposition) and close the dialog if
+    // the current report changes under it, so Delete can't hit another report.
+    if (!confirmStillForOpenedReport(reportId, onDismiss)) return
+    val ridAtOpen = remember { reportId }
     // Live counts so the dialog spells out what is actually dropped —
     // the old one-line copy undersold a delete that also destroys every
     // secondary artifact and the tracked lifetime spend.

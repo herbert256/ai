@@ -106,23 +106,21 @@ fun FanOutPairViewScreen(
         val pairs: List<SecondaryResult>
     )
 
-    val reportDataVersion by ReportDataVersion.versionFor(currentReportId).collectAsState()
-    val secondaryDataVersion by SecondaryDataVersion.versionFor(currentReportId, SecondaryKind.META).collectAsState()
-    val loadedState = produceState(
-        initialValue = Loaded(null, emptyList()),
-        currentReportId, metaPromptName, reportDataVersion, secondaryDataVersion
-    ) {
-        value = withContext(Dispatchers.IO) {
-            val rep = com.ai.ui.report.view.helpers.ViewReportCache.get(context, currentReportId)
-            val pairs = SecondaryResultStorage.listForReport(context, currentReportId).filter {
-                it.fanOutSourceAgentId != null &&
-                    it.metaPromptName == metaPromptName &&
-                    !it.content.isNullOrBlank()
-            }
-            Loaded(rep, pairs)
+    // Only THIS (report, fan-out prompt)'s pairs are rendered — never the
+    // previous report's after a title-bar swipe (see rememberKeyedLoad).
+    val loaded = com.ai.ui.report.view.helpers.rememberKeyedLoad(
+        currentReportId to metaPromptName,
+        ReportDataVersion.versionFor(currentReportId),
+        SecondaryDataVersion.versionFor(currentReportId, SecondaryKind.META)
+    ) { (rid, promptName) ->
+        val rep = com.ai.ui.report.view.helpers.ViewReportCache.get(context, rid)
+        val pairs = SecondaryResultStorage.listForReport(context, rid).filter {
+            it.fanOutSourceAgentId != null &&
+                it.metaPromptName == promptName &&
+                !it.content.isNullOrBlank()
         }
-    }
-    val loaded = loadedState.value
+        Loaded(rep, pairs)
+    } ?: Loaded(null, emptyList())
     val report = loaded.report
     val pairs = loaded.pairs
 

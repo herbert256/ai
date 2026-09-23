@@ -88,28 +88,26 @@ fun FanInViewScreen(
         val report: Report?
     )
 
-    val reportDataVersion by ReportDataVersion.versionFor(currentReportId).collectAsState()
-    val secondaryDataVersion by SecondaryDataVersion.versionFor(currentReportId).collectAsState()
-    val loadedState = produceState<Loaded>(
-        initialValue = Loaded(null, emptyMap(), null),
-        currentReportId, currentResultId, reportDataVersion, secondaryDataVersion
-    ) {
-        value = withContext(Dispatchers.IO) {
-            val r = SecondaryResultStorage.get(context, currentReportId, currentResultId)
-            val translates = SecondaryResultStorage
-                .listForReport(context, currentReportId, SecondaryKind.TRANSLATE)
-                .filter {
-                    it.translateSourceKind == "META" &&
-                        it.translateSourceTargetId == currentResultId &&
-                        !it.content.isNullOrBlank() &&
-                        !it.targetLanguage.isNullOrBlank()
-                }
-                .associate { it.targetLanguage!! to it.content!! }
-            val rep = com.ai.ui.report.view.helpers.ViewReportCache.get(context, currentReportId)
-            Loaded(r, translates, rep)
-        }
-    }
-    val loaded = loadedState.value
+    // Only THIS (report, result)'s load is rendered — never the previous
+    // report's fan-in after a title-bar swipe (see rememberKeyedLoad).
+    val loaded = com.ai.ui.report.view.helpers.rememberKeyedLoad(
+        currentReportId to currentResultId,
+        ReportDataVersion.versionFor(currentReportId),
+        SecondaryDataVersion.versionFor(currentReportId)
+    ) { (rid, resId) ->
+        val r = SecondaryResultStorage.get(context, rid, resId)
+        val translates = SecondaryResultStorage
+            .listForReport(context, rid, SecondaryKind.TRANSLATE)
+            .filter {
+                it.translateSourceKind == "META" &&
+                    it.translateSourceTargetId == resId &&
+                    !it.content.isNullOrBlank() &&
+                    !it.targetLanguage.isNullOrBlank()
+            }
+            .associate { it.targetLanguage!! to it.content!! }
+        val rep = com.ai.ui.report.view.helpers.ViewReportCache.get(context, rid)
+        Loaded(r, translates, rep)
+    } ?: Loaded(null, emptyMap(), null)
     val result = loaded.result
     val report = loaded.report
 
@@ -153,7 +151,9 @@ fun FanInViewScreen(
     var centeredFor by remember { mutableStateOf<Pair<String, String>?>(null) }
     LaunchedEffect(languages, currentResultId, language) {
         val centerKey = currentResultId to (language ?: "")
-        if (languages.size > 1 && centeredFor != centerKey) {
+        // result check: until this row's load lands, `languages` is the
+        // empty-load [""] set — never latch against it (as Meta does).
+        if (languages.size > 1 && centeredFor != centerKey && result?.id == currentResultId) {
             val target = languages.indexOf(language ?: "").coerceAtLeast(0)
             pagerState.scrollToPage(wrapCenterPage(languages.size, target))
             centeredFor = centerKey

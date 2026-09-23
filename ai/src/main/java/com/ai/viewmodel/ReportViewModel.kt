@@ -308,6 +308,9 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
     // finally of [resumeStaleMetaPlaceholder].
     internal val resumingMetaIds = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
 
+    /** Bumped by every [restoreCompletedReport] call — see its guard. */
+    private val restoreSeq = java.util.concurrent.atomic.AtomicLong()
+
     // Separate flow from UiState so per-task completions don't force the UiState equality
     // checker to re-compare every other field. UI subscribers observe this independently.
     // Stamped with its owning report — see ReportAgentResults.
@@ -2748,8 +2751,13 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
      * / Browser / Email / Trace action row, etc.
      */
     suspend fun restoreCompletedReport(context: Context, reportId: String) {
+        val seq = restoreSeq.incrementAndGet()
         configurationSaveJob?.join()
         val report = withContext(Dispatchers.IO) { ReportStorage.getReport(context, reportId) } ?: return
+        // A newer switch was requested while this one read the disk (fast
+        // swipes launch one restore each, unordered): only the latest may
+        // apply, or a slow older read lands last and yanks the screen back.
+        if (restoreSeq.get() != seq) return
         // Only FINISHED agents get an entry (see terminalAgentResults) — a
         // report opened mid-run keeps the spinner on its unfinished rows.
         // The map is handed to this report BEFORE the currentReportId flip:

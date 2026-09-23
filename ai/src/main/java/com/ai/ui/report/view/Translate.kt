@@ -87,30 +87,30 @@ fun TranslateViewScreen(
         val metaSources: Map<String, SecondaryResult>
     )
 
-    val reportDataVersion by ReportDataVersion.versionFor(currentReportId).collectAsState()
-    val secondaryDataVersion by SecondaryDataVersion.versionFor(currentReportId, SecondaryKind.TRANSLATE).collectAsState()
-    val loadedState = produceState<Loaded>(
-        initialValue = Loaded(emptyList(), null, emptyMap()),
-        currentReportId, currentTranslationRunId, reportDataVersion, secondaryDataVersion
-    ) {
-        value = withContext(Dispatchers.IO) {
-            val all = SecondaryResultStorage.listForReport(context, currentReportId)
-            val translates = all.filter {
-                it.kind == SecondaryKind.TRANSLATE &&
-                    // Group by the shared grouping id so a legacy row with a
-                    // null translationRunId still matches its synthetic
-                    // "lang:<lang>" run id handed in by a swipe.
-                    com.ai.ui.helpers.translationRunGroupingId(it) == currentTranslationRunId &&
-                    !it.content.isNullOrBlank()
-            }
-            val rep = com.ai.ui.report.view.helpers.ViewReportCache.get(context, currentReportId)
-            // Map any source META row by id so we can render its
-            // content as the "source" side for META translations.
-            val byId = all.filter { it.kind != SecondaryKind.TRANSLATE }.associateBy { it.id }
-            Loaded(translates, rep, byId)
+    // Only THIS (report, run)'s rows are rendered — never the previous
+    // report's after a title-bar swipe (see rememberKeyedLoad). Null =
+    // still loading, which must not read as "no rows in this run".
+    val loadedOrNull = com.ai.ui.report.view.helpers.rememberKeyedLoad(
+        currentReportId to currentTranslationRunId,
+        ReportDataVersion.versionFor(currentReportId),
+        SecondaryDataVersion.versionFor(currentReportId, SecondaryKind.TRANSLATE)
+    ) { (rid, runId) ->
+        val all = SecondaryResultStorage.listForReport(context, rid)
+        val translates = all.filter {
+            it.kind == SecondaryKind.TRANSLATE &&
+                // Group by the shared grouping id so a legacy row with a
+                // null translationRunId still matches its synthetic
+                // "lang:<lang>" run id handed in by a swipe.
+                com.ai.ui.helpers.translationRunGroupingId(it) == runId &&
+                !it.content.isNullOrBlank()
         }
+        val rep = com.ai.ui.report.view.helpers.ViewReportCache.get(context, rid)
+        // Map any source META row by id so we can render its
+        // content as the "source" side for META translations.
+        val byId = all.filter { it.kind != SecondaryKind.TRANSLATE }.associateBy { it.id }
+        Loaded(translates, rep, byId)
     }
-    val loaded = loadedState.value
+    val loaded = loadedOrNull ?: Loaded(emptyList(), null, emptyMap())
     val rows = loaded.rows
     val report = loaded.report
     val metaSources = loaded.metaSources
@@ -178,6 +178,15 @@ fun TranslateViewScreen(
                         .padding(horizontal = 8.dp, vertical = 4.dp)
                 )
             }
+        }
+        if (loadedOrNull == null) {
+            Box(
+                modifier = Modifier.fillMaxSize().padding(top = 32.dp),
+                contentAlignment = Alignment.TopCenter
+            ) {
+                Text("Loading…", color = AppColors.TextTertiary, fontSize = 14.sp)
+            }
+            return@Column
         }
         if (rows.isEmpty()) {
             Box(

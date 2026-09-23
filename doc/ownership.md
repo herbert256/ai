@@ -78,7 +78,10 @@ recomputes a large bundle of report/manage derived state (secondary
 counts/rows, translation + fan-out summaries, totals, icon/title/language
 fields, loaded-report fields) inside composition via `remember` +
 `LaunchedEffect(currentReportId, iconRefreshTick)`. It **derives** from the
-storage owners above; it is not itself an authority. Moving it to a
+storage owners above; it is not itself an authority. Each field group is
+handed out only once it was loaded for the current report
+(`loadedReportId` / `secondaryLoadedFor`), so an in-place report switch
+never renders — or lets an edit capture — the previous report's values. Moving it to a
 `ReportManageStateStore` flow is `COD-R05` (deferred — it touches the
 relied-upon `remember`/overlay-return pattern, so it's higher risk).
 

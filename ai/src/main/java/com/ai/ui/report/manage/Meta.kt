@@ -62,29 +62,36 @@ internal fun ReportMetaScreen(
     BackHandler { onBack() }
     val context = LocalContext.current
     var refreshTick by remember { mutableStateOf(0) }
-    var openId by remember { mutableStateOf<String?>(null) }
-    // Also key the re-read on the report's SecondaryDataVersion: a delete
+    var openId by remember(reportId) { mutableStateOf<String?>(null) }
+    // Also re-read on the report's SecondaryDataVersion: a delete
     // (deleteSecondaryResult) is an async coroutine that bumps this flow
-    // when it lands, so keying on it re-reads AFTER the row is actually
+    // when it lands, so the re-read happens AFTER the row is actually
     // gone — instead of racing the manual refreshTick++ that fired right
     // after the async delete was launched (which often re-read the stale
     // list and left the deleted row visible with nothing running to poll).
-    val secDataVersion by SecondaryDataVersion.versionFor(reportId).collectAsState()
     // Re-read storage on each refreshTick bump (the poll loop below
     // drives ticks while any batch is running; the final post-batch
     // state is captured by the [isRunning] transition recomposition).
     // Disk I/O on Dispatchers.IO so the read doesn't stall the UI
     // thread — listForReport parses every JSON under the secondary dir.
-    val results by produceState(initialValue = emptyList<SecondaryResult>(), reportId, refreshTick, isRunning, secDataVersion) {
-        value = withContext(Dispatchers.IO) {
-            // TRANSLATE rows are cost records, not user-actionable
-            // meta operations — drop them from this list. They still
-            // surface in the cost table.
-            SecondaryResultStorage.listForReport(context, reportId)
-                .filter { it.kind != SecondaryKind.TRANSLATE }
-                .sortedByDescending { it.timestamp }
-        }
-    }
+    // Keyed on the report: after an in-place switch the previous report's
+    // rows are never listed (their delete would hit this report with the
+    // other report's row id), and a busy report's reload can't be starved
+    // by the 500 ms poll restarting it — see rememberKeyedLoad.
+    val isRunningState = rememberUpdatedState(isRunning)
+    val results = com.ai.ui.report.view.helpers.rememberKeyedLoad(
+        reportId,
+        SecondaryDataVersion.versionFor(reportId),
+        snapshotFlow { refreshTick },
+        snapshotFlow { isRunningState.value }
+    ) { rid ->
+        // TRANSLATE rows are cost records, not user-actionable
+        // meta operations — drop them from this list. They still
+        // surface in the cost table.
+        SecondaryResultStorage.listForReport(context, rid)
+            .filter { it.kind != SecondaryKind.TRANSLATE }
+            .sortedByDescending { it.timestamp }
+    }.orEmpty()
 
     // Placeholders are written from runSecondary's IO coroutine, so by
     // the time the picker pops back to this screen they may not yet be

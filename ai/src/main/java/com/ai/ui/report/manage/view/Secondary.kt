@@ -249,17 +249,18 @@ internal fun SecondaryResultsScreen(
     // regardless of the requested kind (kind filtering is post-parse).
     // For an N-agent Fan out run that's 3 × N(N-1) re-parses every
     // 500 ms while batching. One read, three derived views.
-    val allRows by produceState(initialValue = emptyList<SecondaryResult>(), reportId, throttledTick) {
-        value = withContext(Dispatchers.IO) {
-            SecondaryResultStorage.listForReport(context, reportId, kind = null)
-        }
-    }
+    // Keyed on the report (see rememberKeyedLoad): after an in-place switch
+    // the previous report's rows are never shown, and the 500 ms tick can't
+    // restart — and so starve — a slow read of a busy report.
+    val allRows = com.ai.ui.report.view.helpers.rememberKeyedLoad(
+        reportId, androidx.compose.runtime.snapshotFlow { throttledTick }
+    ) { rid -> SecondaryResultStorage.listForReport(context, rid, kind = null) }.orEmpty()
     // Parent report — needed only for its emoji icon, prepended to
     // every TitleBar in this screen for parity with the other
     // report-scoped screens.
-    val parentReport by produceState<com.ai.data.Report?>(initialValue = null, reportId) {
-        value = withContext(Dispatchers.IO) { com.ai.data.ReportStorage.getReport(context, reportId) }
-    }
+    val parentReport = com.ai.ui.report.view.helpers.rememberKeyedLoad(reportId) { rid ->
+        com.ai.ui.report.view.helpers.LoadedValue(com.ai.data.ReportStorage.getReport(context, rid))
+    }?.value
     val results = remember(allRows, kind, nameFilter) {
         val sameKind = allRows.filter { it.kind == kind }
         if (nameFilter == null) sameKind

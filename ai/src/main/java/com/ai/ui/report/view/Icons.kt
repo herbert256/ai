@@ -96,32 +96,33 @@ fun IconsViewScreen(reportId: String, onBack: () -> Unit) {
         val fanOutRows: List<SecondaryResult>
     )
 
-    val reportDataVersion by ReportDataVersion.versionFor(currentReportId).collectAsState()
-    val secondaryDataVersion by SecondaryDataVersion.versionFor(currentReportId).collectAsState()
-    val loadedState = produceState(
-        initialValue = Loaded(null, emptyList()),
-        currentReportId, reportDataVersion, secondaryDataVersion
-    ) {
-        value = withContext(Dispatchers.IO) {
-            val rep = com.ai.ui.report.view.helpers.ViewReportCache.get(context, currentReportId)
-            val rows = SecondaryResultStorage.listForReport(context, currentReportId).filter {
-                it.fanOutSourceAgentId != null && !it.content.isNullOrBlank()
-            }
-            Loaded(rep, rows)
+    // Only THIS report's load is rendered — never the previous report's
+    // after a title-bar swipe (see rememberKeyedLoad).
+    val loaded = com.ai.ui.report.view.helpers.rememberKeyedLoad(
+        currentReportId,
+        ReportDataVersion.versionFor(currentReportId),
+        SecondaryDataVersion.versionFor(currentReportId)
+    ) { rid ->
+        val rep = com.ai.ui.report.view.helpers.ViewReportCache.get(context, rid)
+        val rows = SecondaryResultStorage.listForReport(context, rid).filter {
+            it.fanOutSourceAgentId != null && !it.content.isNullOrBlank()
         }
-    }
-    val loaded = loadedState.value
+        Loaded(rep, rows)
+    } ?: Loaded(null, emptyList())
     val report = loaded.report
     val fanOutRows = loaded.fanOutRows
 
     // Internal overlay state: tapping an icon mounts ReportsViewScreen
     // or FanOutPairViewScreen as a child of this screen so Android
-    // back returns here (LIFO BackHandler stack).
-    var openedReportsAgentId by rememberSaveable(currentReportId) { mutableStateOf<String?>(null) }
-    var openedPairMeta by rememberSaveable(currentReportId) { mutableStateOf<String?>(null) }
-    var openedPairSource by rememberSaveable(currentReportId) { mutableStateOf<String?>(null) }
-    var openedPairAnswererProvider by rememberSaveable(currentReportId) { mutableStateOf<String?>(null) }
-    var openedPairAnswererModel by rememberSaveable(currentReportId) { mutableStateOf<String?>(null) }
+    // back returns here (LIFO BackHandler stack). Not keyed on the report:
+    // the grid is hidden while a child is open, and a report swipe INSIDE
+    // the child flips this screen's report too — keying on it closed the
+    // child the user was swiping in.
+    var openedReportsAgentId by rememberSaveable { mutableStateOf<String?>(null) }
+    var openedPairMeta by rememberSaveable { mutableStateOf<String?>(null) }
+    var openedPairSource by rememberSaveable { mutableStateOf<String?>(null) }
+    var openedPairAnswererProvider by rememberSaveable { mutableStateOf<String?>(null) }
+    var openedPairAnswererModel by rememberSaveable { mutableStateOf<String?>(null) }
 
     if (openedReportsAgentId != null) {
         ReportsViewScreen(

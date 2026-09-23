@@ -128,7 +128,11 @@ fun ReportModelScreen(
     // re-enters this screen with a different agentId param.
     var currentAgentId by rememberSaveable(reportId, agentId) { mutableStateOf(agentId) }
 
-    var showContinuePicker by remember { mutableStateOf(false) }
+    // Every overlay / dialog flag below is keyed on the report: an in-place
+    // report switch closes them instead of carrying report A's chat, draft,
+    // replay or confirm dialog over to report B (its actions write to the
+    // live reportId).
+    var showContinuePicker by remember(reportId) { mutableStateOf(false) }
     if (showContinuePicker) {
         ContinueInChatPickerScreen(
             onPickCurrent = {
@@ -148,14 +152,14 @@ fun ReportModelScreen(
         )
         return
     }
-    var showTemperatureSweep by remember { mutableStateOf(false) }
-    var showReasoningEffortSweep by remember { mutableStateOf(false) }
-    var showWebSearchReplay by remember { mutableStateOf(false) }
-    var showPromptEditReplay by remember { mutableStateOf(false) }
-    var showResponseChangeActions by remember { mutableStateOf(false) }
+    var showTemperatureSweep by remember(reportId) { mutableStateOf(false) }
+    var showReasoningEffortSweep by remember(reportId) { mutableStateOf(false) }
+    var showWebSearchReplay by remember(reportId) { mutableStateOf(false) }
+    var showPromptEditReplay by remember(reportId) { mutableStateOf(false) }
+    var showResponseChangeActions by remember(reportId) { mutableStateOf(false) }
     // "Switch model / agent" — answer the report's prompt with another
     // model, preview, then keep (append new row / drop this one) or discard.
-    var showAgentModelSwitchPick by remember { mutableStateOf(false) }
+    var showAgentModelSwitchPick by remember(reportId) { mutableStateOf(false) }
     val agentModelSwitch = com.ai.ui.shared.LocalAgentModelSwitch.current
     BackHandler { onBack() }
     val context = LocalContext.current
@@ -164,14 +168,14 @@ fun ReportModelScreen(
     // Apply, regenerate, icon/title write) re-reads the report and the
     // body / chatMessages refresh. ViewReportCache is mtime-staleness-safe,
     // so the re-read returns the fresh parse.
-    val reportDataVersion by ReportDataVersion.versionFor(reportId).collectAsState()
     // Loaded asynchronously: getReport reads + parses the report JSON
     // (which can be MB-sized for image-attached reports). The Loading
-    // → Loaded transition keeps the UI thread free while reading.
-    val reportState = produceState<com.ai.data.Report?>(initialValue = null, reportId, reportDataVersion) {
-        value = withContext(Dispatchers.IO) { com.ai.ui.report.view.helpers.ViewReportCache.get(context, reportId) }
-    }
-    val report = reportState.value
+    // → Loaded transition keeps the UI thread free while reading. Keyed
+    // load: after an in-place report switch this never renders the
+    // previous report's answer for the same model id (see rememberKeyedLoad).
+    val report = com.ai.ui.report.view.helpers.rememberKeyedLoad(reportId, ReportDataVersion.versionFor(reportId)) { rid ->
+        com.ai.ui.report.view.helpers.LoadedValue(com.ai.ui.report.view.helpers.ViewReportCache.get(context, rid))
+    }?.value
     val agent = report?.agents?.find { it.agentId == currentAgentId }
     val provider = agent?.let { AppService.findById(it.provider) }
 
@@ -323,14 +327,10 @@ fun ReportModelScreen(
     // version-less list kept the deleted tab selected and its text
     // rendering, with copy/share/trace still acting on the deleted row
     // (SecondaryResultDetailScreen keys the identical load this way).
-    val secDataVersion by com.ai.data.SecondaryDataVersion.versionFor(reportId).collectAsState()
-    val translatesState = produceState(initialValue = emptyList<SecondaryResult>(), reportId, secDataVersion) {
-        value = withContext(Dispatchers.IO) {
-            SecondaryResultStorage.listForReport(context, reportId, SecondaryKind.TRANSLATE)
-                .filter { !it.content.isNullOrBlank() }
-        }
-    }
-    val translates = translatesState.value
+    val translates = com.ai.ui.report.view.helpers.rememberKeyedLoad(reportId, com.ai.data.SecondaryDataVersion.versionFor(reportId)) { rid ->
+        SecondaryResultStorage.listForReport(context, rid, SecondaryKind.TRANSLATE)
+            .filter { !it.content.isNullOrBlank() }
+    }.orEmpty()
     // Only show language tabs that actually carry a translation of
     // THIS agent — the report-wide TRANSLATE list may include prompt
     // / meta / other-agent rows whose languages don't necessarily
@@ -373,16 +373,15 @@ fun ReportModelScreen(
     // "Translation info" button can pop a split-screen original-vs-
     // translation viewer. The translated copy preserves agentId, so a
     // direct match by agentId works.
-    val sourceAgentBodyState = produceState<String?>(initialValue = null, report.sourceReportId, currentAgentId) {
-        val sid = report.sourceReportId ?: return@produceState
-        value = withContext(Dispatchers.IO) {
-            ReportStorage.getReport(context, sid)?.agents
-                ?.firstOrNull { it.agentId == currentAgentId }?.responseBody
-        }
+    // Keyed on (source report, agent): paging to the next model never
+    // shows the previous model's original in the compare view.
+    val sourceAgentBody = report.sourceReportId?.let { sid ->
+        com.ai.ui.report.view.helpers.rememberKeyedLoad(sid to currentAgentId) { (src, aid) ->
+            com.ai.ui.report.view.helpers.LoadedValue(ReportStorage.getReport(context, src)?.agents?.firstOrNull { it.agentId == aid }?.responseBody)
+        }?.value
     }
-    val sourceAgentBody = sourceAgentBodyState.value
     val canShowTranslation = sourceAgentBody != null && !agent.responseBody.isNullOrBlank()
-    var showTranslationCompare by remember { mutableStateOf(false) }
+    var showTranslationCompare by remember(reportId) { mutableStateOf(false) }
 
     if (showTranslationCompare && sourceAgentBody != null && agent.responseBody != null) {
         TranslationCompareScreen(
@@ -401,7 +400,7 @@ fun ReportModelScreen(
     // language renders an AGENT TRANSLATE overlay on top of this
     // agent's responseBody. Source = the original responseBody,
     // translation = the overlay's content.
-    var showLiveTranslationCompare by remember { mutableStateOf(false) }
+    var showLiveTranslationCompare by remember(reportId) { mutableStateOf(false) }
     val liveAgentTranslate = activeAgentTranslateRow
     if (showLiveTranslationCompare && liveAgentTranslate != null && !agent.responseBody.isNullOrBlank() && !liveAgentTranslate.content.isNullOrBlank()) {
         val translatedLangLabel = liveAgentTranslate.targetLanguage?.takeIf { it.isNotBlank() } ?: "Translation"
@@ -427,9 +426,9 @@ fun ReportModelScreen(
         return
     }
 
-    var confirmRemove by remember { mutableStateOf(false) }
-    var confirmLangChoice by remember { mutableStateOf(false) }
-    var confirmReload by remember { mutableStateOf(false) }
+    var confirmRemove by remember(reportId) { mutableStateOf(false) }
+    var confirmLangChoice by remember(reportId) { mutableStateOf(false) }
+    var confirmReload by remember(reportId) { mutableStateOf(false) }
     val canContinueInChat = !agent.responseBody.isNullOrBlank() && agent.errorMessage.isNullOrBlank()
     val agentLabel = com.ai.ui.shared.modelLabel(provider.id, agent.model, separator = " — ")
     // The title-bar subtitle on this screen always shows the provider name
@@ -437,7 +436,7 @@ fun ReportModelScreen(
     // model-name layout; the orange subtitle shrinks to a smaller font when
     // the combined string is too long to fit on one line.
     val agentTitleLabel = "${provider.id} — ${agent.model}"
-    var showAgentChat by remember { mutableStateOf(false) }
+    var showAgentChat by remember(reportId) { mutableStateOf(false) }
 
     if (showResponseChangeActions) {
         ResponseChangeActionsScreen(
@@ -552,17 +551,14 @@ fun ReportModelScreen(
     }
 
     // ✍️ user notes for THIS agent (follows prev/next via currentAgentId).
-    var noteEdit by remember { mutableStateOf<NoteEdit?>(null) }
+    var noteEdit by remember(reportId) { mutableStateOf<NoteEdit?>(null) }
     if (noteEdit != null) {
         UserNoteEditorOverlay(reportId, "AGENT", currentAgentId, noteEdit!!) { noteEdit = null }
         return
     }
-    val noteDataVersion by ReportDataVersion.versionFor(reportId).collectAsState()
-    val agentNotes by produceState(emptyList<UserNote>(), reportId, currentAgentId, noteDataVersion) {
-        value = withContext(Dispatchers.IO) {
-            ReportStorage.getReport(context, reportId)?.notesFor("AGENT", currentAgentId) ?: emptyList()
-        }
-    }
+    val agentNotes = com.ai.ui.report.view.helpers.rememberKeyedLoad(reportId to currentAgentId, ReportDataVersion.versionFor(reportId)) { (rid, aid) ->
+        ReportStorage.getReport(context, rid)?.notesFor("AGENT", aid) ?: emptyList()
+    }.orEmpty()
 
     // 🗣️ refine-in-chat overlay for THIS agent's answer.
     if (showAgentChat) {

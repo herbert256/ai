@@ -106,29 +106,27 @@ fun MetaViewScreen(
         val report: Report?
     )
 
-    val reportDataVersion by ReportDataVersion.versionFor(currentReportId).collectAsState()
-    val secondaryDataVersion by SecondaryDataVersion.versionFor(currentReportId).collectAsState()
-    val loadedState = produceState<Loaded>(
-        initialValue = Loaded(null, emptyMap(), null),
-        currentReportId, currentResultId, reportDataVersion, secondaryDataVersion
-    ) {
-        value = withContext(Dispatchers.IO) {
-            val r = SecondaryResultStorage.get(context, currentReportId, currentResultId)
-                ?.takeIf { !it.content.isNullOrBlank() }
-            val translates = SecondaryResultStorage
-                .listForReport(context, currentReportId, SecondaryKind.TRANSLATE)
-                .filter {
-                    it.translateSourceKind == "META" &&
-                        it.translateSourceTargetId == currentResultId &&
-                        !it.content.isNullOrBlank() &&
-                        !it.targetLanguage.isNullOrBlank()
-                }
-                .associate { it.targetLanguage!! to it.content!! }
-            val rep = com.ai.ui.report.view.helpers.ViewReportCache.get(context, currentReportId)
-            Loaded(r, translates, rep)
-        }
-    }
-    val loaded = loadedState.value
+    // Only THIS (report, result)'s load is rendered — never the previous
+    // report's meta after a title-bar swipe (see rememberKeyedLoad).
+    val loaded = com.ai.ui.report.view.helpers.rememberKeyedLoad(
+        currentReportId to currentResultId,
+        ReportDataVersion.versionFor(currentReportId),
+        SecondaryDataVersion.versionFor(currentReportId)
+    ) { (rid, resId) ->
+        val r = SecondaryResultStorage.get(context, rid, resId)
+            ?.takeIf { !it.content.isNullOrBlank() }
+        val translates = SecondaryResultStorage
+            .listForReport(context, rid, SecondaryKind.TRANSLATE)
+            .filter {
+                it.translateSourceKind == "META" &&
+                    it.translateSourceTargetId == resId &&
+                    !it.content.isNullOrBlank() &&
+                    !it.targetLanguage.isNullOrBlank()
+            }
+            .associate { it.targetLanguage!! to it.content!! }
+        val rep = com.ai.ui.report.view.helpers.ViewReportCache.get(context, rid)
+        Loaded(r, translates, rep)
+    } ?: Loaded(null, emptyMap(), null)
     val report = loaded.report
     val row = loaded.row
 

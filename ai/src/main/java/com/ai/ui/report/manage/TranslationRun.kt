@@ -21,6 +21,8 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -230,18 +232,20 @@ internal fun TranslationRunScreen(
     // path to the local refreshTick — a version-less load kept listing the
     // deleted item with its text on L2/L3 and counting it in the L1 stats
     // until the run screen was fully re-entered.
-    val translateDataVersion by com.ai.data.SecondaryDataVersion
-        .versionFor(reportId, com.ai.data.SecondaryKind.TRANSLATE).collectAsState()
-    val persisted by produceState<PersistedTranslationRunLoad>(
-        initialValue = PersistedTranslationRunLoad(loaded = false, run = null),
-        reportId, runId, refreshTick, externalRefresh, liveRun == null, translateDataVersion
-    ) {
-        value = if (liveRun != null) {
-            PersistedTranslationRunLoad(loaded = false, run = null)
-        } else {
-            PersistedTranslationRunLoad(loaded = true, run = loadPersisted())
-        }
-    }
+    // Keyed on (report, run, finished) and conflated (see rememberKeyedLoad):
+    // after a title-bar swipe the previous report's finished run is never
+    // shown — its Delete dialog then counted that run while deleting this
+    // one — and another live translation's version bumps can't starve it.
+    val externalRefreshState = rememberUpdatedState(externalRefresh)
+    val persisted = com.ai.ui.report.view.helpers.rememberKeyedLoad(
+        Triple(reportId, runId, liveRun == null),
+        com.ai.data.SecondaryDataVersion.versionFor(reportId, com.ai.data.SecondaryKind.TRANSLATE),
+        snapshotFlow { refreshTick },
+        snapshotFlow { externalRefreshState.value }
+    ) { (_, _, finished) ->
+        if (!finished) PersistedTranslationRunLoad(loaded = false, run = null)
+        else PersistedTranslationRunLoad(loaded = true, run = loadPersisted())
+    } ?: PersistedTranslationRunLoad(loaded = false, run = null)
     val run = liveRun ?: persisted.run
 
     // Per-screen title-bar swipe override. Filter = Translate so the

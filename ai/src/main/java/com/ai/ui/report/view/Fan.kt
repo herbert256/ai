@@ -117,39 +117,37 @@ fun FanOutViewScreen(
         val translates: List<SecondaryResult>
     )
 
-    val reportDataVersion by ReportDataVersion.versionFor(currentReportId).collectAsState()
-    val secondaryDataVersion by SecondaryDataVersion.versionFor(currentReportId).collectAsState()
-    val loadedState = produceState(
-        initialValue = Loaded(null, emptyList(), emptyList()),
-        currentReportId, currentPromptName, reportDataVersion, secondaryDataVersion
-    ) {
-        value = withContext(Dispatchers.IO) {
-            val rep = com.ai.ui.report.view.helpers.ViewReportCache.get(context, currentReportId)
-            val allSecondary = SecondaryResultStorage.listForReport(context, currentReportId)
-            val pairs = allSecondary.filter {
-                it.fanOutSourceAgentId != null &&
-                    it.metaPromptName == currentPromptName &&
-                    !it.content.isNullOrBlank()
-            }
-            // Pull BOTH META and AGENT translates. META rows are
-            // keyed off pair.id and feed the responder body; AGENT
-            // rows are keyed off the initiator's agentId and feed
-            // the initiator body. The previous load only pulled
-            // META so the top card always showed the original
-            // language while the bottom card respected the user's
-            // language picker.
-            val translates = allSecondary.filter {
-                it.kind == SecondaryKind.TRANSLATE &&
-                    (it.translateSourceKind == "META" ||
-                        it.translateSourceKind == "AGENT" ||
-                        it.translateSourceKind == "AGENT_TITLE" ||
-                        it.translateSourceKind == "FANOUT_TITLE") &&
-                    !it.content.isNullOrBlank()
-            }
-            Loaded(rep, pairs, translates)
-        }
+    // Only THIS (report, fan-out prompt)'s load is rendered — never the
+    // previous report's pairs after a title-bar swipe (see rememberKeyedLoad).
+    val loaded = com.ai.ui.report.view.helpers.rememberKeyedLoad(
+        currentReportId to currentPromptName,
+        ReportDataVersion.versionFor(currentReportId),
+        SecondaryDataVersion.versionFor(currentReportId)
+    ) { (rid, promptName) ->
+    val rep = com.ai.ui.report.view.helpers.ViewReportCache.get(context, rid)
+    val allSecondary = SecondaryResultStorage.listForReport(context, rid)
+    val pairs = allSecondary.filter {
+        it.fanOutSourceAgentId != null &&
+            it.metaPromptName == promptName &&
+            !it.content.isNullOrBlank()
     }
-    val loaded = loadedState.value
+    // Pull BOTH META and AGENT translates. META rows are
+    // keyed off pair.id and feed the responder body; AGENT
+    // rows are keyed off the initiator's agentId and feed
+    // the initiator body. The previous load only pulled
+    // META so the top card always showed the original
+    // language while the bottom card respected the user's
+    // language picker.
+    val translates = allSecondary.filter {
+        it.kind == SecondaryKind.TRANSLATE &&
+            (it.translateSourceKind == "META" ||
+                it.translateSourceKind == "AGENT" ||
+                it.translateSourceKind == "AGENT_TITLE" ||
+                it.translateSourceKind == "FANOUT_TITLE") &&
+            !it.content.isNullOrBlank()
+    }
+        Loaded(rep, pairs, translates)
+    } ?: Loaded(null, emptyList(), emptyList())
     val report = loaded.report
     val pairs = loaded.pairs
     val translates = loaded.translates

@@ -45,6 +45,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ai.data.AppService
 import com.ai.data.Report
+import com.ai.data.ReportDataVersion
 import com.ai.data.ReportStatus
 import com.ai.data.SecondaryDataVersion
 import com.ai.data.SecondaryKind
@@ -153,25 +154,31 @@ internal fun AnswerMatrixViewScreen(
     }
     val activeLanguage = if (selectedLangKey == LangTab.ORIGINAL_KEY) ""
         else langTabs.firstOrNull { it.key == selectedLangKey }?.displayName ?: ""
-    val secondaryDataVersion by SecondaryDataVersion.versionFor(reportId).collectAsState()
-    val rerankState = produceState(MatrixRerank(emptyMap(), null), report, secondaryDataVersion) {
-        value = if (reportId == null) MatrixRerank(emptyMap(), null)
-        else withContext(Dispatchers.IO) {
-            val latest = SecondaryResultStorage.listForReport(context, reportId, SecondaryKind.RERANK)
+    // Keyed on the report id and computed from that same report (off the
+    // main thread — the staleness check reads disk), so a previous report's
+    // rerank is never paired positionally with this report's rows after a
+    // swipe (see rememberKeyedLoad).
+    val rerank = reportId?.let { rid ->
+        com.ai.ui.report.view.helpers.rememberKeyedLoad(
+            rid, ReportDataVersion.versionFor(rid), SecondaryDataVersion.versionFor(rid)
+        ) { id ->
+            val latest = SecondaryResultStorage.listForReport(context, id, SecondaryKind.RERANK)
                 .filter { !it.content.isNullOrBlank() }
                 .maxByOrNull { it.timestamp }
             MatrixRerank(
-                rowsByResultId = com.ai.ui.helpers.currentRerankRows(report, latest).associateBy { it.id },
+                rowsByResultId = com.ai.ui.helpers.currentRerankRows(
+                    com.ai.ui.report.view.helpers.ViewReportCache.get(context, id), latest
+                ).associateBy { it.id },
                 modelShort = latest?.model?.let { shortModelName(it) }
             )
         }
-    }
+    } ?: MatrixRerank(emptyMap(), null)
 
     // Tap-to-sort — null column = the build order (rank then ordinal).
     var sortColumn by rememberSaveable { mutableStateOf<String?>(null) }
     var sortDescending by rememberSaveable { mutableStateOf(false) }
-    val matrixRows = remember(report, translationByTarget, rerankState.value, sortColumn, sortDescending) {
-        val base = report?.let { buildAnswerMatrixRows(it, translationByTarget, rerankState.value.rowsByResultId) }
+    val matrixRows = remember(report, translationByTarget, rerank, sortColumn, sortDescending) {
+        val base = report?.let { buildAnswerMatrixRows(it, translationByTarget, rerank.rowsByResultId) }
             ?: emptyList()
         val sorted = when (sortColumn) {
             "model" -> base.sortedBy { it.modelLabel.lowercase() }
@@ -202,7 +209,7 @@ internal fun AnswerMatrixViewScreen(
             reportId = report?.id,
             activeLanguage = activeLanguage,
             screenTitle = "Answer matrix",
-            subject = rerankState.value.modelShort?.let { "ranked by $it" },
+            subject = rerank.modelShort?.let { "ranked by $it" },
             helpTopic = "view_ai_report",
             onBack = onBack,
             onSwipePrev = onSwipePrevAction,

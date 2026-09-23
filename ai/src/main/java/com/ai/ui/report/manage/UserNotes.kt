@@ -149,12 +149,11 @@ internal fun UserNoteCards(
 @Composable
 internal fun ViewUserNotes(reportId: String, targetKind: String, targetId: String) {
     val context = LocalContext.current
-    val dv by ReportDataVersion.versionFor(reportId).collectAsState()
-    val notes by produceState(emptyList<UserNote>(), reportId, targetKind, targetId, dv) {
-        value = withContext(Dispatchers.IO) {
-            ReportStorage.getUserNotesForTarget(context, reportId, targetKind, targetId)
-        }
-    }
+    // Keyed on the full target: paging to another model or swiping to
+    // another report must never show the previous target's notes.
+    val notes = com.ai.ui.report.view.helpers.rememberKeyedLoad(
+        Triple(reportId, targetKind, targetId), ReportDataVersion.versionFor(reportId)
+    ) { (rid, kind, id) -> ReportStorage.getUserNotesForTarget(context, rid, kind, id) }.orEmpty()
     if (notes.isEmpty()) return
     Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
         UserNoteCards(notes, readOnly = true)
@@ -247,6 +246,12 @@ internal fun UserNoteEditorOverlay(
                 ?.firstOrNull { it.id == edit.noteId }?.title.orEmpty()
         } else ""
     }
+    // No title-bar report swipe inside the editor: the draft belongs to the
+    // target it was opened for, and a switch would save it onto another
+    // report (or silently lose an edit whose note id isn't there).
+    androidx.compose.runtime.CompositionLocalProvider(
+        com.ai.ui.shared.LocalCurrentReportIdForSwipe provides null
+    ) {
     UserNoteEditorScreen(
         titleBarTitle = if (edit is NoteEdit.Edit) "Edit note" else "Add note",
         initialText = (edit as? NoteEdit.Edit)?.text ?: "",
@@ -275,6 +280,7 @@ internal fun UserNoteEditorOverlay(
         },
         onCancel = onClose
     )
+    }
 }
 
 /** 📒 All-notes screen, reached from the Manage report icon bar. Lists
@@ -288,9 +294,10 @@ internal fun ReportNotesListScreen(
     BackHandler { onBack() }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val dv by ReportDataVersion.versionFor(reportId).collectAsState()
 
-    var noteEdit by remember { mutableStateOf<NoteEdit?>(null) }
+    // Keyed on the report: a switch closes an open draft / confirm instead
+    // of applying it to the next report.
+    var noteEdit by remember(reportId) { mutableStateOf<NoteEdit?>(null) }
     noteEdit?.let { ne ->
         // Adding from this screen attaches to the report itself.
         UserNoteEditorOverlay(reportId, "REPORT", reportId, ne) { noteEdit = null }
@@ -301,22 +308,25 @@ internal fun ReportNotesListScreen(
     // delete-all. All local — the disk read below stays unfiltered.
     var search by rememberSaveable { mutableStateOf("") }
     var oldestFirst by rememberSaveable { mutableStateOf(false) }
-    var confirmDeleteAll by remember { mutableStateOf(false) }
+    var confirmDeleteAll by remember(reportId) { mutableStateOf(false) }
 
     data class Group(val label: String, val notes: List<UserNote>)
-    val allGroups by produceState<List<Group>>(emptyList(), reportId, dv, oldestFirst) {
-        value = withContext(Dispatchers.IO) {
-            val report = ReportStorage.getReport(context, reportId) ?: return@withContext emptyList()
-            val secondaries = SecondaryResultStorage.listForReport(context, reportId)
-            report.userNotes
-                .let { if (oldestFirst) it.sortedBy { n -> n.createdAt } else it.sortedByDescending { n -> n.createdAt } }
-                .groupBy { it.targetKind to it.targetId }
-                .map { (_, notes) ->
-                    Group(noteTargetLabel(notes.first(), report, secondaries, reportId), notes)
-                }
-                .sortedBy { it.label }
-        }
-    }
+    // Keyed load (see rememberKeyedLoad): never the previous report's notes
+    // after an in-place switch — "Delete all" counted those while deleting
+    // this report's.
+    val allGroups = com.ai.ui.report.view.helpers.rememberKeyedLoad(
+        reportId to oldestFirst, ReportDataVersion.versionFor(reportId)
+    ) { (rid, oldest) ->
+        val report = ReportStorage.getReport(context, rid) ?: return@rememberKeyedLoad emptyList()
+        val secondaries = SecondaryResultStorage.listForReport(context, rid)
+        report.userNotes
+            .let { if (oldest) it.sortedBy { n -> n.createdAt } else it.sortedByDescending { n -> n.createdAt } }
+            .groupBy { it.targetKind to it.targetId }
+            .map { (_, notes) ->
+                Group(noteTargetLabel(notes.first(), report, secondaries, rid), notes)
+            }
+            .sortedBy { it.label }
+    }.orEmpty()
     val groups = remember(allGroups, search) {
         if (search.isBlank()) allGroups
         else allGroups.mapNotNull { g ->

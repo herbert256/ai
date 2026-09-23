@@ -94,16 +94,13 @@ fun TournamentPodiumViewScreen(
     val reportIdsList = com.ai.ui.shared.LocalReportIdsNewestFirst.current
     val switchReport = com.ai.ui.shared.LocalReportSwitchHandler.current
 
-    val secondaryDataVersion by SecondaryDataVersion.versionFor(currentReportId, SecondaryKind.TOURNAMENT).collectAsState()
-    val loadedState = produceState(
-        initialValue = TournamentPodiumLoaded(),
-        currentReportId, currentResultId, secondaryDataVersion
-    ) {
-        value = withContext(Dispatchers.IO) {
-            loadTournamentPodium(context, currentReportId, currentResultId)
-        }
-    }
-    val loaded = loadedState.value
+    // Only THIS (report, tournament row)'s standings are rendered — never
+    // the previous report's after a title-bar swipe, where the method chip
+    // would then re-rank this report from the other report's numbers.
+    val loaded = com.ai.ui.report.view.helpers.rememberKeyedLoad(
+        currentReportId to currentResultId,
+        SecondaryDataVersion.versionFor(currentReportId, SecondaryKind.TOURNAMENT)
+    ) { (rid, resId) -> loadTournamentPodium(context, rid, resId) } ?: TournamentPodiumLoaded()
     val currentMethod = decodeTournamentMatrix(loaded.row?.tournamentMatrix)?.second ?: TournamentMethod.COPELAND
     // The 🔧 manage icon opens the Tournament page in Manage. From the View
     // pages we dispatch ManageJump.Tournament through LocalOpenManage (the same

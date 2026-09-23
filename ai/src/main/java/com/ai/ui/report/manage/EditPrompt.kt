@@ -60,7 +60,9 @@ fun ReportEditPromptScreen(
     // out of the SaveableStateRegistry. Without the key, an external
     // edit between two openings would silently re-surface the prior
     // text.
-    var prompt by rememberSaveable(initialPrompt) { mutableStateOf(initialPrompt) }
+    // Keyed on the report too: after an in-place switch to a report with the
+    // same prompt text, the previous report's unsaved draft must not carry over.
+    var prompt by rememberSaveable(reportId, initialPrompt) { mutableStateOf(initialPrompt) }
     val canUpdate = prompt.trim().isNotBlank()
 
     // Revision timeline for this report, newest-first. Loaded off the
@@ -320,7 +322,7 @@ private fun SingleTitleEditScreen(
     val context = LocalContext.current
     // Same caveat as ReportEditPromptScreen above — key on the initial
     // value so a stale draft doesn't outlive an external edit.
-    var title by rememberSaveable(initialTitle) { mutableStateOf(initialTitle) }
+    var title by rememberSaveable(reportId, initialTitle) { mutableStateOf(initialTitle) }
     // A picked "Find alternative …" candidate fills the field.
     LaunchedEffect(injectedTitle) { injectedTitle?.let { title = it; onConsumeInjectedTitle() } }
     val canUpdate = allowBlank || title.trim().isNotBlank()
@@ -434,7 +436,7 @@ fun ReportEditModelTitleScreen(
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
-    var title by rememberSaveable(initialTitle) { mutableStateOf(initialTitle) }
+    var title by rememberSaveable(reportId, agentId, initialTitle) { mutableStateOf(initialTitle) }
     LaunchedEffect(injectedTitle) { injectedTitle?.let { title = it; onConsumeInjectedTitle() } }
     val canUpdate = title.trim().isNotBlank()
 

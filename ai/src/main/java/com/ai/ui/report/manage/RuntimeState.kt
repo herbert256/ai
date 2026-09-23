@@ -130,6 +130,9 @@ internal fun rememberReportRuntimeState(
     var mainResponseTotal by remember { mutableStateOf(0.0) }
     var costsFromDeletedItems by remember { mutableStateOf(0.0) }
     var unattributedMetaAttempts by remember { mutableStateOf(emptyList<FanMetaAttempt>()) }
+    // Report id the secondary fields above were loaded for — see the gate
+    // at the return: another report's rows are never handed out.
+    var secondaryLoadedFor by remember { mutableStateOf<String?>(null) }
 
     var reportIcon by remember { mutableStateOf<String?>(null) }
     var reportIconError by remember { mutableStateOf<String?>(null) }
@@ -307,12 +310,17 @@ internal fun rememberReportRuntimeState(
             secondState = InfoJobState.DONE
             secondTotal = 0.0
             costsFromDeletedItems = 0.0
+            secondaryLoadedFor = null
             return@LaunchedEffect
         }
+        // Built off the main thread as one immutable snapshot and assigned
+        // only after withContext returns: a report switch cancels this effect,
+        // and a cancelled withContext drops its result — assigning inside the
+        // IO block let a slow read of the previous report land on this one.
         suspend fun reload() {
-            withContext(Dispatchers.IO) {
+            val snap = withContext(Dispatchers.IO) {
                 val all = SecondaryResultStorage.listForReport(context, rid)
-                secondaryRuns = all
+                val runs = all
                     .filter { it.kind != SecondaryKind.TRANSLATE }
                     // Tournament matches + aggregate are collapsed into the
                     // single TournamentManageRow (→ Fan-Meta-style L1 drill-in),
@@ -330,25 +338,8 @@ internal fun rememberReportRuntimeState(
                     .filter { it.kind != SecondaryKind.TRANSRANK }
                     .filter { it.fanOutSourceAgentId == null }
                     .sortedByDescending { it.timestamp }
-                translateRows = all.filter { it.kind == SecondaryKind.TRANSLATE }
-                translationRunSummaries = buildTranslationRunSummaries(translateRows)
-                    // Hide runs whose delete is in flight (rows still on disk).
-                    .filter { it.runId !in deletingTranslationRunIds }
-                fanOutSummaries = buildFanOutSummaries(
-                    all.filter { row ->
-                        if (row.fanOutSourceAgentId == null) return@filter false
-                        // Hide runs whose delete is in flight (rows still on disk).
-                        val pid = row.metaPromptId
-                        pid == null || com.ai.data.runKey(rid, pid) !in deletingFanOutRuns
-                    }, unattributedMetaAttempts
-                )
-                secondaryCounts = SecondaryResultStorage.Counts(
-                    rerank = all.count { it.kind == SecondaryKind.RERANK },
-                    meta = all.count { it.kind == SecondaryKind.META },
-                    moderation = all.count { it.kind == SecondaryKind.MODERATION },
-                    translate = all.count { it.kind == SecondaryKind.TRANSLATE }
-                )
-                secondaryTotals = SecondaryTotals(
+                val translates = all.filter { it.kind == SecondaryKind.TRANSLATE }
+                val totals = SecondaryTotals(
                     inputTokens = all.sumOf { it.tokenUsage?.inputTokens ?: 0 },
                     outputTokens = all.sumOf { it.tokenUsage?.outputTokens ?: 0 },
                     inputCost = all.sumOf { it.inputCost ?: 0.0 },
@@ -360,21 +351,52 @@ internal fun rememberReportRuntimeState(
                         it.iconInputCost + it.iconOutputCost + it.titleInputCost + it.titleOutputCost
                     } + unattributedMetaAttempts.filter { a -> all.any { it.titleRunId == a.runId } }.sumOf { it.cost }
                 )
-                // "second" row aggregate + summed cost — disk-based, like the
-                // info row. Any unfinished cell (blank content, no error, no
-                // duration) → ⏳; any error → ❌; else ✅. Cost = all secondary
-                // spend (incl. fan-meta title+icon).
-                secondEnabled = all.isNotEmpty()
-                secondTotal = secondaryTotals.inputCost + secondaryTotals.outputCost +
-                    secondaryTotals.fanOutMetaCost
-                // A live (unfinished) translation run keeps the row at ⏳ even
-                // in the windows where its rows aren't blank placeholders yet
-                // (mid-build, or a restart about to clear errored rows).
-                secondState = secondAggregate(
-                    all,
-                    liveTranslations = translationRuns.any { it.sourceReportId == rid && !it.isFinished }
+                SecondaryReload(
+                    runs = runs,
+                    translateRows = translates,
+                    translationRunSummaries = buildTranslationRunSummaries(translates)
+                        // Hide runs whose delete is in flight (rows still on disk).
+                        .filter { it.runId !in deletingTranslationRunIds },
+                    fanOutSummaries = buildFanOutSummaries(
+                        all.filter { row ->
+                            if (row.fanOutSourceAgentId == null) return@filter false
+                            // Hide runs whose delete is in flight (rows still on disk).
+                            val pid = row.metaPromptId
+                            pid == null || com.ai.data.runKey(rid, pid) !in deletingFanOutRuns
+                        }, unattributedMetaAttempts
+                    ),
+                    counts = SecondaryResultStorage.Counts(
+                        rerank = all.count { it.kind == SecondaryKind.RERANK },
+                        meta = all.count { it.kind == SecondaryKind.META },
+                        moderation = all.count { it.kind == SecondaryKind.MODERATION },
+                        translate = all.count { it.kind == SecondaryKind.TRANSLATE }
+                    ),
+                    totals = totals,
+                    // "second" row aggregate + summed cost — disk-based, like the
+                    // info row. Any unfinished cell (blank content, no error, no
+                    // duration) → ⏳; any error → ❌; else ✅. Cost = all secondary
+                    // spend (incl. fan-meta title+icon).
+                    secondEnabled = all.isNotEmpty(),
+                    secondTotal = totals.inputCost + totals.outputCost + totals.fanOutMetaCost,
+                    // A live (unfinished) translation run keeps the row at ⏳ even
+                    // in the windows where its rows aren't blank placeholders yet
+                    // (mid-build, or a restart about to clear errored rows).
+                    secondState = secondAggregate(
+                        all,
+                        liveTranslations = translationRuns.any { it.sourceReportId == rid && !it.isFinished }
+                    )
                 )
             }
+            secondaryRuns = snap.runs
+            translateRows = snap.translateRows
+            translationRunSummaries = snap.translationRunSummaries
+            fanOutSummaries = snap.fanOutSummaries
+            secondaryCounts = snap.counts
+            secondaryTotals = snap.totals
+            secondEnabled = snap.secondEnabled
+            secondTotal = snap.secondTotal
+            secondState = snap.secondState
+            secondaryLoadedFor = rid
         }
         reload()
         if (uiState.activeSecondaryBatches > 0) {
@@ -394,42 +416,50 @@ internal fun rememberReportRuntimeState(
         }
     }
 
+    // Hand out each group of fields only once it was loaded for THIS report.
+    // After an in-place switch the vars still hold the previous report's
+    // values until the reloads land; rendering those put report A's icon,
+    // titles, per-model rows, costs and secondary rows under report B (and
+    // edits made in that window wrote A's values onto B).
+    val reportReady = currentReportId != null && loadedReportId == currentReportId
+    val secondaryReady = currentReportId != null && secondaryLoadedFor == currentReportId
+    val shownReportIcon = if (reportReady) reportIcon else null
     val effectiveReportIcon =
-        if (iconGenEnabled && currentReportId != null) reportIcon?.takeIf { it.isNotEmpty() } ?: com.ai.data.MetadataIconsHolder.current.reportIcon
+        if (iconGenEnabled && currentReportId != null) shownReportIcon?.takeIf { it.isNotEmpty() } ?: com.ai.data.MetadataIconsHolder.current.reportIcon
         else null
 
     return ReportRuntimeState(
-        secondaryCounts = secondaryCounts,
-        secondaryRuns = secondaryRuns,
-        translateRows = translateRows,
-        translationRunSummaries = translationRunSummaries,
-        fanOutSummaries = fanOutSummaries,
-        secondaryTotals = secondaryTotals,
-        costsFromDeletedItems = costsFromDeletedItems,
-        reportIcon = reportIcon,
-        reportIconError = reportIconError,
-        reportIconCost = reportIconCost,
-        reportIconModel = reportIconModel,
-        reportIconTraceFile = reportIconTraceFile,
-        languageIconCost = languageIconCost,
-        languageDetectCost = languageDetectCost,
-        languageName = languageName,
-        languageIcon = languageIcon,
-        agentIconRows = agentIconRows,
-        agentModelTitles = agentModelTitles,
-        infoEnabled = infoEnabled,
-        infoState = infoState,
-        infoMetaTotal = infoMetaTotal,
-        secondEnabled = secondEnabled,
-        secondState = secondState,
-        secondTotal = secondTotal,
-        mainResponseTotal = mainResponseTotal,
-        agentRecordsByAgentId = agentRecordsByAgentId,
-        loadedReportPrompt = loadedReportPrompt,
-        loadedReportTitle = loadedReportTitle,
-        loadedReportTimestamp = loadedReportTimestamp,
+        secondaryCounts = if (secondaryReady) secondaryCounts else SecondaryResultStorage.Counts(0, 0, 0, 0),
+        secondaryRuns = if (secondaryReady) secondaryRuns else emptyList(),
+        translateRows = if (secondaryReady) translateRows else emptyList(),
+        translationRunSummaries = if (secondaryReady) translationRunSummaries else emptyList(),
+        fanOutSummaries = if (secondaryReady) fanOutSummaries else emptyList(),
+        secondaryTotals = if (secondaryReady) secondaryTotals else SecondaryTotals.ZERO,
+        costsFromDeletedItems = if (reportReady) costsFromDeletedItems else 0.0,
+        reportIcon = shownReportIcon,
+        reportIconError = if (reportReady) reportIconError else null,
+        reportIconCost = if (reportReady) reportIconCost else 0.0,
+        reportIconModel = if (reportReady) reportIconModel else null,
+        reportIconTraceFile = if (reportReady) reportIconTraceFile else null,
+        languageIconCost = if (reportReady) languageIconCost else 0.0,
+        languageDetectCost = if (reportReady) languageDetectCost else 0.0,
+        languageName = if (reportReady) languageName else null,
+        languageIcon = if (reportReady) languageIcon else null,
+        agentIconRows = if (reportReady) agentIconRows else emptyMap(),
+        agentModelTitles = if (reportReady) agentModelTitles else emptyMap(),
+        infoEnabled = if (reportReady) infoEnabled else false,
+        infoState = if (reportReady) infoState else InfoJobState.DONE,
+        infoMetaTotal = if (reportReady) infoMetaTotal else 0.0,
+        secondEnabled = if (secondaryReady) secondEnabled else false,
+        secondState = if (secondaryReady) secondState else InfoJobState.DONE,
+        secondTotal = if (secondaryReady) secondTotal else 0.0,
+        mainResponseTotal = if (reportReady) mainResponseTotal else 0.0,
+        agentRecordsByAgentId = if (reportReady) agentRecordsByAgentId else emptyMap(),
+        loadedReportPrompt = if (reportReady) loadedReportPrompt else "",
+        loadedReportTitle = if (reportReady) loadedReportTitle else null,
+        loadedReportTimestamp = if (reportReady) loadedReportTimestamp else 0L,
         effectiveReportIcon = effectiveReportIcon,
-        loaded = currentReportId != null && loadedReportId == currentReportId,
+        loaded = reportReady,
         onSecondaryRefresh = onSecondaryRefresh,
         onDeleteSecondaryWithRefresh = { rid, sid ->
             onDeleteSecondary(rid, sid)
@@ -505,3 +535,16 @@ internal fun HandleExternalReportInstructions(
         }
     }
 }
+
+/** One immutable secondary-rows reload for [rememberReportRuntimeState]. */
+private data class SecondaryReload(
+    val runs: List<com.ai.data.SecondaryResult>,
+    val translateRows: List<com.ai.data.SecondaryResult>,
+    val translationRunSummaries: List<TranslationRunSummary>,
+    val fanOutSummaries: List<FanOutRunSummary>,
+    val counts: SecondaryResultStorage.Counts,
+    val totals: SecondaryTotals,
+    val secondEnabled: Boolean,
+    val secondTotal: Double,
+    val secondState: InfoJobState
+)

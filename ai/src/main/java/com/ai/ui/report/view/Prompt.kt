@@ -90,26 +90,24 @@ fun PromptViewScreen(
 
     data class Loaded(val report: Report?, val translatedByLang: Map<String, String>)
 
-    val reportDataVersion by ReportDataVersion.versionFor(currentReportId).collectAsState()
-    val secondaryDataVersion by SecondaryDataVersion.versionFor(currentReportId, SecondaryKind.TRANSLATE).collectAsState()
-    val loadedState = produceState<Loaded>(
-        initialValue = Loaded(null, emptyMap()),
-        currentReportId, reportDataVersion, secondaryDataVersion
-    ) {
-        value = withContext(Dispatchers.IO) {
-            val rep = com.ai.ui.report.view.helpers.ViewReportCache.get(context, currentReportId)
-            val translated = SecondaryResultStorage
-                .listForReport(context, currentReportId, SecondaryKind.TRANSLATE)
-                .filter {
-                    it.translateSourceKind == "PROMPT" &&
-                        !it.content.isNullOrBlank() &&
-                        !it.targetLanguage.isNullOrBlank()
-                }
-                .associate { it.targetLanguage!! to it.content!! }
-            Loaded(rep, translated)
-        }
-    }
-    val loaded = loadedState.value
+    // Only THIS report's load is rendered (never the previous report's
+    // after a title-bar swipe) — see rememberKeyedLoad.
+    val loaded = com.ai.ui.report.view.helpers.rememberKeyedLoad(
+        currentReportId,
+        ReportDataVersion.versionFor(currentReportId),
+        SecondaryDataVersion.versionFor(currentReportId, SecondaryKind.TRANSLATE)
+    ) { rid ->
+        val rep = com.ai.ui.report.view.helpers.ViewReportCache.get(context, rid)
+        val translated = SecondaryResultStorage
+            .listForReport(context, rid, SecondaryKind.TRANSLATE)
+            .filter {
+                it.translateSourceKind == "PROMPT" &&
+                    !it.content.isNullOrBlank() &&
+                    !it.targetLanguage.isNullOrBlank()
+            }
+            .associate { it.targetLanguage!! to it.content!! }
+        Loaded(rep, translated)
+    } ?: Loaded(null, emptyMap())
     val report = loaded.report
 
     // Normalise / dedupe. Original ("") is always available since

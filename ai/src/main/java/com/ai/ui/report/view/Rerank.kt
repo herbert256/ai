@@ -100,43 +100,41 @@ fun RerankViewScreen(
         val reportTitle: String?
     )
 
-    val reportDataVersion by ReportDataVersion.versionFor(currentReportId).collectAsState()
-    val secondaryDataVersion by SecondaryDataVersion.versionFor(currentReportId, SecondaryKind.RERANK).collectAsState()
-    val loadedState = produceState<Loaded>(
-        initialValue = Loaded(null, emptyMap(), null),
-        currentReportId, currentResultId, reportDataVersion, secondaryDataVersion
-    ) {
-        value = withContext(Dispatchers.IO) {
-            val r = SecondaryResultStorage.get(context, currentReportId, currentResultId)
-            val report = com.ai.ui.report.view.helpers.ViewReportCache.get(context, currentReportId)
-            // Resolve the [N] ids through the row's run-time sourceAgentIds
-            // snapshot, like Manage's RerankDetailScreen — mapping positions
-            // into the CURRENT success set attributed every medal to the
-            // wrong model (and podium taps opened the wrong agent) once a
-            // deletion or a failed→success regenerate shifted the numbering.
-            // Legacy rows without a snapshot keep the positional fallback.
-            val snapshot = r?.sourceAgentIds
-            val agents = report?.agents.orEmpty()
-            val labels: Map<Int, AgentLabel> = if (!snapshot.isNullOrEmpty()) {
-                val byId = agents.associateBy { it.agentId }
-                snapshot.mapIndexed { idx, aid ->
-                    val agent = byId[aid]
-                    (idx + 1) to AgentLabel(
-                        agent?.model?.let { shortModelName(it) } ?: "(removed model)",
-                        agent?.agentId
-                    )
+    // Only THIS (report, rerank result)'s load is rendered — never the previous report's
+    // after a title-bar swipe (see rememberKeyedLoad).
+    val loaded = com.ai.ui.report.view.helpers.rememberKeyedLoad(
+        currentReportId to currentResultId,
+        ReportDataVersion.versionFor(currentReportId),
+        SecondaryDataVersion.versionFor(currentReportId, SecondaryKind.RERANK)
+    ) { (rid, resId) ->
+        val r = SecondaryResultStorage.get(context, rid, resId)
+        val report = com.ai.ui.report.view.helpers.ViewReportCache.get(context, rid)
+        // Resolve the [N] ids through the row's run-time sourceAgentIds
+        // snapshot, like Manage's RerankDetailScreen — mapping positions
+        // into the CURRENT success set attributed every medal to the
+        // wrong model (and podium taps opened the wrong agent) once a
+        // deletion or a failed→success regenerate shifted the numbering.
+        // Legacy rows without a snapshot keep the positional fallback.
+        val snapshot = r?.sourceAgentIds
+        val agents = report?.agents.orEmpty()
+        val labels: Map<Int, AgentLabel> = if (!snapshot.isNullOrEmpty()) {
+            val byId = agents.associateBy { it.agentId }
+            snapshot.mapIndexed { idx, aid ->
+                val agent = byId[aid]
+                (idx + 1) to AgentLabel(
+                    agent?.model?.let { shortModelName(it) } ?: "(removed model)",
+                    agent?.agentId
+                )
+            }.toMap()
+        } else {
+            agents
+                .filter { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
+                .mapIndexed { idx, agent ->
+                    (idx + 1) to AgentLabel(shortModelName(agent.model), agent.agentId)
                 }.toMap()
-            } else {
-                agents
-                    .filter { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
-                    .mapIndexed { idx, agent ->
-                        (idx + 1) to AgentLabel(shortModelName(agent.model), agent.agentId)
-                    }.toMap()
-            }
-            Loaded(r, labels, report?.barTitle)
         }
-    }
-    val loaded = loadedState.value
+        Loaded(r, labels, report?.barTitle)
+    } ?: Loaded(null, emptyMap(), null)
     val result = loaded.result
     val agentLabels = loaded.agentLabels
 

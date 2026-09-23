@@ -648,11 +648,11 @@ internal fun rememberReportCostData(report: Report): ReportCostData? {
     // Re-read when a secondary completes / is deleted while a cost view
     // (this is shared by Report-Manage, Report-Info and the Costs screen)
     // stays mounted — otherwise the breakdown / totals went stale.
-    val secDataVersion by SecondaryDataVersion.versionFor(report.id).collectAsState()
-    val secondaryState = produceState(initialValue = emptyList<SecondaryResult>(), report.id, secDataVersion) {
-        value = withContext(Dispatchers.IO) { SecondaryResultStorage.listForReport(context, report.id) }
-    }
-    val secondary = secondaryState.value
+    // Only THIS report's rows: a keyed load never pairs this report's
+    // agents with the previous report's secondaries after a swipe.
+    val secondary = com.ai.ui.report.view.helpers.rememberKeyedLoad(
+        report.id, SecondaryDataVersion.versionFor(report.id)
+    ) { rid -> SecondaryResultStorage.listForReport(context, rid) }.orEmpty()
     val hasIconCost = report.iconInputCost > 0.0 || report.iconOutputCost > 0.0
     val hasIconCalls = report.iconCalls.isNotEmpty()
     val hasLanguageDetectCost = report.languageInputCost > 0.0 || report.languageOutputCost > 0.0

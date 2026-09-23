@@ -450,35 +450,37 @@ internal fun ViewAiReportScreen(
         val transRanks: List<com.ai.data.SecondaryResult>,
         val compares: List<com.ai.data.SecondaryResult>
     )
-    val reportDataVersion by ReportDataVersion.versionFor(reportId).collectAsState()
-    val secondaryDataVersion by SecondaryDataVersion.versionFor(reportId).collectAsState()
-    val translatesState = androidx.compose.runtime.produceState(
-        initialValue = TranslatesLoad(emptyList(), null, emptyList(), emptyList(), emptyList(), emptyList()), reportId, reportDataVersion, secondaryDataVersion
-    ) {
-        value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-            val rows = com.ai.data.SecondaryResultStorage.listForReport(viewPrefsCtx, reportId)
-            val list = rows.filter { it.kind == SecondaryKind.TRANSLATE && !it.content.isNullOrBlank() }
-            val tournaments = rows
-                .filter { it.kind == SecondaryKind.TOURNAMENT && it.tournamentRole == "AGGREGATE" }
-                .sortedByDescending { it.timestamp }
-            val judges = rows
-                .filter { it.kind == SecondaryKind.JUDGES && it.tournamentRole == "AGGREGATE" }
-                .sortedByDescending { it.timestamp }
-            val transRanks = rows
-                .filter { it.kind == SecondaryKind.TRANSRANK && it.tournamentRole == com.ai.data.TRANSRANK_ROLE_AGGREGATE }
-                .sortedByDescending { it.timestamp }
-            // Compare has no AGGREGATE row — any scored CELL means a run exists.
-            val compares = rows.filter { it.kind == SecondaryKind.COMPARE && !it.compareRunId.isNullOrBlank() }
-            val rep = com.ai.ui.report.view.helpers.ViewReportCache.get(viewPrefsCtx, reportId)
-            TranslatesLoad(list, rep, tournaments, judges, transRanks, compares)
-        }
-    }
-    val translates = translatesState.value.list
-    val loadedReport = translatesState.value.report
-    val tournamentRows = translatesState.value.tournaments
-    val judgesRows = translatesState.value.judges
-    val transRankRows = translatesState.value.transRanks
-    val compareRows = translatesState.value.compares
+    // Only THIS report's load drives the hub — never the previous report's
+    // title, language tabs, tiles or tile targets after an in-place swipe
+    // (a stale Tournament / Translators tile opened this report with the
+    // other report's row). See rememberKeyedLoad.
+    val hubLoad = com.ai.ui.report.view.helpers.rememberKeyedLoad(
+        reportId,
+        ReportDataVersion.versionFor(reportId),
+        SecondaryDataVersion.versionFor(reportId)
+    ) { rid ->
+        val rows = com.ai.data.SecondaryResultStorage.listForReport(viewPrefsCtx, rid)
+        val list = rows.filter { it.kind == SecondaryKind.TRANSLATE && !it.content.isNullOrBlank() }
+        val tournaments = rows
+            .filter { it.kind == SecondaryKind.TOURNAMENT && it.tournamentRole == "AGGREGATE" }
+            .sortedByDescending { it.timestamp }
+        val judges = rows
+            .filter { it.kind == SecondaryKind.JUDGES && it.tournamentRole == "AGGREGATE" }
+            .sortedByDescending { it.timestamp }
+        val transRanks = rows
+            .filter { it.kind == SecondaryKind.TRANSRANK && it.tournamentRole == com.ai.data.TRANSRANK_ROLE_AGGREGATE }
+            .sortedByDescending { it.timestamp }
+        // Compare has no AGGREGATE row — any scored CELL means a run exists.
+        val compares = rows.filter { it.kind == SecondaryKind.COMPARE && !it.compareRunId.isNullOrBlank() }
+        val rep = com.ai.ui.report.view.helpers.ViewReportCache.get(viewPrefsCtx, rid)
+        TranslatesLoad(list, rep, tournaments, judges, transRanks, compares)
+    } ?: TranslatesLoad(emptyList(), null, emptyList(), emptyList(), emptyList(), emptyList())
+    val translates = hubLoad.list
+    val loadedReport = hubLoad.report
+    val tournamentRows = hubLoad.tournaments
+    val judgesRows = hubLoad.judges
+    val transRankRows = hubLoad.transRanks
+    val compareRows = hubLoad.compares
     val originalLanguageIcon = loadedReport?.languageIcon
 
     // The View screen is read-only: it loads once and renders. No 5 s
@@ -547,8 +549,8 @@ internal fun ViewAiReportScreen(
         // Original. After the user opens a sub-View overlay (Costs
         // / Meta / Fan-out / …) the parent composable returns
         // early; its state below the return is disposed, so on the
-        // way back translatesState restarts with initialValue =
-        // emptyList() and viewLangTabs recomputes to just
+        // way back the hub load restarts (null → the empty
+        // TranslatesLoad) and viewLangTabs recomputes to just
         // [Original] for one composition. Without the size > 1
         // guard, a previously-picked translation key (restored
         // from rememberSaveable) would be wrongly reset to
@@ -565,7 +567,7 @@ internal fun ViewAiReportScreen(
     androidx.compose.runtime.LaunchedEffect(pendingLangFromSubView, viewLangTabs) {
         val pending = pendingLangFromSubView ?: return@LaunchedEffect
         // Same cold-window guard as the reset effect above: on the way
-        // back from a sub-View, translatesState restarts empty and
+        // back from a sub-View, the hub load restarts empty and
         // viewLangTabs is [Original] for the first composition. This
         // effect has no suspension points, so it ran before the IO
         // reload landed — a non-blank bubbled language found no tab,

@@ -86,11 +86,11 @@ fun CostsViewScreen(
     var currentReportId by rememberSaveable(reportId) { mutableStateOf(reportId) }
     val reportIdsList = com.ai.ui.shared.LocalReportIdsNewestFirst.current
     val switchReport = com.ai.ui.shared.LocalReportSwitchHandler.current
-    val reportDataVersion by ReportDataVersion.versionFor(currentReportId).collectAsState()
-    val reportState = produceState<Report?>(initialValue = null, currentReportId, reportDataVersion) {
-        value = withContext(Dispatchers.IO) { com.ai.ui.report.view.helpers.ViewReportCache.get(context, currentReportId) }
-    }
-    val report = reportState.value
+    // Only THIS report's costs are rendered — never the previous report's
+    // after a title-bar swipe (see rememberKeyedLoad).
+    val report = com.ai.ui.report.view.helpers.rememberKeyedLoad(
+        currentReportId, ReportDataVersion.versionFor(currentReportId)
+    ) { rid -> com.ai.ui.report.view.helpers.LoadedValue(com.ai.ui.report.view.helpers.ViewReportCache.get(context, rid)) }?.value
 
     // Mode toggle hoisted above the Column so the body swipe can flip it.
     var mode by rememberSaveable { mutableStateOf(CostsMode.Buckets) }

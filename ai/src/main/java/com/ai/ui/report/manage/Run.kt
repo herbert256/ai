@@ -273,27 +273,26 @@ internal fun ReportRunScreen(
     // isPinned produceState re-reads from disk and the 📌 tint flips
     // immediately (orange when pinned). Keyed on currentReportId so
     // switching reports also reseeds the read.
-    var pinTick by remember(currentReportId) { mutableStateOf(0) }
-    // Also keyed on ReportDataVersion: the tap bumps pinTick immediately
-    // while the toggle write is still running on IO — on a large report the
-    // tick-triggered read could win the race and latch the PRE-toggle value
-    // (stale 📌; a second tap then silently un-pinned). setReportPinned's
-    // save bumps the version, so the post-write re-read always lands.
-    val pinDataVersion by ReportDataVersion.versionFor(currentReportId).collectAsState()
-    val isPinned by produceState(initialValue = false, currentReportId, pinTick, pinDataVersion) {
-        value = currentReportId?.let { rid ->
-            withContext(Dispatchers.IO) { ReportStorage.getReport(context, rid)?.pinned == true }
-        } ?: false
-    }
+    // Reloads on ReportDataVersion: setReportPinned's save bumps it, so the
+    // post-write read always lands (a tap-counter key could read before the
+    // write and latch the pre-toggle 📌). Keyed load — after an in-place
+    // report switch the previous report's pin state is never shown.
+    val isPinned = currentReportId?.let { rid ->
+        com.ai.ui.report.view.helpers.rememberKeyedLoad(rid, ReportDataVersion.versionFor(rid)) { id ->
+            ReportStorage.getReport(context, id)?.pinned == true
+        }
+    } ?: false
     // Per-report worker config for the Manage 👷 edit overlay — same
     // disk-read + tick pattern as isPinned, but NULL until the read lands
     // so the overlay can't open on (and Save can't persist) the default
     // config during the cold window. The launch sites don't read this —
     // launchWithWorkerPlan reads the config fresh from disk per launch.
+    // Keyed load: never the previous report's config after an in-place
+    // switch — Save would persist it onto this report.
     var workerConfigTick by remember(currentReportId) { mutableStateOf(0) }
-    val workerCfg by produceState<com.ai.data.ReportWorkerConfig?>(initialValue = null, currentReportId, workerConfigTick) {
-        value = currentReportId?.let { rid ->
-            withContext(Dispatchers.IO) { ReportStorage.getReport(context, rid)?.workerConfig ?: com.ai.data.ReportWorkerConfig() }
+    val workerCfg = currentReportId?.let { rid ->
+        com.ai.ui.report.view.helpers.rememberKeyedLoad(rid to workerConfigTick) { (id, _) ->
+            ReportStorage.getReport(context, id)?.workerConfig ?: com.ai.data.ReportWorkerConfig()
         }
     }
     // 🏅 handler: open an existing rank run for this translation, else confirm-start.
@@ -489,17 +488,18 @@ internal fun ReportRunScreen(
         ReportNotesListScreen(reportId = currentReportId, onBack = { showNotesList = false })
         return
     }
-    var noteEdit by remember { mutableStateOf<NoteEdit?>(null) }
+    // Keyed on the report: a switch closes an open draft instead of saving
+    // it onto the next report.
+    var noteEdit by remember(currentReportId) { mutableStateOf<NoteEdit?>(null) }
     if (noteEdit != null && currentReportId != null) {
         UserNoteEditorOverlay(currentReportId, "REPORT", currentReportId, noteEdit!!) { noteEdit = null }
         return
     }
-    val noteDataVersion by ReportDataVersion.versionFor(currentReportId).collectAsState()
-    val reportNotes by produceState(emptyList<UserNote>(), currentReportId, noteDataVersion) {
-        value = currentReportId?.let { rid ->
-            withContext(Dispatchers.IO) { ReportStorage.getReport(context, rid)?.notesFor("REPORT", rid) ?: emptyList() }
-        } ?: emptyList()
-    }
+    val reportNotes = currentReportId?.let { rid ->
+        com.ai.ui.report.view.helpers.rememberKeyedLoad(rid, ReportDataVersion.versionFor(rid)) { id ->
+            ReportStorage.getReport(context, id)?.notesFor("REPORT", id) ?: emptyList()
+        }
+    }.orEmpty()
     // 👯 duplicate-report tap shows a yes/no first so an accidental
     // hit on the bottom bar doesn't silently spawn a "(Copy)" report.
     var showCopyConfirm by rememberSaveable(currentReportId) { mutableStateOf(false) }
@@ -568,14 +568,12 @@ internal fun ReportRunScreen(
     // with all three stats lines and the deletion summary. The journal's
     // per-call flush bumps ReportDataVersion, including during translation.
     var structuredCostForBar by remember(currentReportId) { mutableStateOf(0.0) }
-    val ledgerCostForBar by produceState<Double?>(null, currentReportId, pinDataVersion) {
-        value = currentReportId?.let { rid ->
-            withContext(Dispatchers.IO) {
-                ReportStorage.getReport(context, rid)
-                    ?.takeIf { ReportStorage.isApiCallCostLedgerCurrent(it) }
-                    ?.apiCallCosts?.sumOf { it.inputCost + it.outputCost }
-            }
-        }
+    val ledgerCostForBar = currentReportId?.let { rid ->
+        com.ai.ui.report.view.helpers.rememberKeyedLoad(rid, ReportDataVersion.versionFor(rid)) { id ->
+            com.ai.ui.report.view.helpers.LoadedValue(ReportStorage.getReport(context, id)
+                ?.takeIf { ReportStorage.isApiCallCostLedgerCurrent(it) }
+                ?.apiCallCosts?.sumOf { it.inputCost + it.outputCost })
+        }?.value
     }
     val totalCostForBar = ledgerCostForBar ?: structuredCostForBar
     Box(modifier = Modifier.fillMaxSize()) {
@@ -683,7 +681,7 @@ internal fun ReportRunScreen(
                 { showCopyConfirm = true }
             } else null,
             onPin = if (manageLayer && currentReportId != null) {
-                { generationHandlers.onTogglePin(); pinTick++ }
+                { generationHandlers.onTogglePin() }
             } else null,
             isPinned = isPinned,
             onToggleModelRowLabels = if (manageLayer && currentReportId != null) {
@@ -807,7 +805,8 @@ internal fun ReportRunScreen(
             )
         }
 
-        if (showRegenerateConfirm && currentReportId != null) {
+        if (showRegenerateConfirm && currentReportId != null &&
+            confirmStillForOpenedReport(currentReportId, onDismissRegenerateConfirm)) {
             val rid = currentReportId
             // On the Get-info layer the 🔄 regenerates only this page's
             // metadata jobs (icon / title / language / per-model), not
@@ -1210,7 +1209,8 @@ internal fun ReportRunScreen(
 
         // Tournament launch — a single confirm dialog showing the N(N-1)
         // worker-call count. Judging runs on the worker engine.
-        if (confirmTournament && currentReportId != null) {
+        if (confirmTournament && currentReportId != null &&
+            confirmStillForOpenedReport(currentReportId) { confirmTournament = false }) {
             val matchCount = tournamentResponseCount * (tournamentResponseCount - 1)
             androidx.compose.material3.AlertDialog(
                 onDismissRequest = { confirmTournament = false },
