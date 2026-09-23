@@ -89,13 +89,19 @@ object ApiTracer {
      *  no longer race a process-wide @Volatile var — each gets its
      *  own ThreadLocal value, copied onto the dispatcher worker
      *  thread when the OkHttp Call's Runnable is submitted. */
-    @PublishedApi internal data class TraceTags(val reportId: String?, val category: String?, val runId: String? = null, val model: String? = null)
+    /** [chatSession] = [reportId] carries a chat session id, not a report
+     *  id: chats reuse the slot so their trace lists filter by session, but
+     *  the report-only sinks (audit log, report cost journal) must skip them. */
+    @PublishedApi internal data class TraceTags(val reportId: String?, val category: String?, val runId: String? = null, val model: String? = null, val chatSession: Boolean = false)
     @PublishedApi internal val currentTags: ThreadLocal<TraceTags> = ThreadLocal.withInitial { TraceTags(null, null, null) }
 
     /** Public accessors — kept for binding-compatibility with read
      *  sites; setters are intentionally absent so callers go through
      *  [withTracerTags]. */
     val currentReportId: String? get() = currentTags.get()?.reportId
+    /** [currentReportId], but null when it carries a chat session id — use
+     *  this wherever the id is treated as a REPORT (audit, cost ledger). */
+    val currentRealReportId: String? get() = currentTags.get()?.takeUnless { it.chatSession }?.reportId
     val currentCategory: String? get() = currentTags.get()?.category
     val currentRunId: String? get() = currentTags.get()?.runId
     /** Explicit model override for calls whose model isn't in the request

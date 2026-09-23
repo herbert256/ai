@@ -784,7 +784,8 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         estimated: Boolean = false,
         traceFile: String? = null
     ) {
-        val reportId = ApiTracer.currentReportId?.takeIf { it.isNotBlank() } ?: return
+        // Chat calls carry their session id in the report slot — not a report.
+        val reportId = ApiTracer.currentRealReportId?.takeIf { it.isNotBlank() } ?: return
         if (inputTokens <= 0 && outputTokens <= 0 && searchUnits <= 0 && costs.inputCost <= 0.0 && costs.outputCost <= 0.0) return
         val record = ReportApiCallCost(
             type = category,

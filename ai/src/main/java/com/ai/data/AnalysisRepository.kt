@@ -282,7 +282,12 @@ class AnalysisRepository(
         val repository = this@AnalysisRepository
         val ragPrefix = if (knowledgeBaseIds.isNotEmpty() && context != null && aiSettings != null) {
             runCatching {
-                val hits = KnowledgeService.retrieve(context, repository, aiSettings, knowledgeBaseIds, prompt.ifBlank { content })
+                // Own throwaway trace sink: the embedding call must not
+                // leave ITS trace in the caller's sink, where it became the
+                // answer's traceFile when no model trace followed (Local).
+                val hits = withTraceFilenameSink(java.util.concurrent.atomic.AtomicReference()) {
+                    KnowledgeService.retrieve(context, repository, aiSettings, knowledgeBaseIds, prompt.ifBlank { content })
+                }
                 KnowledgeService.formatContextBlock(hits)
             }.getOrDefault("")
         } else ""
@@ -442,7 +447,12 @@ class AnalysisRepository(
         val repository = this@AnalysisRepository
         val ragPrefix = if (knowledgeBaseIds.isNotEmpty() && context != null && aiSettings != null) {
             runCatching {
-                val hits = KnowledgeService.retrieve(context, repository, aiSettings, knowledgeBaseIds, prompt.ifBlank { content })
+                // Own throwaway trace sink: the embedding call must not
+                // leave ITS trace in the caller's sink, where it became the
+                // answer's traceFile when no model trace followed (Local).
+                val hits = withTraceFilenameSink(java.util.concurrent.atomic.AtomicReference()) {
+                    KnowledgeService.retrieve(context, repository, aiSettings, knowledgeBaseIds, prompt.ifBlank { content })
+                }
                 KnowledgeService.formatContextBlock(hits)
             }.getOrDefault("")
         } else ""

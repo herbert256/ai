@@ -666,7 +666,7 @@ fun ChatSessionScreen(
             var completed = false
             val isFirstAssistantTurn = messages.none { it.role == "assistant" }
             try {
-                withTracerTags(reportId = currentSessionId, category = "Chat") {
+                withTracerTags(reportId = currentSessionId, category = "Chat", chatSession = true) {
                     withTraceFilenameSink(traceSink) {
                         onSendMessageStream(sentMessages.map { if (it.role == "assistant") it.copy(content = stripThinkSections(it.content)) else it },
                             sentWebSearch, sentReasoning, sentKbIds, { usageRef.set(it) }).collect { chunk ->
@@ -1288,7 +1288,7 @@ private fun kickOffChatTitleGeneration(
         .replace("@PROMPT@", userPrompt)
         .replace("@RESPONSE@", assistantResponse)
     scope.launch(Dispatchers.IO) {
-        com.ai.data.withTracerTags(reportId = sessionId, category = "Chat title") {
+        com.ai.data.withTracerTags(reportId = sessionId, category = "Chat title", chatSession = true) {
             runCatching {
                 val baseUrl = aiSettings.getEffectiveEndpointUrlForAgent(agent)
                 val response = repository.analyzeWithAgent(

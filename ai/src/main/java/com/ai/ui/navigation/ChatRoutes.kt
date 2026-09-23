@@ -50,8 +50,10 @@ internal fun NavGraphBuilder.chatRoutes(
         composable(NavRoutes.AI_CHATS_HUB) {
             val uiState by appViewModel.uiState.collectAsState()
             ChatsHubScreen(aiSettings = uiState.aiSettings, experimentalFeatures = uiState.generalSettings.experimentalFeaturesEnabled, onNavigateBack = safePopBack, onNavigateHome = navigateHome,
-                onNavigateToAgentSelect = { navController.navigate(NavRoutes.AI_CHAT_AGENT_SELECT) },
-                onNavigateToNewChat = { navController.navigate(NavRoutes.AI_CHAT_PROVIDER) },
+                // Fresh chats start without a leftover staged draft / photo
+                // (see clearChatStarter).
+                onNavigateToAgentSelect = { clearChatStarter(appViewModel); navController.navigate(NavRoutes.AI_CHAT_AGENT_SELECT) },
+                onNavigateToNewChat = { clearChatStarter(appViewModel); navController.navigate(NavRoutes.AI_CHAT_PROVIDER) },
                 onNavigateToChatHistory = { navController.navigate(NavRoutes.AI_CHAT_HISTORY) },
                 onNavigateToChatSearch = { navController.navigate(NavRoutes.AI_CHAT_SEARCH) },
                 onResumeSession = { sessionId -> navController.navigate(NavRoutes.aiChatContinue(sessionId)) },
@@ -61,6 +63,7 @@ internal fun NavGraphBuilder.chatRoutes(
                 // synthetic LOCAL provider, so the standard
                 // AI_CHAT_SESSION composable handles routing.
                 onNavigateToLocalLlmChat = { model ->
+                    clearChatStarter(appViewModel)
                     appViewModel.setChatParameters(ChatParameters())
                     navController.navigate(NavRoutes.aiChatSession(AppService.LOCAL.id, model))
                 },
@@ -80,7 +83,10 @@ internal fun NavGraphBuilder.chatRoutes(
             val uiState by appViewModel.uiState.collectAsState()
             SelectAgentScreen(aiSettings = uiState.aiSettings,
                 onSelectAgent = { navController.navigate(NavRoutes.aiChatWithAgent(it.id)) },
-                onBack = safePopBack, onNavigateHome = navigateHome)
+                // Backing out abandons whatever draft / photo was staged for
+                // this chat — it must not pre-fill the next, unrelated one.
+                onBack = { clearChatStarter(appViewModel); safePopBack() },
+                onNavigateHome = { clearChatStarter(appViewModel); navigateHome() })
         }
         composable(NavRoutes.AI_CHAT_WITH_AGENT) { entry ->
             val agentId = entry.arguments?.getString("agentId") ?: ""
@@ -146,8 +152,9 @@ internal fun NavGraphBuilder.chatRoutes(
                 onConfirm = { (provider, model) ->
                     navController.navigate(NavRoutes.aiChatParams(provider.id, model))
                 },
-                onBack = safePopBack,
-                onNavigateHome = navigateHome
+                // Same as the agent picker: backing out drops the staged starter.
+                onBack = { clearChatStarter(appViewModel); safePopBack() },
+                onNavigateHome = { clearChatStarter(appViewModel); navigateHome() }
             )
         }
         composable(NavRoutes.AI_CHAT_PARAMS) { entry ->
@@ -165,16 +172,30 @@ internal fun NavGraphBuilder.chatRoutes(
             val provider = AppService.findById(entry.arguments?.getString("provider") ?: "")
             val model = try { java.net.URLDecoder.decode(entry.arguments?.getString("model") ?: "", "UTF-8") } catch (_: Exception) { "" }
             val uiState by appViewModel.uiState.collectAsState()
+            // The app-wide chatParameters belong to whichever chat was started
+            // LAST. Capture them once per back-stack entry (JSON in the entry's
+            // savedStateHandle, so they survive leaving and process death):
+            // returning to an earlier chat otherwise rebuilt it with the newer
+            // chat's parameters, and its system-prompt effect then rewrote and
+            // saved the earlier chat with the newer chat's system prompt.
+            val entryParams = remember(entry) {
+                val handle = entry.savedStateHandle
+                handle.get<String>("chatParams")
+                    ?.let { runCatching { com.ai.data.createAppGson().fromJson(it, ChatParameters::class.java) }.getOrNull() }
+                    ?: appViewModel.uiState.value.chatParameters.also {
+                        handle["chatParams"] = com.ai.data.createAppGson().toJson(it)
+                    }
+            }
             if (provider != null) {
                 val apiKey = uiState.aiSettings.getApiKey(provider)
                 val isLocal = provider.id == AppService.LOCAL.id
                 ChatSessionScreen(
-                    provider = provider, model = model, parameters = uiState.chatParameters,
+                    provider = provider, model = model, parameters = entryParams,
                     userName = uiState.generalSettings.userName, onNavigateBack = safePopBack, onNavigateHome = navigateHome,
                     // The shared entry point also validates per-turn controls for Local.
                     onSendMessageStream = { messages, webSearch, reasoning, kbs, usage ->
                             chatViewModel.sendChatMessageStream(provider, apiKey, model, messages,
-                                sessionParams = uiState.chatParameters,
+                                sessionParams = entryParams,
                                 webSearchTool = webSearch, reasoningEffort = reasoning,
                                 context = context, knowledgeBaseIds = kbs, onUsage = usage)
                     },
@@ -260,4 +281,14 @@ internal fun NavGraphBuilder.chatRoutes(
         }
 
         // ===== Admin =====
+}
+
+/** Drop a staged chat starter (draft text / photo). Staged by "Continue in
+ *  chat", "Start with photo" and share-to-chat, and cleared only when a chat
+ *  session consumed it — so backing out of the picker left it staged and it
+ *  pre-filled (photo attached) the next unrelated chat. */
+private fun clearChatStarter(appViewModel: AppViewModel) {
+    appViewModel.updateUiState {
+        it.copy(chatStarterText = null, chatStarterImageBase64 = null, chatStarterImageMime = null)
+    }
 }

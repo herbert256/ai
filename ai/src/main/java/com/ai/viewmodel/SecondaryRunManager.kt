@@ -1436,7 +1436,13 @@ class SecondaryRunManager(
             agents = newAgents.toMutableList(),
             completedAt = now,
             sourceReportId = sourceReportId,
-            totalCost = newAgents.mapNotNull { it.cost }.sum()
+            totalCost = newAgents.mapNotNull { it.cost }.sum(),
+            // No API call of its own — the pair calls are already on the
+            // source's ledger. An empty but COMPLETE ledger: an incomplete one
+            // was "repaired" from the copied pair costs, adding that spend to
+            // AI Usage a second time.
+            apiCallCostsComplete = true,
+            apiCallCostsVersion = ReportStorage.API_CALL_COST_LEDGER_VERSION
         )
         // Mirror the source's icon + language visible state onto the
         // new report. Without this the inline icon / language rows on

@@ -507,7 +507,7 @@ fun DualChatSessionScreen(
                     val traceSink = java.util.concurrent.atomic.AtomicReference<String?>()
                     var response: AnalysisResponse? = null
                     try {
-                        response = withTracerTags(reportId = sessionId, category = "Dual chat") {
+                        response = withTracerTags(reportId = sessionId, category = "Dual chat", chatSession = true) {
                             withTraceFilenameSink(traceSink) {
                                 chatViewModel.sendDualChatMessage(provider, aiSettings.getApiKey(provider), model, buildMessagesForModel(next), params)
                             }

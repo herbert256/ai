@@ -21,8 +21,11 @@ fun ExternalPromptPickerScreen(
     onCancel: () -> Unit,
     onSelected: (PendingExternalReport) -> Unit
 ) {
-    var selectedPrompt by remember { mutableStateOf<SavedExternalPrompt?>(null) }
-    var search by remember { mutableStateOf("") }
+    // Keyed on the request: a second external request arriving while this
+    // picker is open reuses the composable, and must not inherit the first
+    // request's chosen prompt.
+    var selectedPrompt by remember(request) { mutableStateOf<SavedExternalPrompt?>(null) }
+    var search by remember(request) { mutableStateOf("") }
     val back = { if (selectedPrompt == null) onCancel() else { selectedPrompt = null; search = "" } }
     BackHandler { back() }
     Column(

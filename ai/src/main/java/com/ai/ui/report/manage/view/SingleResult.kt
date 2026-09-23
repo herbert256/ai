@@ -562,7 +562,8 @@ fun ReportModelScreen(
 
     // 🗣️ refine-in-chat overlay for THIS agent's answer.
     if (showAgentChat) {
-        val settingsAgent = aiSettings.getAgentById(currentAgentId)
+        // Only while that settings agent still targets this row's provider.
+        val settingsAgent = aiSettings.getAgentById(currentAgentId)?.takeIf { it.provider.id == provider.id }
         val initialParams = if (settingsAgent != null) {
             val rp = aiSettings.resolveAgentParameters(settingsAgent)
             rp.toChatParameters()

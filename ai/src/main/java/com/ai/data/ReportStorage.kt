@@ -124,7 +124,7 @@ data class AgentStatusPatch(
  */
 object ReportStorage {
     private const val REPORTS_DIR = "reports"
-    private const val API_CALL_COST_LEDGER_VERSION = 5
+    internal const val API_CALL_COST_LEDGER_VERSION = 5
     /** iconCalls `type` values for the report-level Find-alt title
      *  fan-out (short + long report title, per-model title). These are
      *  the only alt records with no structured cost field; see
@@ -735,7 +735,13 @@ object ReportStorage {
         val dir = reportsDir ?: return null
         val file = File(dir, "$reportId.json")
         if (!file.exists()) return null
-        return try { gson.fromJson(ReportContentStore.unpackElement(dir.parentFile!!, reportId, file.readText()), Report::class.java)?.let(::normalizeReport) } catch (e: Exception) {
+        return try { gson.fromJson(ReportContentStore.unpackElement(dir.parentFile!!, reportId, file.readText()), Report::class.java)?.let(::normalizeReport)
+            // saveReport writes to "${report.id}.json": a file whose embedded
+            // id differs (edited / crafted backup) would route every change to
+            // THIS report into another report's file. Reject it, as the header
+            // index already does.
+            ?.takeIf { it.id == reportId || run { AppLog.e("ReportStorage", "Report file $reportId.json carries id ${it.id} — ignored"); false } }
+        } catch (e: Exception) {
             AppLog.e("ReportStorage", "Failed to load report $reportId: ${e.message}"); null
         }
     }
@@ -3090,6 +3096,14 @@ object ReportStorage {
                 // the user trim the copy and have its tally reflect
                 // only what they deleted there.
                 costsFromDeletedItems = 0.0,
+                // The copy made no API call of its own. Carry the source's
+                // ledger as-is and mark it complete + current: an incomplete
+                // ledger was "repaired" from the copied agents' cost fields,
+                // re-adding the source's whole spend to AI Usage (and listing
+                // the source's calls as the copy's) every time it was copied.
+                apiCallCosts = src.apiCallCosts.toMutableList(),
+                apiCallCostsComplete = true,
+                apiCallCostsVersion = API_CALL_COST_LEDGER_VERSION,
                 // Captured generation config — without these a Regenerate
                 // on the copy replays with default params / no system
                 // prompt and silently diverges from the original, even

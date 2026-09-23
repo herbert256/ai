@@ -82,6 +82,8 @@ suspend fun <R> withTracerTags(
     category: String? = null,
     runId: String? = null,
     model: String? = null,
+    /** True when [reportId] is a chat session id (see [ApiTracer.TraceTags]). */
+    chatSession: Boolean? = null,
     block: suspend () -> R
 ): R {
     val tl = ApiTracer.currentTags
@@ -90,7 +92,9 @@ suspend fun <R> withTracerTags(
         reportId = reportId ?: previous.reportId,
         category = category ?: previous.category,
         runId = runId ?: previous.runId,
-        model = model ?: previous.model
+        model = model ?: previous.model,
+        // A report id set here without an explicit flag is a real report.
+        chatSession = chatSession ?: (if (reportId != null) false else previous.chatSession)
     )
     return kotlinx.coroutines.withContext(tl.asContextElement(newTags)) {
         block()

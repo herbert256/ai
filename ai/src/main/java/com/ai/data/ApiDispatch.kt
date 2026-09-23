@@ -729,7 +729,8 @@ internal suspend fun AnalysisRepository.auditApiCall(
     baseUrl: String,
     block: suspend () -> AnalysisResponse
 ): AnalysisResponse {
-    val reportId = ApiTracer.currentReportId
+    // Chat calls carry their session id in the report slot — not a report.
+    val reportId = ApiTracer.currentRealReportId
     if (reportId == null) return block()
     val url = dispatchUrl(service, model, baseUrl)
     val callerSink = ApiTracer.traceFilenameSink.get()

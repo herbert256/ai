@@ -226,7 +226,7 @@ object LocalLlm {
     private fun recordTrace(modelName: String, prompt: String, response: String?, durationMs: Long, error: String?) {
         if (!ApiTracer.isTracingEnabled) return
         val gson = createAppGson()
-        ApiTracer.saveTrace(ApiTrace(
+        val traceName = ApiTracer.saveTrace(ApiTrace(
             timestamp = System.currentTimeMillis(),
             hostname = "local",
             reportId = ApiTracer.currentReportId,
@@ -249,5 +249,9 @@ object LocalLlm {
                 ))
             )
         ))
+        // Hand the filename to the caller's sink like TracingInterceptor
+        // does for HTTP calls — otherwise the sink kept an earlier call's
+        // trace (e.g. the RAG embedding) and the agent's 🐞 opened that.
+        traceName?.let { ApiTracer.traceFilenameSink.get()?.set(it) }
     }
 }

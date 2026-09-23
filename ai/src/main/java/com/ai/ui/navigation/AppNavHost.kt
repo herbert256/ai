@@ -74,7 +74,10 @@ fun AppNavHost(
         com.ai.ui.shared.AgentChatBridge(
             send = { service, model, agentIdForKey, messages, params, onUsage ->
                 val settings = appViewModel.uiState.value.aiSettings
-                val settingsAgent = agentIdForKey?.let { settings.getAgentById(it) }
+                // Only the settings agent that still points at this row's
+                // provider: an agent re-pointed since the report ran would send
+                // this provider's request with another provider's key/endpoint.
+                val settingsAgent = agentIdForKey?.let { settings.getAgentById(it) }?.takeIf { it.provider.id == service.id }
                 val apiKey = settingsAgent?.let { settings.getEffectiveApiKeyForAgent(it) }
                     ?: settings.getApiKey(service)
                 val baseUrl = settingsAgent?.let { settings.getEffectiveEndpointUrlForAgent(it) }
@@ -789,7 +792,10 @@ internal suspend fun continueReportInChat(
     val provider = AppService.findById(agent.provider) ?: return@withContext null
     val responseBody = agent.responseBody?.takeIf { it.isNotBlank() } ?: return@withContext null
 
-    val settingsAgent = aiSettings.getAgentById(agentId)
+    // Same provider guard as the chat routes' saved-agent lookup: a settings
+    // agent re-pointed to another provider since the report ran must not
+    // lend its params / endpoint — the resumed session would be unusable.
+    val settingsAgent = aiSettings.getAgentById(agentId)?.takeIf { it.provider.id == provider.id }
     val chatParams = if (settingsAgent != null) {
         val rp = aiSettings.resolveAgentParameters(settingsAgent)
         rp.toChatParameters()

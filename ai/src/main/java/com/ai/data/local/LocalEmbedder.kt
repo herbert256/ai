@@ -309,7 +309,7 @@ object LocalEmbedder {
             "durationMs" to durationMs,
             "error" to error
         ))
-        ApiTracer.saveTrace(ApiTrace(
+        val traceName = ApiTracer.saveTrace(ApiTrace(
             timestamp = System.currentTimeMillis(),
             hostname = "local",
             reportId = ApiTracer.currentReportId,
@@ -327,5 +327,7 @@ object LocalEmbedder {
                 body = responseBody
             )
         ))
+        // Same sink hand-off as HTTP traces (TracingInterceptor).
+        traceName?.let { ApiTracer.traceFilenameSink.get()?.set(it) }
     }
 }
