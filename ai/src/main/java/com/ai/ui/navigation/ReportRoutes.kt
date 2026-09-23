@@ -1,5 +1,6 @@
 package com.ai.ui.navigation
 
+import com.ai.viewmodel.forReport
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.*
@@ -727,7 +728,8 @@ internal fun NavGraphBuilder.reportRoutes(
                         com.ai.ui.report.view.helpers.ViewReportCache.get(rmContext, rid)
                     }
                 }
-                val agentIconFanOut by appViewModel.agentIconFanOutByAgent.collectAsState()
+                val agentIconFanOutAll by appViewModel.agentIconFanOutByAgent.collectAsState()
+                val agentIconFanOut = agentIconFanOutAll.forReport(rid)
                 var iconDetailFor by remember { mutableStateOf<String?>(null) }
                 var editTitleFor by remember { mutableStateOf<String?>(null) }
                 val rmAgents = rmReport?.agents

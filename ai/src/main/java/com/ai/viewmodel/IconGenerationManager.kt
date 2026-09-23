@@ -2327,14 +2327,14 @@ class IconGenerationManager(
         val unique = models.distinctBy { "${it.provider.id}:${it.model}" }
         if (unique.isEmpty()) return
         val altEdit = consumeAltEdit()
-        appViewModel.updateAgentTitleFanOut(agentId) { unique.map { TitleCandidate.Running(it.provider, it.model) } }
+        appViewModel.updateAgentTitleFanOut(reportId, agentId) { unique.map { TitleCandidate.Running(it.provider, it.model) } }
         val outer = appViewModel.viewModelScope.launch(rvm.reportLogContext()) {
             // Clear the pre-inserted ⏳ candidates if the target vanished (see
             // startAgentIconFanOut).
             val report = ReportStorage.getReport(context, reportId)
-                ?: run { appViewModel.updateAgentTitleFanOut(agentId) { emptyList() }; return@launch }
+                ?: run { appViewModel.updateAgentTitleFanOut(reportId, agentId) { emptyList() }; return@launch }
             val ra = report.agents.firstOrNull { it.agentId == agentId }
-                ?: run { appViewModel.updateAgentTitleFanOut(agentId) { emptyList() }; return@launch }
+                ?: run { appViewModel.updateAgentTitleFanOut(reportId, agentId) { emptyList() }; return@launch }
             val request = buildMetadataRequest(
                 altEdit?.edited ?: altPrompt.text, MetadataTask.ANSWER_TITLE, "@RESPONSE@" to ra.responseBody.orEmpty()
             )
@@ -2342,12 +2342,12 @@ class IconGenerationManager(
                 launch { runTitleCandidate(context, reportId, agentId, item, request, "alt/model_title", aiSettings, paramsIds, systemPromptId, altPrompt) }
             }
         }
-        rvm.registerIconFanOutJob("mt:$agentId", outer)
+        rvm.registerIconFanOutJob("mt:${reportAgentKey(reportId, agentId)}", outer)
     }
 
     /** One title candidate call. [agentId] null = report-title fan-out
      *  (writes titleFanOutByReport[reportId]); non-null = per-model
-     *  (writes titleFanOutByAgent[agentId]). */
+     *  (writes titleFanOutByAgent[reportId|agentId]). */
     private suspend fun runTitleCandidate(
         context: Context, reportId: String, agentId: String?,
         item: ReportModel, request: MetadataRequest, category: String, aiSettings: Settings,
@@ -2356,7 +2356,7 @@ class IconGenerationManager(
     ) {
         fun set(mutator: (List<TitleCandidate>) -> List<TitleCandidate>) {
             if (agentId == null) appViewModel.updateReportTitleFanOut(reportId, mutator)
-            else appViewModel.updateAgentTitleFanOut(agentId, mutator)
+            else appViewModel.updateAgentTitleFanOut(reportId, agentId, mutator)
         }
         fun place(c: TitleCandidate) = set { list ->
             list.map { if (it.provider.id == item.provider.id && it.model == item.model) c else it }
@@ -2415,6 +2415,9 @@ class IconGenerationManager(
                         else
                             place(TitleCandidate.Error(item.provider, item.model, response.error ?: "empty response", cost))
                     }.onFailure { e ->
+                        // A cancelled call (restart / delete) must not write a
+                        // ❌ into the list a newer run now owns.
+                        if (e is kotlinx.coroutines.CancellationException) throw e
                         place(TitleCandidate.Error(item.provider, item.model, e.message ?: "title-gen failed", 0.0))
                     }
                 }
@@ -2426,26 +2429,29 @@ class IconGenerationManager(
 
     /** Report-delete teardown for the title fan-outs that share
      *  [rvm.iconFanOutJobs] under prefixed keys — "rt:$reportId" (report
-     *  title), "mt:$agentId" (per-model title), "pt:$pairId" (fan-out
+     *  title), "mt:$reportId|$agentId" (per-model title), "pt:$pairId" (fan-out
      *  pair title). None matched the plain-reportId remove in
      *  cancelReportOwnedWorkBeforeDelete, so an in-flight Find-alt-titles
      *  fan-out kept dispatching billed calls against the gone report and
      *  its candidate maps leaked. Also drops the alt-translation fan-out
-     *  jobs ("alttr:$itemId"), which have no other delete-time sweep. */
+     *  jobs ("alttr:$reportId|$runId|$itemId") and their candidate lists,
+     *  which have no other delete-time sweep. */
     fun cancelTitleFanOutsForReport(context: Context, reportId: String) {
         rvm.iconFanOutJobs.remove("rt:$reportId")?.cancel()
         appViewModel.clearReportTitleFanOut(reportId)
         val report = ReportStorage.getReport(context, reportId)
         report?.agents?.forEach { a ->
-            rvm.iconFanOutJobs.remove("mt:${a.agentId}")?.cancel()
-            appViewModel.clearAgentTitleFanOut(a.agentId)
+            rvm.iconFanOutJobs.remove("mt:${reportAgentKey(reportId, a.agentId)}")?.cancel()
+            appViewModel.clearAgentTitleFanOut(reportId, a.agentId)
         }
         val secondaryIds = SecondaryResultStorage.listForReport(context, reportId).map { it.id }
         secondaryIds.forEach { sid ->
             rvm.iconFanOutJobs.remove("pt:$sid")?.cancel()
             appViewModel.clearPairTitleFanOut(sid)
-            rvm.iconFanOutJobs.remove("alttr:$sid")?.cancel()
         }
+        rvm.iconFanOutJobs.keys.filter { it.startsWith("alttr:$reportId|") }
+            .forEach { rvm.iconFanOutJobs.remove(it)?.cancel() }
+        appViewModel.clearAltTranslationFanOutsForReport(reportId)
     }
 
     fun restartReportTitleFanOut(reportId: String) {
@@ -2453,9 +2459,9 @@ class IconGenerationManager(
         appViewModel.clearReportTitleFanOut(reportId)
     }
 
-    fun restartModelTitleFanOut(agentId: String) {
-        rvm.iconFanOutJobs.remove("mt:$agentId")?.cancel()
-        appViewModel.clearAgentTitleFanOut(agentId)
+    fun restartModelTitleFanOut(reportId: String, agentId: String) {
+        rvm.iconFanOutJobs.remove("mt:${reportAgentKey(reportId, agentId)}")?.cancel()
+        appViewModel.clearAgentTitleFanOut(reportId, agentId)
     }
 
     /** Language-icon counterpart of [startIconFanOut]. Runs the
@@ -2610,7 +2616,7 @@ class IconGenerationManager(
      *  via the bundled icons/report template (two
      *  placeholders — @PROMPT@ = report.prompt, @RESPONSE@ = this
      *  agent's responseBody). Candidates land in
-     *  [AppViewModel.agentIconFanOutByAgent] keyed by agentId; per-
+     *  [AppViewModel.agentIconFanOutByAgent] keyed by reportId|agentId; per-
      *  call cost bumps the agent's icon-cost via
      *  [ReportStorage.bumpReportAgentIconCost]. Re-runs cancel any
      *  prior in-flight job for the same agent. */
@@ -2633,7 +2639,7 @@ class IconGenerationManager(
         val unique = models.distinctBy { "${it.provider.id}:${it.model}" }
         if (unique.isEmpty()) return
         val altEdit = consumeAltEdit()
-        appViewModel.updateAgentIconFanOut(agentId) {
+        appViewModel.updateAgentIconFanOut(reportId, agentId) {
             unique.map { IconCandidate.Running(it.provider, it.model) }
         }
         val outer = appViewModel.viewModelScope.launch(rvm.reportLogContext()) {
@@ -2641,9 +2647,9 @@ class IconGenerationManager(
             // between opening the picker and this dispatch — otherwise the
             // Running rows spin forever and hasActiveFanOut pins the button.
             val report = ReportStorage.getReport(context, reportId)
-                ?: run { appViewModel.updateAgentIconFanOut(agentId) { emptyList() }; return@launch }
+                ?: run { appViewModel.updateAgentIconFanOut(reportId, agentId) { emptyList() }; return@launch }
             val ra = report.agents.firstOrNull { it.agentId == agentId }
-                ?: run { appViewModel.updateAgentIconFanOut(agentId) { emptyList() }; return@launch }
+                ?: run { appViewModel.updateAgentIconFanOut(reportId, agentId) { emptyList() }; return@launch }
             val reportPrompt = report.prompt
             val agentResponse = ra.responseBody.orEmpty()
             val request = buildMetadataRequest(
@@ -2719,7 +2725,7 @@ class IconGenerationManager(
                                     // report-icon flow).
                                     val emoji = if (response.error == null) extractFirstEmoji(response.analysis) else null
                                     if (emoji != null) {
-                                        appViewModel.updateAgentIconFanOut(agentId) { list ->
+                                        appViewModel.updateAgentIconFanOut(reportId, agentId) { list ->
                                             list.map { c ->
                                                 if (c.provider.id == item.provider.id && c.model == item.model)
                                                     IconCandidate.Done(item.provider, item.model, emoji, totalCost)
@@ -2727,7 +2733,7 @@ class IconGenerationManager(
                                             }
                                         }
                                     } else {
-                                        appViewModel.updateAgentIconFanOut(agentId) { list ->
+                                        appViewModel.updateAgentIconFanOut(reportId, agentId) { list ->
                                             list.map { c ->
                                                 if (c.provider.id == item.provider.id && c.model == item.model)
                                                     IconCandidate.Error(item.provider, item.model, response.error ?: "no emoji extracted", totalCost)
@@ -2739,7 +2745,8 @@ class IconGenerationManager(
                                         it.copy(iconRefreshTick = it.iconRefreshTick + 1)
                                     }
                                 }.onFailure { e ->
-                                    appViewModel.updateAgentIconFanOut(agentId) { list ->
+                                    if (e is kotlinx.coroutines.CancellationException) throw e
+                                    appViewModel.updateAgentIconFanOut(reportId, agentId) { list ->
                                         list.map { c ->
                                             if (c.provider.id == item.provider.id && c.model == item.model)
                                                 IconCandidate.Error(item.provider, item.model, e.message ?: "icon-gen failed", 0.0)
@@ -2781,7 +2788,7 @@ class IconGenerationManager(
      *  is per-agent. */
     fun restartAgentIconFanOut(reportId: String, agentId: String) {
         rvm.agentIconFanOutJobs.remove(rvm.agentIconJobKey(reportId, agentId))?.cancel()
-        appViewModel.clearAgentIconFanOut(agentId)
+        appViewModel.clearAgentIconFanOut(reportId, agentId)
     }
 
     /** Commit a user-picked icon from the "Alternative icons" list:

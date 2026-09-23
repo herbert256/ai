@@ -74,7 +74,7 @@ internal fun SecondaryResultsScreen(
     /** Promote the L2 active model's fan-out conversation into a
      *  fresh AI Report. Wired by the "Create Report" button next to
      *  "Switch role" on the L2 header. */
-    onCreateReportFromFanOut: ((activeProviderId: String, activeModel: String) -> Unit)? = null,
+    onCreateReportFromFanOut: ((metaPromptId: String?, activeProviderId: String, activeModel: String) -> Unit)? = null,
     onDelete: (String) -> Unit,
     /** Bulk variant — fires off all deletes at once on Dispatchers.IO
      *  rather than calling onDelete() in a tight main-thread loop.
@@ -652,7 +652,9 @@ internal fun SecondaryResultsScreen(
                 },
                 onRunFanIn = { _ -> onRunFanIn?.invoke() },
                 onCreateNewFanOut = onCreateNewFanOut,
-                onCreateReportFromFanOut = { _, prov, mdl -> onCreateReportFromFanOut?.invoke(prov, mdl) },
+                // Carry the run's prompt id (runKey = "reportId|metaPromptId") so
+                // the new report takes only THIS run's rows.
+                onCreateReportFromFanOut = { key, prov, mdl -> onCreateReportFromFanOut?.invoke(key.substringAfter('|'), prov, mdl) },
                 onNavigateToTraceFile = onNavigateToTraceFile,
                 onNavigateToTraceRunList = onNavigateToTraceRunList,
                 onNavigateToModelInfo = onNavigateToModelInfo,
@@ -727,7 +729,9 @@ internal fun SecondaryResultsScreen(
                 fanOutPrompt = fanOutPrompt,
                 runningFanOutPairs = effectiveRunningFanOutPairs,
                 onRunFanIn = onRunFanIn,
-                onCreateReportFromFanOut = onCreateReportFromFanOut,
+                onCreateReportFromFanOut = onCreateReportFromFanOut?.let { cb ->
+                    { prov: String, mdl: String -> cb(fanOutPrompt?.id, prov, mdl) }
+                },
                 onDelete = { id -> onDelete(id); refreshTick++ },
                 onBulkDelete = { ids -> onBulkDelete(ids); refreshTick++ },
                 onOpen = { id -> openId = id },

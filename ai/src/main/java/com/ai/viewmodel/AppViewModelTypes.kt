@@ -655,7 +655,11 @@ data class ExternalIntent(
     val agentNames: List<String> = emptyList(),
     val flockNames: List<String> = emptyList(),
     val swarmNames: List<String> = emptyList(),
-    val context: com.ai.ui.share.ExternalReportContext = com.ai.ui.share.ExternalReportContext()
+    val context: com.ai.ui.share.ExternalReportContext = com.ai.ui.share.ExternalReportContext(),
+    /** The report generated for this request, stamped when it's created.
+     *  Its email / next action / return fire only when THAT report
+     *  completes — not whichever finished report happens to be on screen. */
+    val reportId: String? = null
 )
 
 // ===== Refresh-all state (lives on AppViewModel so the run survives

@@ -1,5 +1,6 @@
 package com.ai.ui.report.manage
 
+import com.ai.viewmodel.forReport
 import com.ai.ui.other.*
 import com.ai.ui.report.view.*
 import com.ai.ui.helpers.*
@@ -159,12 +160,16 @@ fun ReportsScreenNav(
     val throttledFanMetaPairs by viewModel.throttledFanMetaPairs.collectAsState()
     val throttledTranslationItems by viewModel.throttledTranslationItems.collectAsState()
     val iconFanOutByReport by viewModel.iconFanOutByReport.collectAsState()
-    val agentIconFanOutByAgent by viewModel.agentIconFanOutByAgent.collectAsState()
+    // Stored per (report, agent) — agent ids repeat across reports; the
+    // screens below index by agent id, so hand them THIS report's slice only.
+    val agentIconFanOutAll by viewModel.agentIconFanOutByAgent.collectAsState()
+    val agentIconFanOutByAgent = agentIconFanOutAll.forReport(uiState.currentReportId)
     val runningInfoJobs by viewModel.runningInfoJobs.collectAsState()
     val titleFanOutByReport by viewModel.titleFanOutByReport.collectAsState()
     val altTranslationByItem by viewModel.altTranslationByItem.collectAsState()
     val batchBuildProgress by viewModel.batchBuildProgress.collectAsState()
-    val titleFanOutByAgent by viewModel.titleFanOutByAgent.collectAsState()
+    val titleFanOutAll by viewModel.titleFanOutByAgent.collectAsState()
+    val titleFanOutByAgent = titleFanOutAll.forReport(uiState.currentReportId)
     val pairIconFanOutByPair by viewModel.pairIconFanOutByPair.collectAsState()
     val pairTitleFanOutByPair by viewModel.pairTitleFanOutByPair.collectAsState()
     val internalPromptIconFanOutByPrompt by viewModel.internalPromptIconFanOutByPrompt.collectAsState()
@@ -554,15 +559,17 @@ fun ReportsScreenNav(
             reportViewModel.iconGen.startModelTitleFanOut(context, rid, agentId, models, aiSettings, paramsIds, systemPromptId)
         },
         onRestartReportTitleFanOut = { rid -> reportViewModel.iconGen.restartReportTitleFanOut(rid) },
-        onRestartModelTitleFanOut = { agentId -> reportViewModel.iconGen.restartModelTitleFanOut(agentId) },
+        onRestartModelTitleFanOut = { agentId ->
+            viewModel.uiState.value.currentReportId?.let { rid -> reportViewModel.iconGen.restartModelTitleFanOut(rid, agentId) }
+        },
         altTranslationByItem = altTranslationByItem,
-        onStartAltTranslationFanOut = { rid, itemId, lang, isTitle, src, traceType, models, pIds, spId ->
-            reportViewModel.translation.startAltTranslationFanOut(context, rid, itemId, lang, isTitle, src, traceType, models, aiSettings, pIds, spId)
+        onStartAltTranslationFanOut = { rid, runId, itemId, lang, isTitle, src, traceType, models, pIds, spId ->
+            reportViewModel.translation.startAltTranslationFanOut(context, rid, runId, itemId, lang, isTitle, src, traceType, models, aiSettings, pIds, spId)
         },
         onApplyAltTranslation = { rid, runId, itemId, rowId, candidate ->
             reportViewModel.translation.applyAltTranslation(context, rid, runId, itemId, rowId, candidate)
         },
-        onRestartAltTranslationFanOut = { itemId -> reportViewModel.translation.restartAltTranslationFanOut(itemId) },
+        onRestartAltTranslationFanOut = { rid, runId, itemId -> reportViewModel.translation.restartAltTranslationFanOut(rid, runId, itemId) },
         onStartPairIconFanOut = { rid, pairId, models ->
             reportViewModel.iconGen.startPairIconFanOut(context, rid, pairId, models, aiSettings)
         },
@@ -657,9 +664,9 @@ fun ReportsScreenNav(
         onRunFanIn = { reportId, metaPrompt, sourceLanguage, paramsIds, systemPromptId, overrideWorkers, sourcePromptId ->
             reportViewModel.secondary.runFanInPrompt(context, reportId, metaPrompt, sourceLanguage, paramsIds, systemPromptId, overrideWorkers, sourcePromptId)
         },
-        onCreateReportFromFanOut = { sourceRid, activePid, activeMdl ->
+        onCreateReportFromFanOut = { sourceRid, metaPromptId, activePid, activeMdl ->
             scope.launch {
-                val newId = reportViewModel.secondary.createReportFromFanOut(context, sourceRid, activePid, activeMdl)
+                val newId = reportViewModel.secondary.createReportFromFanOut(context, sourceRid, metaPromptId, activePid, activeMdl)
                     ?: return@launch
                 // Already on AI_REPORTS; restoreCompletedReport flips
                 // UiState (showGenericReportsDialog + currentReportId)

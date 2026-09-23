@@ -113,13 +113,13 @@ fun ReportsScreen(
     onRestartReportTitleFanOut: (reportId: String) -> Unit = { _ -> },
     onRestartModelTitleFanOut: (agentId: String) -> Unit = { _ -> },
     /** Live per-item "Find alternative translation" candidate state
-     *  mirrored from [AppViewModel.altTranslationByItem], keyed by the
-     *  translation item id. The AlternativeTranslationsScreen reads from
+     *  mirrored from [AppViewModel.altTranslationByItem], keyed by
+     *  [com.ai.viewmodel.altTranslationKey]. The AlternativeTranslationsScreen reads from
      *  here while [altTranslateTarget] is non-null. */
     altTranslationByItem: Map<String, List<com.ai.viewmodel.TranslationCandidate>> = emptyMap(),
-    onStartAltTranslationFanOut: (reportId: String, itemId: String, targetLanguageName: String, isTitleKind: Boolean, sourceText: String, traceType: String, models: List<ReportModel>, paramsIds: List<String>, systemPromptId: String?) -> Unit = { _, _, _, _, _, _, _, _, _ -> },
+    onStartAltTranslationFanOut: (reportId: String, runId: String, itemId: String, targetLanguageName: String, isTitleKind: Boolean, sourceText: String, traceType: String, models: List<ReportModel>, paramsIds: List<String>, systemPromptId: String?) -> Unit = { _, _, _, _, _, _, _, _, _, _ -> },
     onApplyAltTranslation: (reportId: String, runId: String, itemId: String, persistedRowId: String?, candidate: com.ai.viewmodel.TranslationCandidate.Done) -> Unit = { _, _, _, _, _ -> },
-    onRestartAltTranslationFanOut: (itemId: String) -> Unit = { _ -> },
+    onRestartAltTranslationFanOut: (reportId: String, runId: String, itemId: String) -> Unit = { _, _, _ -> },
     /** Bundle of the four per-Internal-Prompt icon callbacks —
      *  bundled into one parameter so the `ReportsScreen` parameter
      *  list stays under the JVM 64 KB per-method bytecode limit. */
@@ -231,7 +231,7 @@ fun ReportsScreen(
      *  fresh AI Report. Args: source reportId, active provider id,
      *  active model. The new report's id is built inside the
      *  ReportViewModel; this lambda navigates after the save. */
-    onCreateReportFromFanOut: (String, String, String) -> Unit = { _, _, _ -> },
+    onCreateReportFromFanOut: (reportId: String, metaPromptId: String?, activeProviderId: String, activeModel: String) -> Unit = { _, _, _, _ -> },
     onRunLocalRerank: (String, String) -> Unit = { _, _ -> },
     onRunRerank: (String, com.ai.data.SecondaryLanguageScope, List<String>, String?, List<com.ai.model.Worker>?) -> Unit = { _, _, _, _, _ -> },
     onRunModeration: (String, com.ai.data.SecondaryLanguageScope, List<com.ai.model.Worker>?) -> Unit = { _, _, _ -> },
@@ -1746,7 +1746,7 @@ fun ReportsScreen(
         val autoModels = if (findTransSelect) emptyList() else com.ai.viewmodel.findAltTranslationModels(aiSettings)
         if (autoModels.isNotEmpty()) {
             LaunchedEffect(altTgt) {
-                onStartAltTranslationFanOut(altTgt.reportId, altTgt.itemId, altTgt.targetLanguageName, altTgt.isTitleKind, altTgt.sourceText, altTgt.traceType, autoModels, emptyList(), null)
+                onStartAltTranslationFanOut(altTgt.reportId, altTgt.runId, altTgt.itemId, altTgt.targetLanguageName, altTgt.isTitleKind, altTgt.sourceText, altTgt.traceType, autoModels, emptyList(), null)
                 translationModels = emptyList()
                 pickerTarget = PickerTarget.NEW_REPORT
                 altPromptEditorPassed = false
@@ -1777,14 +1777,14 @@ fun ReportsScreen(
                 onRemoveModel = { idx -> translationModels = translationModels.toMutableList().apply { removeAt(idx) } },
                 onClearAll = { translationModels = emptyList() },
                 onAction = {
-                    onStartAltTranslationFanOut(altTgt.reportId, altTgt.itemId, altTgt.targetLanguageName, altTgt.isTitleKind, altTgt.sourceText, altTgt.traceType, translationModels, emptyList(), null)
+                    onStartAltTranslationFanOut(altTgt.reportId, altTgt.runId, altTgt.itemId, altTgt.targetLanguageName, altTgt.isTitleKind, altTgt.sourceText, altTgt.traceType, translationModels, emptyList(), null)
                     translationModels = emptyList()
                     pickerTarget = PickerTarget.NEW_REPORT
                     altPromptEditorPassed = false
                     showAltTranslatePicker = false
                 },
                 onActionWithParams = { pIds, spId ->
-                    onStartAltTranslationFanOut(altTgt.reportId, altTgt.itemId, altTgt.targetLanguageName, altTgt.isTitleKind, altTgt.sourceText, altTgt.traceType, translationModels, pIds, spId)
+                    onStartAltTranslationFanOut(altTgt.reportId, altTgt.runId, altTgt.itemId, altTgt.targetLanguageName, altTgt.isTitleKind, altTgt.sourceText, altTgt.traceType, translationModels, pIds, spId)
                     translationModels = emptyList()
                     pickerTarget = PickerTarget.NEW_REPORT
                     altPromptEditorPassed = false
@@ -1802,14 +1802,14 @@ fun ReportsScreen(
             LocalNavigateToCurrentReport provides { altTranslateTarget = null }
         ) {
             AlternativeTranslationsScreen(
-                candidates = altTranslationByItem[altTgt.itemId].orEmpty(),
+                candidates = altTranslationByItem[com.ai.viewmodel.altTranslationKey(altTgt.reportId, altTgt.runId, altTgt.itemId)].orEmpty(),
                 onPick = { done ->
                     onApplyAltTranslation(altTgt.reportId, altTgt.runId, altTgt.itemId, altTgt.persistedRowId, done)
                     altTranslateTarget = null
                     translationRunRefreshTick++
                 },
                 onRestart = {
-                    onRestartAltTranslationFanOut(altTgt.itemId)
+                    onRestartAltTranslationFanOut(altTgt.reportId, altTgt.runId, altTgt.itemId)
                     showAltTranslatePicker = true
                 },
                 onBack = { altTranslateTarget = null }

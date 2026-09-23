@@ -178,6 +178,12 @@ fun AppNavHost(
                     systemPrompt = staged.systemPrompt,
                     context = staged.context
                 )
+                val fullPrompt = if (staged.openHtml != null)
+                    "${staged.aiPrompt}\n<user>${staged.openHtml}</user>" else staged.aiPrompt
+                // First: it resets the pre-generation settings (so the last
+                // opened report's presets / system prompt don't leak in) —
+                // the request's own settings are applied on top below.
+                reportViewModel.showGenericAgentSelection(staged.title ?: "", fullPrompt)
                 if (staged.context.values.isNotEmpty()) appViewModel.setReportSystemPromptId(staged.selectedSystemPromptId)
                 staged.selectedParameters?.let { appViewModel.setReportParametersIds(listOf(it.id)) }
                 staged.literalSystemPrompt?.let { system ->
@@ -185,9 +191,6 @@ fun AppNavHost(
                     val parameters = appViewModel.uiState.value.reportAdvancedParameters ?: com.ai.data.AgentParameters()
                     appViewModel.setReportAdvancedParameters(parameters.copy(systemPrompt = system))
                 }
-                val fullPrompt = if (staged.openHtml != null)
-                    "${staged.aiPrompt}\n<user>${staged.openHtml}</user>" else staged.aiPrompt
-                reportViewModel.showGenericAgentSelection(staged.title ?: "", fullPrompt)
                 navController.navigate(NavRoutes.aiReports()) { popUpTo(NavRoutes.AI) { inclusive = false } }
                 pendingExternalReport.value = null
             }

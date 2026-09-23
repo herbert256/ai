@@ -311,21 +311,24 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /** Per-agent alternative-icons state for the Agent icon detail
-     *  screen's "Find alternative icons" button. Keyed by agentId
-     *  (UUID, globally unique) so multiple agents under the same
-     *  report don't collide. Same shape as [iconFanOutByReport] — a
-     *  separate map keeps the report-level and per-agent UIs from
-     *  sharing each other's candidates. */
+     *  screen's "Find alternative icons" button. Keyed by
+     *  [reportAgentKey] ("$reportId|$agentId"): agent ids are NOT unique
+     *  across reports (direct-model rows are "swarm:provider:model" in
+     *  every report), so an agentId-only key served — and let the user
+     *  pick — report A's candidates on report B. The UI reads it through
+     *  [forReport]. Same shape as [iconFanOutByReport] — a separate map
+     *  keeps the report-level and per-agent UIs from sharing candidates. */
     private val _agentIconFanOutByAgent = MutableStateFlow<Map<String, List<IconCandidate>>>(emptyMap())
     val agentIconFanOutByAgent: StateFlow<Map<String, List<IconCandidate>>> = _agentIconFanOutByAgent.asStateFlow()
-    internal fun updateAgentIconFanOut(agentId: String, mutator: (List<IconCandidate>) -> List<IconCandidate>) {
+    internal fun updateAgentIconFanOut(reportId: String, agentId: String, mutator: (List<IconCandidate>) -> List<IconCandidate>) {
+        val key = reportAgentKey(reportId, agentId)
         _agentIconFanOutByAgent.update { current ->
-            val next = mutator(current[agentId].orEmpty())
-            current + (agentId to next)
+            val next = mutator(current[key].orEmpty())
+            current + (key to next)
         }
     }
-    internal fun clearAgentIconFanOut(agentId: String) {
-        _agentIconFanOutByAgent.update { it - agentId }
+    internal fun clearAgentIconFanOut(reportId: String, agentId: String) {
+        _agentIconFanOutByAgent.update { it - reportAgentKey(reportId, agentId) }
     }
 
     /** Live "Find alternative titles" candidates for the report title
@@ -340,21 +343,39 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     internal fun clearReportTitleFanOut(reportId: String) { _titleFanOutByReport.update { it - reportId } }
 
     /** Live state of any "Find alternative translation" fan-out, keyed by
-     *  the translation item's id. Transient — the picked candidate only
-     *  overwrites the one TRANSLATE row on apply; nothing else persists. */
+     *  [altTranslationKey] — item ids ("prompt", "agent:<id>", …) repeat
+     *  across reports, languages and runs, so an item-id key shared one
+     *  candidate list (and one job) between them. Transient — the picked
+     *  candidate only overwrites the one TRANSLATE row on apply. */
     private val _altTranslationByItem = MutableStateFlow<Map<String, List<TranslationCandidate>>>(emptyMap())
     val altTranslationByItem: StateFlow<Map<String, List<TranslationCandidate>>> = _altTranslationByItem.asStateFlow()
-    internal fun updateAltTranslationFanOut(itemId: String, mutator: (List<TranslationCandidate>) -> List<TranslationCandidate>) {
-        _altTranslationByItem.update { current -> current + (itemId to mutator(current[itemId].orEmpty())) }
+    internal fun updateAltTranslationFanOut(key: String, mutator: (List<TranslationCandidate>) -> List<TranslationCandidate>) {
+        _altTranslationByItem.update { current -> current + (key to mutator(current[key].orEmpty())) }
     }
-    internal fun clearAltTranslationFanOut(itemId: String) { _altTranslationByItem.update { it - itemId } }
+    internal fun clearAltTranslationFanOut(key: String) { _altTranslationByItem.update { it - key } }
+    /** Report delete: drop every alt-translation candidate list of [reportId]. */
+    internal fun clearAltTranslationFanOutsForReport(reportId: String) {
+        _altTranslationByItem.update { m -> m.filterKeys { !it.startsWith("$reportId|") } }
+    }
 
+    /** Per-model "Find alternative titles" candidates, keyed by
+     *  [reportAgentKey] like [agentIconFanOutByAgent] (read via [forReport]). */
     private val _titleFanOutByAgent = MutableStateFlow<Map<String, List<TitleCandidate>>>(emptyMap())
     val titleFanOutByAgent: StateFlow<Map<String, List<TitleCandidate>>> = _titleFanOutByAgent.asStateFlow()
-    internal fun updateAgentTitleFanOut(agentId: String, mutator: (List<TitleCandidate>) -> List<TitleCandidate>) {
-        _titleFanOutByAgent.update { current -> current + (agentId to mutator(current[agentId].orEmpty())) }
+    internal fun updateAgentTitleFanOut(reportId: String, agentId: String, mutator: (List<TitleCandidate>) -> List<TitleCandidate>) {
+        val key = reportAgentKey(reportId, agentId)
+        _titleFanOutByAgent.update { current -> current + (key to mutator(current[key].orEmpty())) }
     }
-    internal fun clearAgentTitleFanOut(agentId: String) { _titleFanOutByAgent.update { it - agentId } }
+    internal fun clearAgentTitleFanOut(reportId: String, agentId: String) {
+        _titleFanOutByAgent.update { it - reportAgentKey(reportId, agentId) }
+    }
+    /** Report delete: drop every per-agent icon / title candidate list of
+     *  [reportId], finished ones included (only live jobs were swept). */
+    internal fun clearAgentFanOutsForReport(reportId: String) {
+        val prefix = "$reportId|"
+        _agentIconFanOutByAgent.update { m -> m.filterKeys { !it.startsWith(prefix) } }
+        _titleFanOutByAgent.update { m -> m.filterKeys { !it.startsWith(prefix) } }
+    }
 
     /** Live state of any "Find alternative icons" run launched from
      *  the Meta-icon detail screen for an [com.ai.model.InternalPrompt].
@@ -2380,4 +2401,18 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         internal const val KEY_FIRST_RUN_BOOTSTRAPPED = "first_run_bootstrapped"
 
     }
+}
+
+/** Key for the "Find alternative translation" candidate map + job. */
+fun altTranslationKey(reportId: String, runId: String, itemId: String) = "$reportId|$runId|$itemId"
+
+/** Key for per-(report, agent) runtime maps — agent ids repeat across reports. */
+internal fun reportAgentKey(reportId: String, agentId: String) = "$reportId|$agentId"
+
+/** The entries of a [reportAgentKey]-keyed map that belong to [reportId],
+ *  re-keyed by agent id — what the per-report UI indexes. Empty for null. */
+fun <T> Map<String, T>.forReport(reportId: String?): Map<String, T> {
+    if (reportId == null) return emptyMap()
+    val prefix = "$reportId|"
+    return entries.filter { it.key.startsWith(prefix) }.associate { it.key.removePrefix(prefix) to it.value }
 }

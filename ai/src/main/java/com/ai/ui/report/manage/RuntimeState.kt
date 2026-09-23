@@ -499,7 +499,10 @@ internal fun HandleExternalReportInstructions(
     }
 
     LaunchedEffect(isComplete, currentReportId) {
-        if (isComplete && currentReportId != null) {
+        // Only for the report generated for the request (stamped at its
+        // creation): swiping to some other finished report while it runs
+        // must not email / share / close on that report's behalf.
+        if (isComplete && currentReportId != null && uiState.externalIntent.reportId == currentReportId) {
             val email = uiState.externalEmail
             if (email != null && email.isNotBlank()) {
                 emailReportAsHtml(context, currentReportId, email)

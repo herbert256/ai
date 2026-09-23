@@ -199,15 +199,24 @@ data class ReportAgentResults(
  */
 class ReportViewModel(private val appViewModel: AppViewModel) {
 
-    private var reportGenerationJob: Job? = null
     private var configurationSaveJob: Job? = null
-    /** Report id the single [reportGenerationJob] is currently producing, or
-     *  null when no primary generation is in flight. The job itself carries
-     *  no id, so the Broken-work scan reads this to tell a live run's
-     *  PENDING/RUNNING agents (not broken) apart from agents a process kill
-     *  stranded (interrupted). See [isReportGenerating]. */
-    @Volatile private var activeGenerationReportId: String? = null
-    @Volatile private var reportRunningInBackground = false
+    /** Primary generation jobs by the report id they are producing — one per
+     *  report, so starting a new report no longer cancels one still running
+     *  in the background (a single shared job used to, marking its
+     *  unfinished answers STOPPED). The Broken-work scan reads this to tell
+     *  a live run's PENDING/RUNNING agents (not broken) apart from agents a
+     *  process kill stranded (interrupted). See [isReportGenerating]. */
+    private val generationJobs = java.util.concurrent.ConcurrentHashMap<String, Job>()
+    /** Generations launched but still before [ReportStorage.createReportAsync]
+     *  (no report yet). A new Generate cancels these — a double tap — but
+     *  never a run that already created its report. */
+    private val uncommittedGenerations = java.util.concurrent.ConcurrentHashMap.newKeySet<Job>()
+    /** The most recently launched generation: the only one allowed to drive
+     *  the generation screen (claim currentReportId, restore the selection
+     *  screen on a preparation failure). */
+    @Volatile private var latestGenerationJob: Job? = null
+    /** Reports whose generation the user left running (completion toast). */
+    private val backgroundGenerations = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
     // Variation-replay tracks: each owns its StateFlow<Map<String,S>> + per-key
     // job map + register/set/update/cancel/prefix-clear plumbing (see ReplayTrack).
     private val temperatureSweep = ReplayTrack<TemperatureSweepState>()
@@ -239,20 +248,20 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
     private fun regenerateAgentKey(reportId: String, agentId: String) = "$reportId|$agentId"
 
     /** True while any primary work for [reportId] is live in THIS process —
-     *  the initial generation ([activeGenerationReportId]), a single/all-agent
+     *  the initial generation ([generationJobs]), a single/all-agent
      *  regenerate ([regenerateJobs]), or a regenerate-batch run. After a
      *  process kill all of these are empty, so the report's still-PENDING/
      *  RUNNING agents correctly read as interrupted. Consumed by the
      *  Broken-work scan via [BrokenWorkPolicy.agentProblems]. */
     fun isReportGenerating(reportId: String): Boolean =
-        activeGenerationReportId == reportId ||
+        generationJobs[reportId]?.isActive == true ||
             regenerateJobs[reportId]?.any { it.isActive } == true ||
             regenerateBatchEngine.isActivelyRunning(reportId)
 
     internal fun hasActiveReportCalls(context: Context, reportId: String): Boolean =
         appViewModel.runningInfoJobs.value.any { it.startsWith("$reportId|") } ||
         resumingMetaIds.any { SecondaryResultStorage.get(context,reportId,it) != null } ||
-        (activeGenerationReportId == reportId && reportGenerationJob?.isActive == true) ||
+        generationJobs[reportId]?.isActive == true ||
         regenerateJobs[reportId]?.any { it.isActive } == true ||
         fanOutEngine.hasActiveCalls(reportId) || tournamentEngine.hasActiveCalls(reportId) ||
         judgeEvalEngine.hasActiveCalls(reportId) || compareEngine.hasActiveCalls(reportId) ||
@@ -446,6 +455,17 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             reportWebSearchTool = webSearchTool,
             reportReasoningEffort = reasoningEffort,
             reportMetadataDisabled = metadataDisabled,
+            // A new report starts from clean pre-generation settings.
+            // restoreCompletedReport loads the OPENED report's presets /
+            // advanced overlay / system prompt into these same fields, and
+            // several ways into a new report (➕, hub, external request)
+            // skip the dismiss that clears them — the next report silently
+            // ran with the last opened report's config. Chosen on the
+            // setup screen after this call, so nothing is lost.
+            reportParametersIds = emptyList(),
+            reportAdvancedParameters = null,
+            reportSystemPromptId = null,
+            editModeReportId = null,
             showGenericAgentSelection = true, showGenericReportsDialog = false,
             genericReportsProgress = 0, genericReportsTotal = 0,
             genericReportsSelectedAgents = emptySet(),
@@ -475,7 +495,10 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         workerConfig: ReportWorkerConfig = ReportWorkerConfig(),
         selectedModels: List<ReportModel> = emptyList()
     ) {
-        reportGenerationJob?.cancel()
+        // A double tap: cancel earlier launches that haven't created their
+        // report yet. Runs that did are left alone — they may be continuing
+        // in the background while the user starts this one.
+        uncommittedGenerations.forEach { it.cancel() }
         // Outer launch on viewModelScope so navigating away from the
         // result screen doesn't cancel the in-flight OkHttp calls.
         // A screen-scoped scope here previously turned every
@@ -485,7 +508,10 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         // and the NonCancellable terminal write persisted that error.
         // continueReportInBackground() only sets a flag — without
         // viewModelScope here, "background" can't actually happen.
-        reportGenerationJob = appViewModel.viewModelScope.launch(Dispatchers.IO + com.ai.data.CrashReporter.coroutineHandler) {
+        val generationJob = appViewModel.viewModelScope.launch(
+            Dispatchers.IO + com.ai.data.CrashReporter.coroutineHandler, start = CoroutineStart.LAZY
+        ) {
+            val thisJob = kotlin.coroutines.coroutineContext[Job]!!
             val state = appViewModel.uiState.value
             val aiSettings = state.aiSettings
             val effectiveParametersIds = (parametersIds + state.reportParametersIds).distinct()
@@ -500,10 +526,13 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             // until the report finishes (or forever if the user navigates
             // away and never comes back). The locals here keep the
             // bytes alive for the agents that need them.
+            // Attached knowledge bases too: they were never cleared, so every
+            // later report silently retrieved from this report's files.
             appViewModel.updateUiState { it.copy(
                 reportImageBase64 = null, reportImageMime = null,
                 reportWebSearchTool = false, reportReasoningEffort = null,
-                reportMetadataDisabled = false
+                reportMetadataDisabled = false,
+                attachedKnowledgeBaseIds = emptyList()
             ) }
             // Layer the per-report advanced overlay on top of any preset
             // merge — "later non-null wins" (matches Settings.mergeParameters
@@ -583,7 +612,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 preparePrimaryExecution(context, aiPrompt, reportTasks, overrideParams,
                     state.attachedKnowledgeBaseIds, aiSettings, appViewModel.repository, state.externalIntent.context)
             } catch (e: Exception) {
-                if (reportGenerationJob == kotlin.coroutines.coroutineContext[Job]) {
+                if (latestGenerationJob == thisJob && ownsGenerationScreen()) {
                     appViewModel.updateUiState { it.copy(showGenericReportsDialog=false,showGenericAgentSelection=true,
                         reportImageBase64=imageBase64,reportImageMime=imageMime,reportWebSearchTool=state.reportWebSearchTool,
                         reportReasoningEffort=state.reportReasoningEffort,reportMetadataDisabled=state.reportMetadataDisabled) }
@@ -616,16 +645,32 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 )
             )
             val reportId = report.id
-            // Mark this report as the one being generated, so the Broken-work
-            // scan doesn't flag its in-flight PENDING/RUNNING agents as
-            // interrupted. Cleared (guarded) in the finally below.
-            activeGenerationReportId = reportId
+            // Register as this report's generation (the Broken-work scan then
+            // doesn't flag its in-flight PENDING/RUNNING agents as interrupted)
+            // and leave the double-tap set: a newer Generate must not cancel a
+            // run that has created its report. Removed in the finally below.
+            generationJobs[reportId] = thisJob
+            uncommittedGenerations.remove(thisJob)
+            // An external request's post-completion actions belong to this
+            // report — stamp it, if the request is still the one this run
+            // started with and hasn't been claimed by another report.
+            val ext = state.externalIntent
+            if (ext.reportId == null && (ext.email != null || ext.nextAction != null || ext.returnAfterNext)) {
+                appViewModel.updateUiState { s ->
+                    if (s.externalIntent == ext) s.copy(externalIntent = ext.copy(reportId = reportId)) else s
+                }
+            }
             val reportStartMs = System.currentTimeMillis()
             AppLog.i("Report", "→ start \"${title.ifBlank { "AI Report" }}\" (id=$reportId, ${reportTasks.size} agent(s))")
 
             withTracerTags(reportId = reportId, category = "report/prompt", runId = runId) {
-                resetAgentResults(reportId)
-                appViewModel.updateUiState { it.copy(currentReportId = reportId) }
+                // Take over the screen only while the user is still on this
+                // run's generation screen. If they left while it prepared (or
+                // a newer Generate / an opened report took over), the report
+                // runs in the background instead of hijacking whatever report
+                // is now on screen.
+                if (claimGenerationScreen(thisJob, reportId)) resetAgentResults(reportId)
+                else backgroundGenerations += reportId
 
                 iconGen.kickOffLanguageGeneration(context, reportId, report.prompt, aiSettings)
                 // Generate titles, then the icon, each from the original question.
@@ -642,23 +687,16 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                     AppLog.i("Report", "← end \"${title.ifBlank { "AI Report" }}\" ok=$ok fail=$fail in ${System.currentTimeMillis() - reportStartMs}ms")
                     maybeAutoCreateSecondaries(context, reportId, aiSettings, ok)
                     maybeAutoCreateDefaultMetas(context, reportId, aiSettings, ok)
-                    if (reportRunningInBackground) {
-                        reportRunningInBackground = false
+                    if (backgroundGenerations.remove(reportId)) {
                         withContext(Dispatchers.Main) {
                             android.widget.Toast.makeText(context, "Report \"$title\" is ready", android.widget.Toast.LENGTH_LONG).show()
                         }
                     }
                 } finally {
-                    // Reset the background flag on cancel paths too —
-                    // without this, a Stop mid-run leaves the flag
-                    // stuck at true and the next "background" toast
-                    // fires spuriously when an unrelated job
-                    // completes.
-                    reportRunningInBackground = false
-                    // Clear the live-generation marker, but only if a newer
-                    // run hasn't already claimed it (this job may be the one
-                    // a fresh generateGenericReports just cancelled).
-                    if (activeGenerationReportId == reportId) activeGenerationReportId = null
+                    // Drop the background mark on cancel paths too (a Stop
+                    // mid-run must not leave a toast pending) and deregister.
+                    backgroundGenerations.remove(reportId)
+                    generationJobs.remove(reportId, thisJob)
                     // If the run was cancelled (Stop, or a newer report start
                     // cancelling this shared job), terminalize any rows still
                     // PENDING/RUNNING as STOPPED — otherwise the report reads as
@@ -672,6 +710,35 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 }
             }
         }
+        uncommittedGenerations += generationJob
+        generationJob.invokeOnCompletion { uncommittedGenerations.remove(generationJob) }
+        latestGenerationJob = generationJob
+        generationJob.start()
+    }
+
+    /** The user is still on the generation screen of a new report: it's
+     *  showing, and no report has been opened in it yet. */
+    private fun ownsGenerationScreen(): Boolean {
+        val s = appViewModel.uiState.value
+        return s.showGenericReportsDialog && s.currentReportId == null
+    }
+
+    /** Atomically hand the generation screen to [reportId] — only if [job]
+     *  is still the latest generation and the screen is still waiting for it
+     *  (see [ownsGenerationScreen]). Checked inside the update so it can't
+     *  race the user opening another report. */
+    private fun claimGenerationScreen(job: Job, reportId: String): Boolean {
+        if (latestGenerationJob != job) return false
+        var claimed = false
+        appViewModel.updateUiState { s ->
+            if (s.showGenericReportsDialog && s.currentReportId == null) {
+                claimed = true
+                s.copy(currentReportId = reportId)
+            } else { claimed = false; s }
+        }
+        // resetAgentResults runs after the claim: nothing publishes for this
+        // report until it owns both (writers check the results owner).
+        return claimed
     }
 
 
@@ -1978,7 +2045,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
 
     /** Fire-and-forget: create + run ONE report fully in the background from
      *  an explicit [prompt] / [title] + the swarm [swarmId], on its OWN
-     *  independent coroutine — NOT the shared [reportGenerationJob], so many
+     *  independent coroutine — NOT a [generationJobs] entry, so many
      *  can run at once and none cancels another, and it touches no live
      *  single-report UI state (no dialog, no _agentResults, no progress, no
      *  currentReportId). Returns immediately. Backs the Stress test, which
@@ -2267,10 +2334,13 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             ReportStorage.updateReportPromptText(context, reportId, newPrompt)
             ReportStorage.bumpReportTimestamp(context, reportId)
         }
-        appViewModel.updateUiState { it.withStagedOwner(reportId).copy(
-            genericPromptText = newPrompt,
-            hasPendingPromptChange = true
-        ) }
+        // The pending-change flag belongs to [reportId] (staged owner); the
+        // on-screen prompt text only while it's still the report shown — the
+        // user may have switched reports during the disk write.
+        appViewModel.updateUiState { s ->
+            val staged = s.withStagedOwner(reportId).copy(hasPendingPromptChange = true)
+            if (s.currentReportId == reportId) staged.copy(genericPromptText = newPrompt) else staged
+        }
     }
 
     /**
@@ -2285,8 +2355,12 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             ReportStorage.bumpReportTimestamp(context, reportId)
         }
         // Edit title now sets both: short drives list cards, long drives the
-        // orange line (blank long → falls back to short via barTitle).
-        appViewModel.updateUiState { it.copy(genericPromptTitle = newTitle, genericPromptTitleLong = newTitleLong) }
+        // orange line (blank long → falls back to short via barTitle). Only
+        // while [reportId] is still the report on screen.
+        appViewModel.updateUiState { s ->
+            if (s.currentReportId != reportId) s
+            else s.copy(genericPromptTitle = newTitle, genericPromptTitleLong = newTitleLong)
+        }
     }
 
     /** Manually set one agent's per-model title (Get-info → Edit model
@@ -2311,7 +2385,8 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 ReportStorage.bumpReportTimestamp(context, reportId)
             }
             appViewModel.updateUiState {
-                if (long) it.copy(genericPromptTitleLong = title) else it.copy(genericPromptTitle = title)
+                if (it.currentReportId != reportId) it
+                else if (long) it.copy(genericPromptTitleLong = title) else it.copy(genericPromptTitle = title)
             }
         }
     }
@@ -2610,15 +2685,12 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         //     so the next Generate button press queues forever.
         //   - The "Find alternative icons" fan-out has the same shape
         //     and gets the same treatment.
-        //   - reportGenerationJob is the agent-fanout for the initial
-        //     generation; if the user trashes mid-generation it needs
-        //     to die too. Cancel it ONLY when the deleted report is the
-        //     one actually GENERATING ([activeGenerationReportId]) — not
-        //     merely the one being viewed ([cleared]/currentReportId).
-        //     The shared job belongs to whatever report is generating, so
-        //     deleting a different (even the viewed) report must not cancel
-        //     it and strand its agents as "Stopped by user".
-        if (activeGenerationReportId == reportId) reportGenerationJob?.cancel()
+        //   - The report's own primary generation job ([generationJobs])
+        //     is the agent fan-out for the initial generation; if the user
+        //     trashes mid-generation it needs to die too. Keyed per report,
+        //     so deleting a different (even the viewed) report can't cancel
+        //     another report's run and strand its agents as "Stopped".
+        generationJobs[reportId]?.cancel()
         val fanOutPrefix = "$reportId|"
         // Fan-out runs + per-pair coroutines are owned by the engine now.
         fanOutEngine.cancelAllForReport(reportId)
@@ -2670,7 +2742,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 // key format is "$reportId|$agentId"; split once and
                 // drop the per-agent candidate map slot too.
                 val agentId = entry.key.removePrefix(fanOutPrefix)
-                appViewModel.clearAgentIconFanOut(agentId)
+                appViewModel.clearAgentIconFanOut(reportId, agentId)
             }
         // Same shape as agentIconFanOutJobs above but keyed by
         // pair (SecondaryResult) id under the report.
@@ -2682,6 +2754,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 appViewModel.clearPairIconFanOut(pairId)
             }
         appViewModel.clearIconFanOut(reportId)
+        appViewModel.clearAgentFanOutsForReport(reportId)
         if (cleared) dismissGenericReportsDialog()
         return cleared
     }
@@ -2844,20 +2917,21 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             reportSystemPromptId = null,
             stagedReportModels = emptyList(), editModeReportId = null,
             pendingReportModels = emptyList(),
+            attachedKnowledgeBaseIds = emptyList(),
             hasPendingPromptChange = false, hasPendingParametersChange = false,
             stagedChangesReportId = null
         ) }
     }
 
     fun continueReportInBackground() {
-        reportRunningInBackground = true
+        appViewModel.uiState.value.currentReportId?.let { backgroundGenerations += it }
         appViewModel.updateUiState { it.copy(showGenericReportsDialog = false) }
     }
 
-    /** True while [reportId] is the primary generation this process is
-     *  actively running — gates the Stop button on the progress bar. */
+    /** True while [reportId]'s primary generation is actively running in
+     *  this process — gates the Stop button on the progress bar. */
     fun isGenerationActive(reportId: String): Boolean =
-        activeGenerationReportId == reportId && reportGenerationJob?.isActive == true
+        generationJobs[reportId]?.isActive == true
 
     /** Stop-and-keep for the in-flight primary generation: cancels the
      *  shared generation job (its finally terminalizes still-PENDING/
@@ -2869,14 +2943,14 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
      *  the Regenerate dialog's "Retry failed" resumes exactly what the
      *  Stop cut off. */
     fun stopGeneration(context: Context, reportId: String) {
-        if (activeGenerationReportId != reportId) return
-        val job = reportGenerationJob ?: return
-        reportGenerationJob = null
+        val job = generationJobs[reportId] ?: return
         appViewModel.viewModelScope.launch(reportLogContext()) {
             // Join so the finally's NonCancellable STOPPED writes land
             // before the re-hydration below reads the rows back.
             job.cancelAndJoin()
-            restoreCompletedReport(context, reportId)
+            // Only re-open it if it's still the report on screen — the user
+            // may have moved on during the join.
+            if (appViewModel.uiState.value.currentReportId == reportId) restoreCompletedReport(context, reportId)
             AuditLog.append(reportId, "Generation stopped by user — completed answers kept")
         }
     }

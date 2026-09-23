@@ -624,14 +624,14 @@ class TranslationRunManager(
     // ===== Find alternative translation =====
     // Mirrors the Find-alt icon / title fan-out: re-translate ONE L3
     // item's source text on each picked model, collect the candidates
-    // in [AppViewModel.altTranslationByItem] (keyed by itemId), and let
+    // in [AppViewModel.altTranslationByItem] (keyed by altTranslationKey), and let
     // the user tap one to overwrite the persisted row in place. The
     // probe calls are NON-persisting — only the picked candidate lands
     // on disk (via [applyAltTranslation]).
 
     /** Launch one re-translation per picked model for [itemId]. */
     fun startAltTranslationFanOut(
-        context: Context, reportId: String, itemId: String,
+        context: Context, reportId: String, runId: String, itemId: String,
         targetLanguageName: String, isTitleKind: Boolean, sourceText: String,
         traceType: String, models: List<ReportModel>, aiSettings: Settings,
         paramsIds: List<String> = emptyList(), systemPromptId: String? = null
@@ -645,22 +645,23 @@ class TranslationRunManager(
         if (rawTemplate.isBlank()) return
         val template = rvm.iconGen.consumeAltEdit()?.edited ?: rawTemplate
         val request = buildTranslationRequest(template, targetLanguageName, sourceText)
-        appViewModel.updateAltTranslationFanOut(itemId) { unique.map { TranslationCandidate.Running(it.provider, it.model) } }
+        val key = altTranslationKey(reportId, runId, itemId)
+        appViewModel.updateAltTranslationFanOut(key) { unique.map { TranslationCandidate.Running(it.provider, it.model) } }
         val outer = appViewModel.viewModelScope.launch(rvm.reportLogContext()) {
             unique.forEach { item ->
-                launch { runAltTranslationCandidate(context, reportId, itemId, item, request, traceType, aiSettings, paramsIds, systemPromptId, prompt) }
+                launch { runAltTranslationCandidate(context, reportId, key, item, request, traceType, aiSettings, paramsIds, systemPromptId, prompt) }
             }
         }
-        rvm.registerIconFanOutJob("alttr:$itemId", outer)
+        rvm.registerIconFanOutJob("alttr:$key", outer)
     }
 
     /** One alternative-translation candidate call (non-persisting). */
     private suspend fun runAltTranslationCandidate(
-        context: Context, reportId: String, itemId: String,
+        context: Context, reportId: String, key: String,
         item: ReportModel, request: TranslationRequest, traceType: String, aiSettings: Settings,
         paramsIds: List<String>, systemPromptId: String?, prompt: InternalPrompt?
     ) {
-        fun place(c: TranslationCandidate) = appViewModel.updateAltTranslationFanOut(itemId) { list ->
+        fun place(c: TranslationCandidate) = appViewModel.updateAltTranslationFanOut(key) { list ->
             list.map { if (it.provider.id == item.provider.id && it.model == item.model) c else it }
         }
         val releaser = ProviderThrottle.acquire(providerHost(item.provider))
@@ -705,6 +706,9 @@ class TranslationRunManager(
                         else
                             place(TranslationCandidate.Error(item.provider, item.model, response.error ?: "empty response", cost))
                     }.onFailure { e ->
+                        // A cancelled call (restart / delete) must not write a
+                        // ❌ into the list a newer run now owns.
+                        if (e is kotlinx.coroutines.CancellationException) throw e
                         place(TranslationCandidate.Error(item.provider, item.model, e.message ?: "translate failed", 0.0))
                     }
                 }
@@ -714,9 +718,10 @@ class TranslationRunManager(
         }
     }
 
-    fun restartAltTranslationFanOut(itemId: String) {
-        rvm.iconFanOutJobs.remove("alttr:$itemId")?.cancel()
-        appViewModel.clearAltTranslationFanOut(itemId)
+    fun restartAltTranslationFanOut(reportId: String, runId: String, itemId: String) {
+        val key = altTranslationKey(reportId, runId, itemId)
+        rvm.iconFanOutJobs.remove("alttr:$key")?.cancel()
+        appViewModel.clearAltTranslationFanOut(key)
     }
 
     /** Apply a picked alternative: overwrite the item's persisted
@@ -775,7 +780,7 @@ class TranslationRunManager(
                     durationMs = candidate.durationMs
                 )
             }
-            appViewModel.clearAltTranslationFanOut(itemId)
+            appViewModel.clearAltTranslationFanOut(altTranslationKey(reportId, runId, itemId))
             ReportStorage.bumpReportTimestamp(context, reportId)
         }
     }

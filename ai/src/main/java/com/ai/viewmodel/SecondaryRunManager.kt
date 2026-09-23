@@ -1362,6 +1362,11 @@ class SecondaryRunManager(
     suspend fun createReportFromFanOut(
         context: Context,
         sourceReportId: String,
+        /** The fan-out run's prompt id — only its rows are taken. Without it
+         *  a report with several fan-out runs mixed them all into one new
+         *  report titled as if it came from one run. Null = legacy caller
+         *  without a run (all fan-out rows, the old behaviour). */
+        metaPromptId: String?,
         activeProviderId: String,
         activeModel: String
     ): String? = withContext(Dispatchers.IO) {
@@ -1377,6 +1382,7 @@ class SecondaryRunManager(
         val raw = SecondaryResultStorage
             .listForReport(context, sourceReportId, SecondaryKind.META)
             .filter { it.fanOutSourceAgentId in activeAgentIds && it.fanInOf == null }
+            .filter { metaPromptId == null || it.metaPromptId == metaPromptId }
         val bucketed = LinkedHashMap<String, SecondaryResult>()
         raw.sortedBy { it.timestamp }.forEach { r ->
             bucketed["${r.providerId}|${r.model}|${r.fanOutSourceAgentId}"] = r

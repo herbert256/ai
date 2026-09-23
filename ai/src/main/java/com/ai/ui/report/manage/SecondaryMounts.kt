@@ -79,7 +79,7 @@ internal fun SecondaryResultsListMount(
     onShowFanMeta: () -> Unit = {},
     onCreateNewFanOut: () -> Unit = {},
     onSecondaryRefresh: () -> Unit,
-    onCreateReportFromFanOut: (String, String, String) -> Unit,
+    onCreateReportFromFanOut: (reportId: String, metaPromptId: String?, activeProviderId: String, activeModel: String) -> Unit,
     onDeleteSecondaryWithRefresh: (String, String) -> Unit,
     onBulkDeleteSecondaries: (String, List<String>, () -> Unit) -> Unit,
     onNavigateHome: () -> Unit,
@@ -181,9 +181,9 @@ internal fun SecondaryResultsListMount(
                     else onShowFanInPromptPickerChange(true)
                 }
             } else null,
-            onCreateReportFromFanOut = { activePid, activeMdl ->
+            onCreateReportFromFanOut = { promptId, activePid, activeMdl ->
                 onCloseList()
-                onCreateReportFromFanOut(rid, activePid, activeMdl)
+                onCreateReportFromFanOut(rid, promptId, activePid, activeMdl)
             },
             onDelete = { resultId -> onDeleteSecondaryWithRefresh(rid, resultId) },
             onBulkDelete = { ids ->
