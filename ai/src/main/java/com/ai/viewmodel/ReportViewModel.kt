@@ -182,6 +182,17 @@ enum class MetaRegenKind {
     PAIR_FAN_META
 }
 
+/** The live per-agent results map plus the report it belongs to. Agent ids
+ *  are NOT unique across reports (direct-model rows are "swarm:provider:model"
+ *  in every report), so a bare map can't tell report A's answer from report
+ *  B's — a late completion from A would flip B's matching row. Writers go
+ *  through [ReportViewModel.updateAgentResults], which checks [reportId] in
+ *  the same atomic update as the write. */
+data class ReportAgentResults(
+    val reportId: String? = null,
+    val results: Map<String, AnalysisResponse> = emptyMap()
+)
+
 /**
  * ViewModel for AI report generation: task building, concurrent execution, cost calculation.
  * Delegates to AppViewModel for shared state and settings.
@@ -299,8 +310,55 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
 
     // Separate flow from UiState so per-task completions don't force the UiState equality
     // checker to re-compare every other field. UI subscribers observe this independently.
-    internal val _agentResults = MutableStateFlow<Map<String, AnalysisResponse>>(emptyMap())
-    val agentResults: StateFlow<Map<String, AnalysisResponse>> = _agentResults.asStateFlow()
+    // Stamped with its owning report — see ReportAgentResults.
+    private val _agentResults = MutableStateFlow(ReportAgentResults())
+    val agentResults: StateFlow<ReportAgentResults> = _agentResults.asStateFlow()
+
+    /** Replace the results map wholesale and hand it to [reportId] (null =
+     *  no report on screen). Called wherever currentReportId changes, just
+     *  before the flip. */
+    private fun resetAgentResults(reportId: String?, results: Map<String, AnalysisResponse> = emptyMap()) {
+        _agentResults.value = ReportAgentResults(reportId, results)
+    }
+
+    /** Apply [transform] to [reportId]'s results — a no-op once the map
+     *  belongs to another report. Check and write are one atomic update, so
+     *  a completion racing a report switch can't land in the new report. */
+    internal fun updateAgentResults(
+        reportId: String,
+        transform: (Map<String, AnalysisResponse>) -> Map<String, AnalysisResponse>
+    ) {
+        _agentResults.update { cur -> if (cur.reportId == reportId) cur.copy(results = transform(cur.results)) else cur }
+    }
+
+    /** Terminal (SUCCESS / ERROR / STOPPED) agents of [report] as results.
+     *  PENDING / RUNNING agents are left out so their rows keep the
+     *  hourglass instead of showing a spurious ❌ (analysis=null, error=null
+     *  → isSuccess=false). */
+    private fun terminalAgentResults(report: Report): Map<String, AnalysisResponse> =
+        report.agents.filter { it.isTerminal() }.mapNotNull { ra ->
+            val service = AppService.findById(ra.provider) ?: return@mapNotNull null
+            ra.agentId to AnalysisResponse(
+                service = service, analysis = ra.responseBody, error = ra.errorMessage,
+                agentName = ra.agentName, tokenUsage = ra.tokenUsage,
+                citations = ra.citations, searchResults = ra.searchResults,
+                relatedQuestions = ra.relatedQuestions, rawUsageJson = ra.rawUsageJson,
+                httpHeaders = ra.responseHeaders, httpStatusCode = ra.httpStatus
+            )
+        }.toMap()
+
+    private fun ReportAgent.isTerminal() = reportStatus == ReportStatus.SUCCESS ||
+        reportStatus == ReportStatus.ERROR || reportStatus == ReportStatus.STOPPED
+
+    /** Bump the live progress counter, but only while [reportId] is the
+     *  report on screen — checked inside the update so it can't race a
+     *  report switch. */
+    private fun bumpGenerationProgress(reportId: String) {
+        appViewModel.updateUiState { s ->
+            if (s.currentReportId != reportId) s
+            else s.copy(genericReportsProgress = s.genericReportsProgress + 1)
+        }
+    }
 
     /** Authoritative Fan Out runtime state. The UI subscribes to this
      *  engine directly; the old per-pair maps and polling loop this
@@ -378,7 +436,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         reasoningEffort: String? = null,
         metadataDisabled: Boolean = false
     ) {
-        _agentResults.value = emptyMap()
+        resetAgentResults(null)
         appViewModel.updateUiState { it.copy(
             genericPromptTitle = title, genericPromptTitleLong = "", genericPromptText = prompt,
             reportImageBase64 = imageBase64, reportImageMime = imageMime,
@@ -498,7 +556,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 } ?: task
             }
 
-            _agentResults.value = emptyMap()
+            resetAgentResults(null)
             appViewModel.updateUiState { it.copy(
                 showGenericAgentSelection = false, showGenericReportsDialog = true,
                 genericReportsProgress = 0, genericReportsTotal = reportTasks.size,
@@ -563,6 +621,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             AppLog.i("Report", "→ start \"${title.ifBlank { "AI Report" }}\" (id=$reportId, ${reportTasks.size} agent(s))")
 
             withTracerTags(reportId = reportId, category = "report/prompt", runId = runId) {
+                resetAgentResults(reportId)
                 appViewModel.updateUiState { it.copy(currentReportId = reportId) }
 
                 iconGen.kickOffLanguageGeneration(context, reportId, report.prompt, aiSettings)
@@ -921,9 +980,10 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         // completions must not bump the visible report's progress, and
         // (since direct-model agent ids are deterministic across reports,
         // "swarm:provider:model") its responses must not flip the other
-        // report's matching rows. Re-checked at every write, not captured
-        // at launch, because the foreground report can change mid-task.
-        fun uiOwned() = appViewModel.uiState.value.currentReportId == reportId
+        // report's matching rows. updateAgentResults / bumpGenerationProgress
+        // check the owner inside the write itself: a separate check-then-
+        // write let a completion racing a report switch slip into the newly
+        // opened report.
         // Model already benched by an earlier run — skip the doomed
         // call, but keep the agent as a visible red error row (don't
         // remove it / shrink the total). Still counts as progress so
@@ -936,7 +996,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                     "${task.runtimeAgent.provider.id}/${task.runtimeAgent.model} is rate-limited (benched) — skipped"
                 )
             }
-            if (!headless && uiOwned()) {
+            if (!headless) {
                 // Publish the error into _agentResults too, mirroring the
                 // normal failure path — GenerationPhase renders result==null
                 // as an infinite hourglass, and the only re-hydration trigger
@@ -948,15 +1008,11 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 // !isRegeneration (as the progress bump below rightly is,
                 // matching the normal completion path's split) left every
                 // benched row of a regenerate spinning forever.
-                _agentResults.update { it + (task.resultId to AnalysisResponse(
+                updateAgentResults(reportId) { it + (task.resultId to AnalysisResponse(
                     service = task.runtimeAgent.provider, analysis = null,
                     error = "${task.runtimeAgent.provider.id}/${task.runtimeAgent.model} is rate-limited (benched) — skipped"
                 )) }
-                if (!isRegeneration) {
-                    appViewModel.updateUiState { state ->
-                        state.copy(genericReportsProgress = state.genericReportsProgress + 1)
-                    }
-                }
+                if (!isRegeneration) bumpGenerationProgress(reportId)
             }
             return
         }
@@ -1092,12 +1148,8 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             // accounting; the counters stay balanced without a late bump.
             return
         }
-        if (!headless && uiOwned()) _agentResults.update { it + (task.resultId to response) }
-        if (!isRegeneration && !headless && uiOwned()) {
-            appViewModel.updateUiState { state ->
-                state.copy(genericReportsProgress = state.genericReportsProgress + 1)
-            }
-        }
+        if (!headless) updateAgentResults(reportId) { it + (task.resultId to response) }
+        if (!isRegeneration && !headless) bumpGenerationProgress(reportId)
         AppLog.d(
             "Report",
             "← task ${task.runtimeAgent.provider.id}/${task.runtimeAgent.model} agent=${task.resultId} " +
@@ -1995,7 +2047,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         val rebuilt = appViewModel.uiState.value
             .takeIf { it.stagedChangesReportId == reportId }?.stagedReportModels.orEmpty()
             .ifEmpty { reportToModels(report, ai) }
-        _agentResults.value = emptyMap()
+        resetAgentResults(null)
         appViewModel.updateUiState { it.copy(
             showGenericReportsDialog = false,
             genericPromptTitle = report.title, genericPromptTitleLong = report.titleLong.orEmpty(),
@@ -2489,9 +2541,8 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                     ReportStorage.resetAgentToPendingKeepingCost(context, reportId, task.resultId)
                 }
             }
-            _agentResults.update { existing ->
-                existing.filterKeys { k -> k !in tasks.map { it.resultId }.toSet() }
-            }
+            val taskIds = tasks.map { it.resultId }.toSet()
+            updateAgentResults(reportId) { existing -> existing.filterKeys { k -> k !in taskIds } }
             ReportStorage.bumpReportTimestamp(context, reportId)
             withTracerTags(reportId = reportId, category = "Batch regenerate agents") {
                 // Same captured config as the task build above (presets +
@@ -2699,37 +2750,19 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
     suspend fun restoreCompletedReport(context: Context, reportId: String) {
         configurationSaveJob?.join()
         val report = withContext(Dispatchers.IO) { ReportStorage.getReport(context, reportId) } ?: return
-        // Only rebuild entries for agents that actually FINISHED
-        // (SUCCESS / ERROR / STOPPED). A report opened while it's still
-        // generating — now common since background/stress reports let you
-        // open one mid-run — has PENDING / RUNNING agents with a null
-        // responseBody; mapping those would yield AnalysisResponse(
-        // analysis=null, error=null) → isSuccess=false → a spurious ❌ on
-        // every not-yet-finished model. Omitting them leaves the row's
-        // result null so it renders the spinner. (Mirrors the terminal-only
-        // filter in hydrateAgentResultsFromStorage.)
-        val terminal = report.agents.filter {
-            it.reportStatus == ReportStatus.SUCCESS ||
-                it.reportStatus == ReportStatus.ERROR ||
-                it.reportStatus == ReportStatus.STOPPED
-        }
-        val rebuilt = terminal.mapNotNull { ra ->
-            val service = AppService.findById(ra.provider) ?: return@mapNotNull null
-            ra.agentId to AnalysisResponse(
-                service = service, analysis = ra.responseBody, error = ra.errorMessage,
-                agentName = ra.agentName, tokenUsage = ra.tokenUsage,
-                citations = ra.citations, searchResults = ra.searchResults,
-                relatedQuestions = ra.relatedQuestions, rawUsageJson = ra.rawUsageJson,
-                httpHeaders = ra.responseHeaders, httpStatusCode = ra.httpStatus
-            )
-        }.toMap()
-        _agentResults.value = rebuilt
+        // Only FINISHED agents get an entry (see terminalAgentResults) — a
+        // report opened mid-run keeps the spinner on its unfinished rows.
+        // The map is handed to this report BEFORE the currentReportId flip:
+        // from here on, a late completion from the previously open report
+        // is rejected by updateAgentResults' owner check instead of landing
+        // on this report's row for the same model.
+        resetAgentResults(report.id, terminalAgentResults(report))
         appViewModel.updateUiState { it.copy(
             currentReportId = report.id,
             genericReportsTotal = report.agents.size,
             // Progress = finished agents only, so a still-generating report
             // opened mid-run shows the real X/Y, not a premature 100%.
-            genericReportsProgress = terminal.size,
+            genericReportsProgress = report.agents.count { ra -> ra.isTerminal() },
             genericReportsSelectedAgents = report.agents.map { ra -> ra.agentId }.toSet(),
             genericPromptTitle = report.title,
             genericPromptTitleLong = report.titleLong.orEmpty(),
@@ -2740,18 +2773,16 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             showGenericReportsDialog = true
         ) }
         // Close the open-mid-run race: a task that landed between the
-        // disk read above and the currentReportId flip skipped its own
-        // progress bump (executeReportTask's write-time gate still saw
-        // the previous report). Re-read and publish monotonically —
-        // tasks landing after the flip bump themselves, so the two
-        // passes together cover every interleaving without leaving
-        // progress stuck one short of total.
-        val terminal2 = withContext(Dispatchers.IO) { ReportStorage.getReport(context, reportId) }
-            ?.agents?.count {
-                it.reportStatus == ReportStatus.SUCCESS ||
-                    it.reportStatus == ReportStatus.ERROR ||
-                    it.reportStatus == ReportStatus.STOPPED
-            } ?: return
+        // disk read above and the hand-off skipped both its result publish
+        // and its progress bump (the owner was still the previous report).
+        // Re-read and merge monotonically — entries already in memory win,
+        // and tasks landing after the hand-off publish themselves, so the
+        // two passes together cover every interleaving without leaving a
+        // row stuck on ⏳ or progress stuck one short of total.
+        val report2 = withContext(Dispatchers.IO) { ReportStorage.getReport(context, reportId) } ?: return
+        val rebuilt2 = terminalAgentResults(report2)
+        updateAgentResults(reportId) { rebuilt2 + it }
+        val terminal2 = report2.agents.count { it.isTerminal() }
         appViewModel.updateUiState { s ->
             if (s.currentReportId != reportId) s
             else s.copy(genericReportsProgress = maxOf(s.genericReportsProgress, terminal2))
@@ -2771,43 +2802,31 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         // weren't in _agentResults stayed missing until a manual
         // refresh.
         val report = withContext(Dispatchers.IO) { ReportStorage.getReport(context, reportId) } ?: return
-        // Only restore agents that have actually finished (SUCCESS / ERROR / STOPPED).
-        // PENDING and RUNNING entries stay missing so the screen renders the spinning
-        // hourglass instead of a stale ❌ during a fresh generation.
-        val rebuilt = report.agents.filter {
-            it.reportStatus == ReportStatus.SUCCESS ||
-                it.reportStatus == ReportStatus.ERROR ||
-                it.reportStatus == ReportStatus.STOPPED
-        }.mapNotNull { ra ->
-            val service = AppService.findById(ra.provider) ?: return@mapNotNull null
-            ra.agentId to AnalysisResponse(
-                service = service,
-                analysis = ra.responseBody,
-                error = ra.errorMessage,
-                agentName = ra.agentName,
-                tokenUsage = ra.tokenUsage,
-                citations = ra.citations,
-                searchResults = ra.searchResults,
-                relatedQuestions = ra.relatedQuestions,
-                rawUsageJson = ra.rawUsageJson,
-                httpHeaders = ra.responseHeaders,
-                httpStatusCode = ra.httpStatus
-            )
-        }.toMap()
-        if (rebuilt.isNotEmpty()) {
-            // Merge: prefer in-memory entries over disk so a fresh
-            // success that hasn't been written yet isn't overwritten
-            // by a stale RUNNING agent's still-on-disk state. Rows
-            // missing from memory get the rebuilt entry.
-            val merged = rebuilt + _agentResults.value
-            _agentResults.value = merged
+        // Only finished agents — PENDING / RUNNING rows keep the hourglass.
+        val rebuilt = terminalAgentResults(report)
+        _agentResults.update { cur ->
+            when {
+                // Merge: prefer in-memory entries over disk so a fresh
+                // success that hasn't been written yet isn't overwritten
+                // by a stale RUNNING agent's still-on-disk state. Rows
+                // missing from memory get the rebuilt entry.
+                cur.reportId == reportId ->
+                    if (rebuilt.isEmpty()) cur else cur.copy(results = rebuilt + cur.results)
+                // The map restarted without this report as its owner
+                // (Activity recreation) — adopt it, but only while this
+                // report is still the one on screen. Never merge into
+                // another report's map: its entries share our agent ids.
+                appViewModel.uiState.value.currentReportId == reportId ->
+                    ReportAgentResults(reportId, rebuilt)
+                else -> cur
+            }
         }
     }
 
     fun dismissGenericReportsDialog() {
         // The report job's withTracerTags block restores tags on its
         // own when the job ends or is cancelled — no manual clear here.
-        _agentResults.value = emptyMap()
+        resetAgentResults(null)
         appViewModel.updateUiState { it.copy(
             showGenericReportsDialog = false, genericPromptTitle = "", genericPromptTitleLong = "", genericPromptText = "",
             genericReportsProgress = 0, genericReportsTotal = 0,
@@ -2909,7 +2928,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
 
             // Drop the old result so the report row reverts to ⏳ until
             // executeReportTask publishes the new one.
-            _agentResults.update { it - agentId }
+            updateAgentResults(reportId) { it - agentId }
             // Reset the *persisted* row too. The full regenerateReport
             // path calls this for every agent; the single-agent path
             // only cleared the in-memory entry, so a failed re-run left
@@ -3077,7 +3096,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 if (costDelta > 0.0) ReportStorage.bumpCostsFromDeletedItems(context, reportId, costDelta)
             }
             ReportStorage.bumpReportTimestamp(context, reportId)
-            _agentResults.update { it - agentId }
+            updateAgentResults(reportId) { it - agentId }
             if (actuallyRemoved) {
                 appViewModel.updateUiState { state ->
                     if (state.currentReportId != reportId) {

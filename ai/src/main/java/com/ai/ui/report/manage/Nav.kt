@@ -129,7 +129,11 @@ fun ReportsScreenNav(
     onOpenReportView: (String) -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
-    val agentResults by reportViewModel.agentResults.collectAsState()
+    val agentResultsState by reportViewModel.agentResults.collectAsState()
+    // Only results owned by the report on screen — model ids repeat across
+    // reports, so another report's entries would land on our matching rows.
+    val agentResults = agentResultsState.results
+        .takeIf { agentResultsState.reportId == uiState.currentReportId }.orEmpty()
     val temperatureSweepStates by reportViewModel.temperatureSweepStates.collectAsState()
     val reasoningEffortSweepStates by reportViewModel.reasoningEffortSweepStates.collectAsState()
     val webSearchReplayStates by reportViewModel.webSearchReplayStates.collectAsState()

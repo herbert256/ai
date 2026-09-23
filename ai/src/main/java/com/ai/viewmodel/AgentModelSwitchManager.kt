@@ -248,7 +248,9 @@ class AgentModelSwitchManager internal constructor(
                 if (s.currentReportId != reportId) s
                 else s.copy(genericReportsSelectedAgents = (s.genericReportsSelectedAgents - agentId) + newId)
             }
-            reportViewModel._agentResults.update { m ->
+            // Owner-checked: the user may have moved to another report while
+            // the apply's disk work ran — its same-id row must not flip.
+            reportViewModel.updateAgentResults(reportId) { m ->
                 (m - agentId) + (newId to AnalysisResponse(
                     service = selection.provider, analysis = success.content, error = null,
                     agentName = agentName, tokenUsage = success.tokenUsage

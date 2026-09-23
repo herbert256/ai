@@ -42,7 +42,7 @@ androidx VM). Primary generation already has a formal shape — this is the
 | Is-this-report-live predicate | `isReportGenerating(reportId)` (ReportViewModel.kt:220) | folds `activeGenerationReportId` + `regenerateJobs` + `regenerateBatchEngine` — the one place to ask |
 | Variation replay tracks (temperature / reasoning-effort / web-search / prompt-edit) | per-mode `ReplayTrack` (COD-R02) | each track owns its `StateFlow<Map<String,S>>` + job map; see [ReplayTrack.kt](../ai/src/main/java/com/ai/viewmodel/ReplayTrack.kt) |
 | Alt-icon fan-out jobs (report / language / per-agent) | `iconFanOutJobs`, `languageIconFanOutJobs`, `agentIconFanOutJobs` (ReportViewModel.kt:247,249,262) | cancel-prior on re-launch; `deleteReport` prefix-cancels |
-| Per-agent streamed results | `_agentResults` (ReportViewModel.kt:279) | separate flow from `UiState` so a per-task completion doesn't re-compare every other field |
+| Per-agent streamed results | `_agentResults` (ReportViewModel.kt:314) | separate flow from `UiState` so a per-task completion doesn't re-compare every other field. Stamped with its owning report (`ReportAgentResults.reportId`) because agent ids like `swarm:provider:model` repeat across reports: `resetAgentResults` hands it over wherever `currentReportId` changes, every other write goes through `updateAgentResults(reportId)` (owner checked inside the atomic update), and `Nav.kt` shows it only when the owner matches `currentReportId` |
 | Fan-out / tournament / judges runtime | `fanOutEngine`, `tournamentEngine`, `judgeEvalEngine` (ReportViewModel.kt:285+) | each engine is the sole owner of its own run state; UI subscribes to the engine directly |
 
 The in-flight fan-meta batch job is **not** a `ReportViewModel` field — it
