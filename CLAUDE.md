@@ -118,6 +118,11 @@ explicit request**. The full procedures live in
 - After a successful commit, build + deploy to **both** targets
   (device install **and** `cp` to `/Users/herbert/cloud/ai.apk`),
   not only after explicit-commit prompts.
+- **End of every prompt** (once the work, including testing, is
+  done): `git status` clean, **pushed** (`git push origin master`,
+  nothing "ahead"), and `/Users/herbert/cloud/ai.apk` byte-identical
+  (`shasum`) to the newest build of the committed source. Pushing is
+  pre-authorized by this rule.
 
 ## Code layout pointers
 
