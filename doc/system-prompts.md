@@ -47,6 +47,17 @@ The external-intent value is read in `MainActivity.handleIntent` as
 `UiState.externalSystemPrompt` surfaces it for the chains below. (It is a plain
 string extra, not an XML block.)
 
+It belongs to **one** report. `generateGenericReports` consumes the request's
+generation inputs (system prompt, context values, open / close HTML, model
+list) from `UiState` when it launches — only the post-completion actions
+(email / next / return) stay, stamped with that report — and the plain in-app
+New report route clears any request abandoned before it generated. The
+context-expanded value is persisted as `Report.externalSystemPrompt`, and every
+replay (regenerate, retry, sweeps, model switch, added models) reads the
+report's own value, never the live `UiState` one. Both used to leak: an Eval
+request carries the position's FEN in its system prompt, so a later report's
+models without a system prompt of their own analysed the earlier position.
+
 ---
 
 ## How the resolved text reaches the model

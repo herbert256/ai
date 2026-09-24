@@ -528,11 +528,26 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             // bytes alive for the agents that need them.
             // Attached knowledge bases too: they were never cleared, so every
             // later report silently retrieved from this report's files.
+            // And the external request's generation inputs — system prompt,
+            // context values, open / close HTML, model list — belong to THIS
+            // report only. They used to stay in UiState, so the next report
+            // started in the app sent the earlier request's system prompt to
+            // every model without one of its own (an Eval request carries the
+            // position's FEN there: that model analysed the OTHER position).
+            // Only the post-completion actions stay, for this report.
+            val externalIntentAtLaunch = state.externalIntent
+            val externalPostCompletion = ExternalIntent(
+                email = externalIntentAtLaunch.email,
+                nextAction = externalIntentAtLaunch.nextAction,
+                returnAfterNext = externalIntentAtLaunch.returnAfterNext,
+                reportId = externalIntentAtLaunch.reportId
+            )
             appViewModel.updateUiState { it.copy(
                 reportImageBase64 = null, reportImageMime = null,
                 reportWebSearchTool = false, reportReasoningEffort = null,
                 reportMetadataDisabled = false,
-                attachedKnowledgeBaseIds = emptyList()
+                attachedKnowledgeBaseIds = emptyList(),
+                externalIntent = if (it.externalIntent == externalIntentAtLaunch) externalPostCompletion else it.externalIntent
             ) }
             // Layer the per-report advanced overlay on top of any preset
             // merge — "later non-null wins" (matches Settings.mergeParameters
@@ -613,9 +628,13 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                     state.attachedKnowledgeBaseIds, aiSettings, appViewModel.repository, state.externalIntent.context)
             } catch (e: Exception) {
                 if (latestGenerationJob == thisJob && ownsGenerationScreen()) {
+                    // Back to the selection screen with everything this run
+                    // consumed restored, so a retry runs the same request.
                     appViewModel.updateUiState { it.copy(showGenericReportsDialog=false,showGenericAgentSelection=true,
                         reportImageBase64=imageBase64,reportImageMime=imageMime,reportWebSearchTool=state.reportWebSearchTool,
-                        reportReasoningEffort=state.reportReasoningEffort,reportMetadataDisabled=state.reportMetadataDisabled) }
+                        reportReasoningEffort=state.reportReasoningEffort,reportMetadataDisabled=state.reportMetadataDisabled,
+                        attachedKnowledgeBaseIds=state.attachedKnowledgeBaseIds,
+                        externalIntent=if (it.externalIntent == externalPostCompletion) externalIntentAtLaunch else it.externalIntent) }
                     if (e !is kotlinx.coroutines.CancellationException) withContext(Dispatchers.Main) {
                         android.widget.Toast.makeText(context,e.message ?: "Could not prepare report",android.widget.Toast.LENGTH_LONG).show()
                     }
@@ -641,7 +660,8 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                     parameterPresetIds = effectiveParametersIds,
                     advancedParameters = state.reportAdvancedParameters,
                     selectionParamsById = selectionParamsById,
-                    reportSystemPromptId = state.reportSystemPromptId
+                    reportSystemPromptId = state.reportSystemPromptId,
+                    externalSystemPrompt = externalSystemPrompt?.let { state.externalIntent.context.expandPrompt(it) }
                 )
             )
             val reportId = report.id
@@ -654,7 +674,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             // An external request's post-completion actions belong to this
             // report — stamp it, if the request is still the one this run
             // started with and hasn't been claimed by another report.
-            val ext = state.externalIntent
+            val ext = externalPostCompletion
             if (ext.reportId == null && (ext.email != null || ext.nextAction != null || ext.returnAfterNext)) {
                 appViewModel.updateUiState { s ->
                     if (s.externalIntent == ext) s.copy(externalIntent = ext.copy(reportId = reportId)) else s
@@ -908,13 +928,15 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         val task = if (currentAgent != null) {
             buildReportTasks(
                 ai, listOf(currentAgent.copy(provider = provider, model = reportAgent.model)), emptyList(), report.selectionParamsById,
-                state.externalSystemPrompt,
+                // The report's OWN external system prompt, never the live
+                // one (the last external request's) — see Report.externalSystemPrompt.
+                report.externalSystemPrompt,
                 state.generalSettings, emptySet(), preGenParamsActive
             ).firstOrNull()
         } else {
             buildReportTasks(
                 ai, emptyList(), listOf(SwarmMember(provider, reportAgent.model)),
-                report.selectionParamsById, state.externalSystemPrompt,
+                report.selectionParamsById, report.externalSystemPrompt,
                 state.generalSettings, setOf(sid), preGenParamsActive
             ).firstOrNull()
         } ?: ReportTask(reportAgent.agentId, reportAgent,
@@ -2269,7 +2291,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         val preGenParamsActive = reportPreGenParamsActive(report)
         val tasks = buildReportTasks(
             ai, agents, swarmMembers + directModels, report.selectionParamsById,
-            state.externalSystemPrompt,
+            report.externalSystemPrompt,
             state.generalSettings, directModelSids, preGenParamsActive, staged
         )
         if (tasks.isEmpty()) {

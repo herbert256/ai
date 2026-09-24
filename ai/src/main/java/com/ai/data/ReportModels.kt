@@ -386,6 +386,13 @@ data class Report(
     val advancedParameters: AgentParameters? = null,
     val selectionParamsById: Map<String, List<String>> = emptyMap(),
     val reportSystemPromptId: String? = null,
+    /** The external request's system prompt this report was generated with
+     *  (context-expanded) — the fallback for models without a system prompt
+     *  of their own. Captured so replays (regenerate, retry, sweeps, model
+     *  switch, added models) use THIS report's value: they used to read the
+     *  live app state, i.e. whichever external request came last — whose
+     *  system prompt can carry another position / question entirely. */
+    val externalSystemPrompt: String? = null,
     /** User-pinned flag. Pinned reports surface as their own group
      *  above the recent rows on the AI Reports hub. Persisted on the
      *  Report file so it survives across launches. */

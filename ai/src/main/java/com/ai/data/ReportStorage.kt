@@ -89,7 +89,8 @@ data class CreateReportConfig(
     val parameterPresetIds: List<String> = emptyList(),
     val advancedParameters: AgentParameters? = null,
     val selectionParamsById: Map<String, List<String>> = emptyMap(),
-    val reportSystemPromptId: String? = null
+    val reportSystemPromptId: String? = null,
+    val externalSystemPrompt: String? = null
 )
 
 /**
@@ -223,6 +224,7 @@ object ReportStorage {
             knowledgeBaseIds = knowledgeBaseIds, runId = runId,
             parameterPresetIds = parameterPresetIds, advancedParameters = advancedParameters,
             selectionParamsById = selectionParamsById, reportSystemPromptId = reportSystemPromptId,
+            externalSystemPrompt = externalSystemPrompt,
             apiCallCostsComplete = true, apiCallCostsVersion = API_CALL_COST_LEDGER_VERSION)
         lock.withLock { saveReport(report) }
         AuditLog.start(report.id)
@@ -3112,6 +3114,7 @@ object ReportStorage {
                 advancedParameters = src.advancedParameters,
                 selectionParamsById = src.selectionParamsById,
                 reportSystemPromptId = src.reportSystemPromptId,
+                externalSystemPrompt = src.externalSystemPrompt,
                 // Per-report worker routing (👷) — same replay-fidelity
                 // rationale: without it the copy's batches (Fan Meta,
                 // Translation, Tournament, Compare, Meta, Fan-in) and

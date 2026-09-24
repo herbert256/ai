@@ -350,6 +350,11 @@ internal fun NavGraphBuilder.reportRoutes(
             )
         }
         composable(NavRoutes.AI_NEW_REPORT) {
+            // A report started in the app is never part of an external request:
+            // drop one abandoned before it generated (its system prompt /
+            // context would otherwise reach this report's models). External
+            // "prefill" requests use AI_NEW_REPORT_WITH_PARAMS, not this route.
+            LaunchedEffect(Unit) { appViewModel.clearExternalInstructions() }
             NewReportScreen(viewModel = appViewModel, reportViewModel = reportViewModel,
                 onNavigateBack = safePopBack, onNavigateHome = navigateHome,
                 onNavigateToReports = { navController.navigate(NavRoutes.aiReports()) },
