@@ -109,8 +109,12 @@ class JudgeEvalEngine internal constructor(
             PendingCell(judgeFromRow(row), c.responseAId, c.responseBId, c.orientation, row)
         }
         if (pending.isEmpty()) return
-        withTracerTags(reportId = runKey, category = "after/judges") {
-            dispatchCells(context, runKey, run.prompt, report.prompt, report.title, pending)
+        // runId: runFixedJudgeCall finds the run's FROZEN judge settings via
+        // the tracer's (report, run) — without it a rerun judged with live
+        // settings. Historical report: the rerun judges the SAME answers the
+        // run's other cells saw, not answers regenerated since.
+        withTracerTags(reportId = runKey, category = "after/judges", runId = run.runId) {
+            dispatchCells(context, runKey, run.prompt, report.prompt, report.title, pending, sourceReport = report)
         }
     }
 
@@ -318,10 +322,13 @@ class JudgeEvalEngine internal constructor(
      *  front, so the batch throttles per-host (unlike the worker round-robin). */
     private suspend fun dispatchCells(
         context: Context, reportId: String, prompt: InternalPrompt,
-        question: String, title: String, items: List<PendingCell>
+        question: String, title: String, items: List<PendingCell>,
+        /** The report state the run was launched against (reruns); null =
+         *  the current report (a fresh run). */
+        sourceReport: com.ai.data.Report? = null
     ) {
         if (items.isEmpty()) return
-        val report = ReportStorage.getReport(context, reportId)
+        val report = sourceReport ?: ReportStorage.getReport(context, reportId)
         val agentsById = report?.agents?.associateBy { it.agentId }.orEmpty()
         runThrottledBatch(
             items = items,

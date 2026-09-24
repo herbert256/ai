@@ -58,7 +58,10 @@ object NavRoutes {
      *  card as a full screen, shown from home when no agents exist. */
     const val AI_EXAMPLES = "ai_examples"
     const val AI_NEW_REPORT = "ai_new_report"
-    const val AI_NEW_REPORT_WITH_PARAMS = "ai_new_report/{title}/{prompt}"
+    /** [ext] = true only for an external ACTION_NEW_REPORT prefill: every
+     *  other entry (share, prompt history, examples) clears a leftover
+     *  external request on arrival — see the route's composable. */
+    const val AI_NEW_REPORT_WITH_PARAMS = "ai_new_report/{title}/{prompt}?ext={ext}&share={share}"
     const val AI_PROMPT_HISTORY = "ai_prompt_history"
     const val AI_EXAMPLE_PROMPT_PICKER = "ai_example_prompt_picker"
     /** Pattern carries an optional `initialView` query-param consumed
@@ -230,6 +233,9 @@ object NavRoutes {
     fun aiChatWithAgent(agentId: String) = "ai_chat_with_agent/$agentId"
     fun aiChatParams(provider: String, model: String) = "ai_chat_params/$provider/${encode(model)}"
     fun aiChatSession(provider: String, model: String) = "ai_chat_session/$provider/${encode(model)}"
-    fun aiNewReportWithParams(title: String, prompt: String) = "ai_new_report/${encode(title)}/${encode(prompt)}"
+    /** [external]: an ACTION_NEW_REPORT prefill (may carry its system prompt /
+     *  context). [share]: the share-target staged an image / files for it. */
+    fun aiNewReportWithParams(title: String, prompt: String, external: Boolean = false, share: Boolean = false) =
+        "ai_new_report/${encode(title)}/${encode(prompt)}?ext=$external&share=$share"
     fun helpForTopic(topicId: String) = "help/${encode(topicId)}"
 }

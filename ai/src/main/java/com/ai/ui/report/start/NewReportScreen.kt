@@ -94,11 +94,21 @@ fun NewReportScreen(
     onNavigateToReports: () -> Unit = {},
     onNavigateToTraceFile: (String) -> Unit = {},
     initialTitle: String = "",
-    initialPrompt: String = ""
+    initialPrompt: String = "",
+    /** The plain in-app New report: restore the user's own last draft. A
+     *  share / history / example / external prefill opens with exactly its
+     *  own title + prompt (blank included) instead of borrowing the draft. */
+    restoreDraft: Boolean = true,
+    /** False for an external request's prefill: its text must not become
+     *  the user's in-app draft (a later unrelated report restored it). */
+    saveDraft: Boolean = true
 ) {
     val context = LocalContext.current
     val uiState by viewModel.uiState.collectAsState()
     val prefs = context.getSharedPreferences(SettingsPreferences.PREFS_NAME, android.content.Context.MODE_PRIVATE)
+    // AI-title mode hides the title field, so a restored title would ride
+    // silently into this report (and stay when titling doesn't overwrite it).
+    val aiTitleMode = uiState.generalSettings.reportTitleAiOn()
 
     // rememberSaveable throughout: tapping ❓ Help or the flagged dialog's
     // 🐞 trace link is a FORWARD navigation that disposes this composition
@@ -106,10 +116,14 @@ fun NewReportScreen(
     // typed prompt/title reverted to the prefs snapshot of the PREVIOUS
     // report and the moderation pick + flagged dialog vanished on return.
     var title by rememberSaveable {
-        mutableStateOf(initialTitle.ifEmpty { prefs.getString(SettingsPreferences.KEY_LAST_AI_REPORT_TITLE, "") ?: "" })
+        mutableStateOf(initialTitle.ifEmpty {
+            if (restoreDraft && !aiTitleMode) prefs.getString(SettingsPreferences.KEY_LAST_AI_REPORT_TITLE, "") ?: "" else ""
+        })
     }
     val rawPrompt = remember {
-        initialPrompt.ifEmpty { prefs.getString(SettingsPreferences.KEY_LAST_AI_REPORT_PROMPT, "") ?: "" }
+        initialPrompt.ifEmpty {
+            if (restoreDraft) prefs.getString(SettingsPreferences.KEY_LAST_AI_REPORT_PROMPT, "") ?: "" else ""
+        }
     }
     var userTagBlock by rememberSaveable { mutableStateOf(userTagRegex.find(rawPrompt)?.value ?: "") }
     val hasWorkerDefaultPrompt = uiState.aiSettings.run {
@@ -123,9 +137,10 @@ fun NewReportScreen(
     // return showed the PREVIOUS submitted prompt. Debounced writes to the
     // same prefs keys the seed above reads make the draft round-trip.
     LaunchedEffect(title, prompt, userTagBlock) {
+        if (!saveDraft) return@LaunchedEffect
         kotlinx.coroutines.delay(800)
         prefs.edit()
-            .putString(SettingsPreferences.KEY_LAST_AI_REPORT_TITLE, title)
+            .apply { if (!aiTitleMode) putString(SettingsPreferences.KEY_LAST_AI_REPORT_TITLE, title) }
             .putString(
                 SettingsPreferences.KEY_LAST_AI_REPORT_PROMPT,
                 (prompt + if (userTagBlock.isNotBlank()) "\n$userTagBlock" else "").trim()
@@ -163,6 +178,11 @@ fun NewReportScreen(
     // drains on attach / skip and on the real exits below.
     var sharedKbState by remember { mutableStateOf<SharedKbBannerState>(SharedKbBannerState.Idle) }
     val sharedKbUris = uiState.pendingReportKnowledgeUris
+    // KBs attached on THIS screen — handed to showGenericAgentSelection,
+    // which makes them the report's attached list. Writing them straight
+    // into UiState kept a KB from an abandoned New Report attached to the
+    // next report started anywhere (its chunks prepended to every model).
+    var kbsAttachedHere by rememberSaveable { mutableStateOf(emptyList<String>()) }
     var attachError by remember { mutableStateOf<String?>(null) }
     var useWebSearch by remember { mutableStateOf(false) }
     // Per-report metadata kill-switch — skip title/icon/language/per-model
@@ -334,9 +354,9 @@ fun NewReportScreen(
                         ) { msg -> sharedKbState = SharedKbBannerState.Working(msg) }
                         val s = sharedKbState
                         if (s is SharedKbBannerState.Done) {
+                            kbsAttachedHere = (kbsAttachedHere + s.kbId).distinct()
                             viewModel.updateUiState { st ->
                                 st.copy(
-                                    attachedKnowledgeBaseIds = (st.attachedKnowledgeBaseIds + s.kbId).distinct(),
                                     // Consumed — a Help hop after attach must
                                     // not resurrect the banner for a re-ingest.
                                     pendingReportKnowledgeUris = emptyList()
@@ -389,7 +409,8 @@ fun NewReportScreen(
                     if ((titleRequired && title.isBlank()) || (prompt.isBlank() && (!hasWorkerDefaultPrompt || moderationModel != null)) || isModerating) return@next
                     val visiblePrompt = prompt.trim()
                     val fullPrompt = if (userTagBlock.isNotBlank()) "$visiblePrompt\n$userTagBlock" else visiblePrompt
-                    prefs.edit().putString(SettingsPreferences.KEY_LAST_AI_REPORT_TITLE, title)
+                    if (saveDraft) prefs.edit()
+                        .apply { if (!aiTitleMode) putString(SettingsPreferences.KEY_LAST_AI_REPORT_TITLE, title) }
                         .putString(SettingsPreferences.KEY_LAST_AI_REPORT_PROMPT, visiblePrompt).apply()
                     if (visiblePrompt.isNotBlank()) SettingsPreferences(prefs, context.filesDir).savePromptToHistory(title, visiblePrompt)
 
@@ -400,7 +421,8 @@ fun NewReportScreen(
                             imageMime = attachedImage?.first,
                             webSearchTool = useWebSearch,
                             reasoningEffort = reasoningEffort.ifBlank { null },
-                            metadataDisabled = skipMetadata
+                            metadataDisabled = skipMetadata,
+                            knowledgeBaseIds = kbsAttachedHere
                         )
                         // Staging consumed by the selection flow — drain the
                         // shared-KB staging so a later fresh visit doesn't
@@ -615,7 +637,8 @@ fun NewReportScreen(
                         imageMime = attachedImage?.first,
                         webSearchTool = useWebSearch,
                         reasoningEffort = reasoningEffort.ifBlank { null },
-                            metadataDisabled = skipMetadata
+                        metadataDisabled = skipMetadata,
+                        knowledgeBaseIds = kbsAttachedHere
                     )
                     // Same staging drain as proceed(): without it the
                     // shared-KB banner (and a never-generated image)

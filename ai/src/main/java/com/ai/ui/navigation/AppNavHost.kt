@@ -137,7 +137,7 @@ fun AppNavHost(
                     appViewModel.setExternalInstructions(
                         closeHtml = null, email = null,
                         systemPrompt = cmd.systemPrompt)
-                    navController.navigate(NavRoutes.aiNewReportWithParams(cmd.title, cmd.prompt)) {
+                    navController.navigate(NavRoutes.aiNewReportWithParams(cmd.title, cmd.prompt, external = true)) {
                         popUpTo(NavRoutes.AI) { inclusive = false }
                     }
                 }
@@ -189,11 +189,14 @@ fun AppNavHost(
                 reportViewModel.showGenericAgentSelection(staged.title ?: "", fullPrompt)
                 if (staged.context.values.isNotEmpty()) appViewModel.setReportSystemPromptId(staged.selectedSystemPromptId)
                 staged.selectedParameters?.let { appViewModel.setReportParametersIds(listOf(it.id)) }
-                staged.literalSystemPrompt?.let { system ->
-                    // Literal instruction tags have the same report-level precedence as saved systems.
-                    val parameters = appViewModel.uiState.value.reportAdvancedParameters ?: com.ai.data.AgentParameters()
-                    appViewModel.setReportAdvancedParameters(parameters.copy(systemPrompt = system))
-                }
+                // Literal instruction tags have the same report-level precedence
+                // as saved systems; kept apart so a later preset change keeps it.
+                staged.literalSystemPrompt?.let { appViewModel.setReportLiteralSystemPrompt(it) }
+                // We navigate to the selection ourselves: consume the one-shot
+                // "go to selection" flag. Left set, the next New Report visit
+                // skipped its prompt step and generated with THIS request's
+                // prompt, title, system prompt and parameters.
+                reportViewModel.dismissGenericAgentSelection()
                 navController.navigate(NavRoutes.aiReports()) { popUpTo(NavRoutes.AI) { inclusive = false } }
                 pendingExternalReport.value = null
             }
@@ -743,25 +746,24 @@ private suspend fun routeShareToReport(
             ?: shared.mime
     val (imageUris, nonImageUris) = shared.uris.partition { mimeOf(it)?.startsWith("image/") == true }
     val firstImageUri = imageUris.firstOrNull()
-    if (firstImageUri != null) {
-        // Decode + downscale + JPEG-encode rather than streaming the raw
-        // bytes — a 12 MP phone photo would otherwise spike memory and
-        // ship a multi-MB base64 blob over the wire.
-        val pair = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-            runCatching {
-                com.ai.data.loadImageAsBase64(context, android.net.Uri.parse(firstImageUri))
-            }.getOrNull()
-        }
-        if (pair != null) {
-            appViewModel.updateUiState {
-                it.copy(reportImageBase64 = pair.second, reportImageMime = pair.first)
-            }
+    // Decode + downscale + JPEG-encode rather than streaming the raw
+    // bytes — a 12 MP phone photo would otherwise spike memory and
+    // ship a multi-MB base64 blob over the wire.
+    val pair = firstImageUri?.let { uri ->
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            runCatching { com.ai.data.loadImageAsBase64(context, android.net.Uri.parse(uri)) }.getOrNull()
         }
     }
-    if (nonImageUris.isNotEmpty()) {
-        appViewModel.updateUiState { it.copy(pendingReportKnowledgeUris = nonImageUris) }
+    // ALWAYS overwrite the staging: only writing when this share had an
+    // image / files left an earlier share's photo (or files) attached to
+    // this text-only share's report — sent to every vision model.
+    appViewModel.updateUiState {
+        it.copy(
+            reportImageBase64 = pair?.second, reportImageMime = pair?.first,
+            pendingReportKnowledgeUris = nonImageUris
+        )
     }
-    navController.navigate(NavRoutes.aiNewReportWithParams(title, prompt)) {
+    navController.navigate(NavRoutes.aiNewReportWithParams(title, prompt, share = true)) {
         popUpTo(NavRoutes.AI) { inclusive = false }
     }
 }

@@ -556,6 +556,17 @@ unit tests verify code correctness, not feature correctness here.
   the new report is busy. Dialogs/overlays that act on "the current
   report" must be keyed on it (`remember(reportId)`) or use
   `confirmStillForOpenedReport`.
+- **One-shot launch inputs belong to one operation.** State staged for
+  operation A (an external request's system prompt / context, a share's
+  image or files, a Find-alternative prompt edit, a runtime-prompt
+  request, 🌡️/🎭 picks, a fan-out's self-respond choice) must be consumed
+  or cleared by A — or tagged with its owner (report id, prompt id, draft
+  id) and dropped on mismatch — never left for B to read as a default.
+  Replays read the report's persisted inputs (`Report.externalSystemPrompt`,
+  `externalContextValues`, the row's source snapshot / run manifest via
+  `ReportEvidenceStore`), never live `UiState`. The new-report draft is
+  identified by `UiState.reportDraftId`; a report screen whose saved
+  selection belongs to another draft leaves instead of generating.
 - **Anthropic `max_tokens` is supplied at dispatch, not hardcoded.**
   The `ClaudeRequest` field is nullable; `defaultMaxTokens` resolves
   in order: `service.maxTokensDefaults.resolveMaxTokens(model)` (the

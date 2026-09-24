@@ -1785,7 +1785,8 @@ class FanOutEngine internal constructor(
 
         // Clear each row to a PENDING shape on disk + in the flow, and
         // keep the cleared placeholder so the runner writes against it.
-        data class Reset(val pair: PairState, val cleared: SecondaryResult, val body: String)
+        data class Reset(val pair: PairState, val cleared: SecondaryResult, val body: String,
+                         val question: String, val title: String)
         val resets = mutableListOf<Reset>()
         var clearedCostDelta = 0.0
         val agentsById = report.agents.associateBy { it.agentId }
@@ -1796,10 +1797,16 @@ class FanOutEngine internal constructor(
             val pair = run.pairs[pk] ?: continue
             val current = SecondaryResultStorage.get(context, run.reportId, pair.id) ?: continue
             val source = agentsById[pair.sourceAgentId]
+            // A never-dispatched pair (no saved request) answers the question +
+            // source answer its run captured, like its dispatched siblings — not
+            // a prompt edit / regenerated answer that landed after the run.
+            val snap = if (current.executionConfig == null && langCtx == null)
+                com.ai.data.ReportEvidenceStore.sources(current) else null
+            val snapBody = snap?.answers?.firstOrNull { it.id == pair.sourceAgentId }?.body?.takeIf { it.isNotBlank() }
             // A saved request remains replayable after its current source
             // changes or disappears. executeSecondaryTask verifies the saved
             // source evidence before dispatching that captured request.
-            if (source == null && current.executionConfig == null) continue
+            if (source == null && current.executionConfig == null && snapBody == null) continue
             // Only the RESPONSE spend is cleared here — the `cleared` copy
             // keeps the Fan-Meta title/icon fields and their costs on the
             // live row (they aren't re-run by a pair rerun). Rolling the full
@@ -1821,8 +1828,10 @@ class FanOutEngine internal constructor(
                     responseChangeValue = null
                 )
             }
-            val body = langCtx?.bodies?.get(pair.sourceAgentId) ?: source?.responseBody.orEmpty()
-            resets.add(Reset(pair, cleared, body))
+            val body = snapBody ?: langCtx?.bodies?.get(pair.sourceAgentId) ?: source?.responseBody.orEmpty()
+            resets.add(Reset(pair, cleared, body,
+                question = snap?.prompt ?: question,
+                title = snap?.title ?: langCtx?.title ?: report.title))
         }
         // One batched write for all cleared rows (single storage lock +
         // data-version bump) — a restart over hundreds of pairs otherwise
@@ -1856,7 +1865,7 @@ class FanOutEngine internal constructor(
                     context, runKey, r.pair.id, r.pair.answererAgentId, r.pair.sourceAgentId,
                     r.pair.providerId, r.pair.model, run.metaPrompt, report, aiSettings,
                     sourceCount = sourceCount,
-                    question = question, title = langCtx?.title ?: report.title, sourceBody = r.body,
+                    question = r.question, title = r.title, sourceBody = r.body,
                     targetLanguage = run.sourceLanguage,
                     targetLanguageNative = langCtx?.native,
                     paramsIds = r.cleared.secondaryParameterPresetIds.orEmpty(),

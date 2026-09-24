@@ -122,7 +122,7 @@ class AgentModelSwitchManager internal constructor(
         val baseOverride = reportViewModel.resolveReportOverrideParams(
             ai, report.parameterPresetIds, report.advancedParameters,
             report.webSearchTool, report.reasoningEffort, report.reportSystemPromptId
-        )
+        ).withReportContext(report)
         val gatedOverride = (baseOverride ?: AgentParameters()).copy(
             webSearchTool = (baseOverride?.webSearchTool == true || report.webSearchTool) && canWeb,
             reasoningEffort = if (canReason) baseOverride?.reasoningEffort else null

@@ -393,6 +393,11 @@ data class Report(
      *  live app state, i.e. whichever external request came last — whose
      *  system prompt can carry another position / question entirely. */
     val externalSystemPrompt: String? = null,
+    /** The external request's context values (e.g. an Eval request's FEN)
+     *  the fresh run expanded into system prompts. Replays expand the
+     *  report-level / per-model system-prompt templates with THESE — they
+     *  used to send the raw `@fen@` template instead. Null = none. */
+    val externalContextValues: Map<String, String>? = null,
     /** User-pinned flag. Pinned reports surface as their own group
      *  above the recent rows on the AI Reports hub. Persisted on the
      *  Report file so it survives across launches. */

@@ -184,6 +184,14 @@ internal class ReportsScreenState(
      *  fresh-config read + SELECT_ONCE persist in launchWithWorkerPlan. */
     val screenScope: kotlinx.coroutines.CoroutineScope,
     val translationSelection: MutableState<com.ai.viewmodel.TranslationSelection> = mutableStateOf(com.ai.viewmodel.TranslationSelection()),
+    /** Per-model 🌡️ presets picked on "Report - select models" (F47), keyed
+     *  by row id. Saveable + hoisted so the +Add sub-pickers (early-return
+     *  overlays that unmount the list) and a Model-Info hop keep them;
+     *  cleared once a generation consumes them. */
+    val selectionRowParams: MutableState<Map<String, List<String>>>,
+    /** The find-alternative model pickers' 🌡️/🎭 picks, hoisted for the same
+     *  reason; owner-tagged so they never carry into another flow. */
+    val modelSelectionPicks: com.ai.ui.report.start.ModelSelectionPicks,
 )
 
 /** A pending "pick workers before running" request (see [InternalPrompt.modelSelection]
@@ -315,6 +323,8 @@ internal fun rememberReportsScreenState(initialModels: List<ReportModel>, skipMo
     val workerConfig = rememberSaveable(stateSaver = ReportWorkerConfigSaver) { mutableStateOf(ReportWorkerConfig()) }
     val pendingReportType = rememberSaveable { mutableStateOf(ReportType.CLASSIC) }
     val screenScope = rememberCoroutineScope()
+    val selectionRowParams = rememberSaveable(stateSaver = StringListMapSaver) { mutableStateOf<Map<String, List<String>>>(emptyMap()) }
+    val modelSelectionPicks = com.ai.ui.report.start.rememberModelSelectionPicks()
     return remember {
         ReportsScreenState(
         openMetaResultId,
@@ -407,7 +417,9 @@ internal fun rememberReportsScreenState(initialModels: List<ReportModel>, skipMo
         showSelectWorkers,
         workerConfig,
         pendingReportType,
-        screenScope
+        screenScope,
+        selectionRowParams = selectionRowParams,
+        modelSelectionPicks = modelSelectionPicks
         )
     }
 }

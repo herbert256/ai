@@ -278,3 +278,9 @@ internal val ReportWorkerConfigSaver: Saver<ReportWorkerConfig, Any> = listSaver
 
 // ===== Navigation Wrapper =====
 
+/** Saver for a `Map<String, List<String>>` (the per-row parameter presets on
+ *  "Report - select models"): flattened to [key, ArrayList(values), …]. */
+internal val StringListMapSaver: Saver<Map<String, List<String>>, Any> = listSaver(
+    save = { m -> m.flatMap { (k, v) -> listOf(k, ArrayList(v)) } },
+    restore = { l -> l.chunked(2).associate { (k, v) -> k as String to (v as List<*>).map { it as String } } }
+)

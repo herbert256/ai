@@ -61,7 +61,11 @@ import kotlinx.coroutines.withContext
 internal fun ReportSelectFromReportOverlay(
     aiSettings: Settings,
     onClose: () -> Unit,
-    onCommit: (List<ReportModel>) -> Unit
+    onCommit: (List<ReportModel>) -> Unit,
+    /** False while a NEW report is being assembled: opening another report
+     *  replaces the screen's current report and drops the in-progress
+     *  prompt / selection. */
+    allowOpenReports: Boolean = true
 ) {
     val rowIcons = com.ai.ui.shared.LocalReportListIconBundle.current
     val onNavigateHome = com.ai.ui.shared.LocalNavigateHome.current
@@ -72,7 +76,11 @@ internal fun ReportSelectFromReportOverlay(
             // entry when the agent has been deleted since the
             // report ran.
             val copied = report.agents.mapNotNull { ra ->
-                val savedAgent = aiSettings.getAgentById(ra.agentId)
+                // Only while the agent still runs the model the report ran —
+                // an agent re-pointed since would copy its CURRENT model.
+                val savedAgent = aiSettings.getAgentById(ra.agentId)?.takeIf {
+                    it.provider.id == ra.provider && aiSettings.getEffectiveModelForAgent(it) == ra.model
+                }
                 if (savedAgent != null) expandAgentToModel(savedAgent, aiSettings)
                 // Skip inactive providers on the deleted-agent fallback too —
                 // expandAgentToModel already drops them, so without this the
@@ -90,14 +98,14 @@ internal fun ReportSelectFromReportOverlay(
         // Per-row 🔧 / 👁 jump to the referenced report — close the
         // picker first so back from the destination pops to the
         // +Report flow's surrounding screen, not the picker overlay.
-        onOpenReportManage = { rid ->
+        onOpenReportManage = if (allowOpenReports) { rid ->
             onClose()
             rowIcons.onOpenManage(rid)
-        },
-        onOpenReportView = { rid ->
+        } else null,
+        onOpenReportView = if (allowOpenReports) { rid ->
             onClose()
             rowIcons.onOpenView(rid)
-        }
+        } else null
     )
 }
 
@@ -120,7 +128,8 @@ internal fun SelectionOverlayDialogs(
     onNavigateToAgentsEdit: () -> Unit,
     onNavigateToSwarmsEdit: () -> Unit,
     onNavigateHome: () -> Unit,
-    onRecordRecentReportModel: (String, String) -> Unit
+    onRecordRecentReportModel: (String, String) -> Unit,
+    allowOpenReports: Boolean = true
 ): Boolean {
     var models by st.models
     var findIconsModels by st.findIconsModels
@@ -232,7 +241,8 @@ internal fun SelectionOverlayDialogs(
         ReportSelectFromReportOverlay(
             aiSettings = aiSettings,
             onClose = { showSelectFromReport = false },
-            onCommit = { copied -> addToActiveTarget(copied) }
+            onCommit = { copied -> addToActiveTarget(copied) },
+            allowOpenReports = allowOpenReports
         )
         return true
     }

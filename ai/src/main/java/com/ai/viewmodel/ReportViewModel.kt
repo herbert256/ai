@@ -182,6 +182,18 @@ enum class MetaRegenKind {
     PAIR_FAN_META
 }
 
+/** Replay counterpart of the fresh run's `externalIntent.context.expandPrompt`:
+ *  expand [report]'s captured external context values (e.g. an Eval FEN)
+ *  into this parameter set's system prompt. Replays used to send the raw
+ *  template (`@fen@`) — the live request context is long gone (or belongs
+ *  to another request). No-op when the report carries no context. */
+internal fun AgentParameters?.withReportContext(report: Report): AgentParameters? {
+    val values = report.externalContextValues?.takeIf { it.isNotEmpty() } ?: return this
+    val p = this ?: return null
+    val system = p.systemPrompt ?: return p
+    return p.copy(systemPrompt = com.ai.ui.share.ExternalReportContext(values).expandPrompt(system))
+}
+
 /** The live per-agent results map plus the report it belongs to. Agent ids
  *  are NOT unique across reports (direct-model rows are "swarm:provider:model"
  *  in every report), so a bare map can't tell report A's answer from report
@@ -446,7 +458,10 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         imageBase64: String? = null, imageMime: String? = null,
         webSearchTool: Boolean = false,
         reasoningEffort: String? = null,
-        metadataDisabled: Boolean = false
+        metadataDisabled: Boolean = false,
+        /** The new report's attached KBs (New Report's share banner) —
+         *  exactly these; anything left from an earlier flow is dropped. */
+        knowledgeBaseIds: List<String> = emptyList()
     ) {
         resetAgentResults(null)
         appViewModel.updateUiState { it.copy(
@@ -464,12 +479,15 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             // setup screen after this call, so nothing is lost.
             reportParametersIds = emptyList(),
             reportAdvancedParameters = null,
+            reportLiteralSystemPrompt = null,
             reportSystemPromptId = null,
             editModeReportId = null,
+            attachedKnowledgeBaseIds = knowledgeBaseIds,
             showGenericAgentSelection = true, showGenericReportsDialog = false,
             genericReportsProgress = 0, genericReportsTotal = 0,
             genericReportsSelectedAgents = emptySet(),
-            currentReportId = null
+            currentReportId = null,
+            reportDraftId = java.util.UUID.randomUUID().toString()
         ) }
     }
 
@@ -630,7 +648,13 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 if (latestGenerationJob == thisJob && ownsGenerationScreen()) {
                     // Back to the selection screen with everything this run
                     // consumed restored, so a retry runs the same request.
-                    appViewModel.updateUiState { it.copy(showGenericReportsDialog=false,showGenericAgentSelection=true,
+                    // Counters back to 0 = the report screen shows the selection
+                    // phase again. NOT showGenericAgentSelection: that flag is a
+                    // one-shot "New Report → go to selection" signal nobody
+                    // consumes here, so it made a LATER New Report skip its
+                    // prompt step and generate with this attempt's inputs.
+                    appViewModel.updateUiState { it.copy(showGenericReportsDialog=false,
+                        genericReportsTotal=0, genericReportsProgress=0, genericReportsSelectedAgents=emptySet(),
                         reportImageBase64=imageBase64,reportImageMime=imageMime,reportWebSearchTool=state.reportWebSearchTool,
                         reportReasoningEffort=state.reportReasoningEffort,reportMetadataDisabled=state.reportMetadataDisabled,
                         attachedKnowledgeBaseIds=state.attachedKnowledgeBaseIds,
@@ -661,7 +685,8 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                     advancedParameters = state.reportAdvancedParameters,
                     selectionParamsById = selectionParamsById,
                     reportSystemPromptId = state.reportSystemPromptId,
-                    externalSystemPrompt = externalSystemPrompt?.let { state.externalIntent.context.expandPrompt(it) }
+                    externalSystemPrompt = externalSystemPrompt?.let { state.externalIntent.context.expandPrompt(it) },
+                    externalContextValues = state.externalIntent.context.values.takeIf { it.isNotEmpty() }
                 )
             )
             val reportId = report.id
@@ -961,7 +986,8 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             resultId = reportAgent.agentId,
             reportAgent = reportAgent.copy(reportStatus = ReportStatus.PENDING),
             runtimeAgent = runtimeAgent,
-            resolvedParams = reportAgent.pendingExecutionConfig?.parameters ?: reportAgent.executionConfig?.parameters ?: task.resolvedParams
+            resolvedParams = reportAgent.pendingExecutionConfig?.parameters ?: reportAgent.executionConfig?.parameters
+                ?: task.resolvedParams.withReportContext(report)!!
         )
     }
 
@@ -1118,7 +1144,11 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 val question = appViewModel.repository.resolveReportPrompt(aiPrompt, task.runtimeAgent)
                 val prompt = storedReport.knowledgeContext?.takeIf { it.isNotBlank() }?.let { "$it\n\n$question" } ?: question
                 saved.copy(prompt = prompt, refreshPrompt = false, capturedAt = System.currentTimeMillis())
-            } else if (isRegeneration) saved else storedReport.knowledgeContext?.takeIf { it.isNotBlank() }
+            // A regeneration reuses the prompt of a real earlier attempt, which
+            // already carries the KB passages (beginAgentAttempt saved it). An
+            // agent that never started (retrieval failed / stranded) still has
+            // the bare question saved — Retry failed sent it without the KB.
+            } else if (isRegeneration && previous.attemptId != null) saved else storedReport.knowledgeContext?.takeIf { it.isNotBlank() }
                 ?.let { saved.copy(prompt="$it\n\n${saved.prompt}") } ?: saved
         } ?: run {
             val params = appViewModel.repository.effectiveReportParameters(task.resolvedParams, overrideParams,
@@ -1351,7 +1381,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 val baseOverride = resolveReportOverrideParams(
                     ai, report.parameterPresetIds, report.advancedParameters,
                     report.webSearchTool, report.reasoningEffort, report.reportSystemPromptId
-                )
+                ).withReportContext(report)
                 val gatedOverride = (baseOverride ?: AgentParameters()).copy(
                     webSearchTool = (baseOverride?.webSearchTool == true || report.webSearchTool) && canWeb,
                     reasoningEffort = if (canReason) baseOverride?.reasoningEffort else null
@@ -1537,7 +1567,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 val baseOverride = resolveReportOverrideParams(
                     ai, report.parameterPresetIds, report.advancedParameters,
                     report.webSearchTool, report.reasoningEffort, report.reportSystemPromptId
-                )
+                ).withReportContext(report)
                 val baseNoReasoningOverride = (baseOverride ?: AgentParameters()).copy(
                     webSearchTool = (baseOverride?.webSearchTool == true || report.webSearchTool) && canWeb,
                     reasoningEffort = null
@@ -1723,7 +1753,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 val baseOverride = resolveReportOverrideParams(
                     ai, report.parameterPresetIds, report.advancedParameters,
                     report.webSearchTool, report.reasoningEffort, report.reportSystemPromptId
-                )
+                ).withReportContext(report)
                 val webOverride = (baseOverride ?: AgentParameters()).copy(
                     webSearchTool = true,
                     reasoningEffort = if (canReason) baseOverride?.reasoningEffort else null
@@ -1905,7 +1935,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 val baseOverride = resolveReportOverrideParams(
                     ai, report.parameterPresetIds, report.advancedParameters,
                     report.webSearchTool, report.reasoningEffort, report.reportSystemPromptId
-                )
+                ).withReportContext(report)
                 val gatedOverride = (baseOverride ?: AgentParameters()).copy(
                     webSearchTool = (baseOverride?.webSearchTool == true || report.webSearchTool) && canWeb,
                     reasoningEffort = if (canReason) baseOverride?.reasoningEffort else null
@@ -2148,7 +2178,8 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             genericReportsSelectedAgents = emptySet(),
             currentReportId = null,
             pendingReportModels = rebuilt,
-            editModeReportId = reportId
+            editModeReportId = reportId,
+            reportDraftId = java.util.UUID.randomUUID().toString()
         ) }
     }
 
@@ -2192,7 +2223,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             previousSave?.join()
             val report = ReportStorage.getReport(context, rid) ?: return@launch
             val overlay = resolveReportOverrideParams(state.aiSettings, state.reportParametersIds,
-                state.reportAdvancedParameters, report.webSearchTool, report.reasoningEffort, state.reportSystemPromptId)
+                state.reportAdvancedParameters, report.webSearchTool, report.reasoningEffort, state.reportSystemPromptId).withReportContext(report)
             val executions = report.agents.mapNotNull { agent -> (agent.pendingExecutionConfig ?: agent.executionConfig)?.let { saved ->
                 // Older reports did not retain their lower-level defaults; preserve the
                 // captured configuration rather than guessing an unrelated group.
@@ -2293,7 +2324,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             ai, agents, swarmMembers + directModels, report.selectionParamsById,
             report.externalSystemPrompt,
             state.generalSettings, directModelSids, preGenParamsActive, staged
-        )
+        ).map { it.copy(resolvedParams = it.resolvedParams.withReportContext(report)!!) }
         if (tasks.isEmpty()) {
             // Every staged entry was filtered out (orphaned agent ids /
             // unknown providers) — leaving removedIds = all agents would
@@ -2307,7 +2338,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         }
         val existingIds = report.agents.map { it.agentId }.toSet()
         val overlay = resolveReportOverrideParams(ai, report.parameterPresetIds, report.advancedParameters,
-            report.webSearchTool, report.reasoningEffort, report.reportSystemPromptId)
+            report.webSearchTool, report.reasoningEffort, report.reportSystemPromptId).withReportContext(report)
         val newAgents = tasks.filter { it.resultId !in existingIds }.map { task ->
             task.reportAgent.copy(executionConfig = com.ai.data.ReportExecutionConfig(
                 appViewModel.repository.mergeParameters(task.resolvedParams, overlay),
@@ -2651,7 +2682,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 val overrideParams = resolveReportOverrideParams(
                     ai, report.parameterPresetIds, report.advancedParameters,
                     report.webSearchTool, report.reasoningEffort, report.reportSystemPromptId
-                )
+                ).withReportContext(report)
                 interleaveByHost(tasks) { providerHost(it.runtimeAgent.provider) }.chunked(64).forEach { window ->
                 coroutineScope {
                     window.map { task ->
@@ -2872,6 +2903,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             genericPromptText = report.prompt,
             reportParametersIds = report.parameterPresetIds,
             reportAdvancedParameters = report.advancedParameters,
+            reportLiteralSystemPrompt = null,
             reportSystemPromptId = report.reportSystemPromptId,
             showGenericReportsDialog = true
         ) }
@@ -2931,15 +2963,21 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         // own when the job ends or is cancelled — no manual clear here.
         resetAgentResults(null)
         appViewModel.updateUiState { it.copy(
-            showGenericReportsDialog = false, genericPromptTitle = "", genericPromptTitleLong = "", genericPromptText = "",
+            showGenericReportsDialog = false, showGenericAgentSelection = false,
+            // A staged image that never generated must not ride into the
+            // next report (New Report seeds its attachment from these).
+            reportImageBase64 = null, reportImageMime = null,
+            genericPromptTitle = "", genericPromptTitleLong = "", genericPromptText = "",
             genericReportsProgress = 0, genericReportsTotal = 0,
             genericReportsSelectedAgents = emptySet(),
             currentReportId = null, reportAdvancedParameters = null,
+            reportLiteralSystemPrompt = null,
             reportParametersIds = emptyList(),
             reportSystemPromptId = null,
             stagedReportModels = emptyList(), editModeReportId = null,
             pendingReportModels = emptyList(),
             attachedKnowledgeBaseIds = emptyList(),
+            reportDraftId = null,
             hasPendingPromptChange = false, hasPendingParametersChange = false,
             stagedChangesReportId = null
         ) }
@@ -3072,7 +3110,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             val baseOverride = resolveReportOverrideParams(
                 aiSettings, report.parameterPresetIds, report.advancedParameters,
                 webSearchTool = false, reasoningEffort = null, reportSystemPromptId = report.reportSystemPromptId
-            )
+            ).withReportContext(report)
             // The "off" branches must always materialise an override so
             // the dispatcher receives an explicit webSearchTool=false /
             // reasoningEffort=null and won't fall back to the agent's

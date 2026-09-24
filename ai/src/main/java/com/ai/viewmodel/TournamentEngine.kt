@@ -553,7 +553,8 @@ class TournamentEngine internal constructor(
             PendingMatch(a, b, m.orientation, row)
         }
         if (pending.isEmpty()) return
-        withTracerTags(reportId = runKey, category = "after/tournament") {
+        // runId: rerun traces / HTTP stats attribute to the run.
+        withTracerTags(reportId = runKey, category = "after/tournament", runId = run.runId) {
             dispatchMatches(context, runKey, prompt, report.prompt, report.title, pending, workerScheduleFor(report), _runs.value[runKey]?.runParams)
         }
     }

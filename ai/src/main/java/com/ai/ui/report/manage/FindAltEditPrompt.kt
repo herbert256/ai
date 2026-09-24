@@ -121,7 +121,7 @@ internal fun FindAltPromptEditorScreen(
         Spacer(modifier = Modifier.height(12.dp))
         OutlinedButton(
             onClick = {
-                onNext(AltEditPayload(resolved.promptId, text, resolved.subs))
+                onNext(AltEditPayload(resolved.promptId, text, resolved.subs, original = resolved.resolved))
             },
             enabled = text.isNotBlank(),
             modifier = Modifier.fillMaxWidth(),

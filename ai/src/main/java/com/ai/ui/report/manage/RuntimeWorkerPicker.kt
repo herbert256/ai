@@ -69,6 +69,9 @@ internal fun routeSecondaryPromptLaunch(
                 st.showFanOutPicker.value = false
                 st.pendingSecondaryScope.value = com.ai.data.SecondaryScope.AllReports
                 st.pendingLanguageScope.value = com.ai.data.SecondaryLanguageScope.AllPresent
+                // The scope screen owns "let models respond to themselves" —
+                // skipped, it must not inherit an earlier fan-out's choice.
+                st.fanOutSelfRespond.value = false
                 advanceAfterScope(st, prompt, cfg.secondResultRuntimeParams)
             }
         }

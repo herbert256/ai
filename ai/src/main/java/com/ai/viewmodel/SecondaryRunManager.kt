@@ -1034,7 +1034,8 @@ class SecondaryRunManager(
                     if (placeholder.executionConfig != null && kind == SecondaryKind.META) {
                         executeSecondaryTask(context,reportId,kind,metaPrompt,provider,model,placeholder.executionConfig.prompt,
                             aiSettings,report,targetLanguage=lang,targetLanguageNative=langNative,
-                            fanInOf=placeholder.fanInOf,existingPlaceholder=clearedPlaceholder,scopeEncoded=placeholder.secondaryScope)
+                            fanInOf=placeholder.fanInOf,existingPlaceholder=clearedPlaceholder,scopeEncoded=placeholder.secondaryScope,
+                            paramsIds=placeholder.secondaryParameterPresetIds.orEmpty(),systemPromptId=placeholder.secondarySystemPromptId)
                         return@withTracerTags
                     }
                     if (placeholder.fanInOf != null) {
@@ -1072,7 +1073,11 @@ class SecondaryRunManager(
                             targetLanguageNative = langNative ?: resolution.languageNative,
                             fanInOf = placeholder.fanInOf,
                             existingPlaceholder = placeholder,
-                            scopeEncoded = placeholder.secondaryScope
+                            scopeEncoded = placeholder.secondaryScope,
+                            // The row's own 🌡️ / 🎭 picks — a resume of a row
+                            // interrupted before dispatch fell back to defaults.
+                            paramsIds = placeholder.secondaryParameterPresetIds.orEmpty(),
+                            systemPromptId = placeholder.secondarySystemPromptId
                         )
                         return@withTracerTags
                     }
@@ -1120,7 +1125,9 @@ class SecondaryRunManager(
                         provider, model, resolvedPrompt, aiSettings, report,
                         lang, langNative, referenceLegend,
                         existingPlaceholder = refreshedPlaceholder,
-                        scopeEncoded = placeholder.secondaryScope
+                        scopeEncoded = placeholder.secondaryScope,
+                        paramsIds = placeholder.secondaryParameterPresetIds.orEmpty(),
+                        systemPromptId = placeholder.secondarySystemPromptId
                     )
                 }
             } catch (e: kotlinx.coroutines.CancellationException) {

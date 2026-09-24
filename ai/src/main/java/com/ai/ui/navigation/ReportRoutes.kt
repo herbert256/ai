@@ -355,12 +355,27 @@ internal fun NavGraphBuilder.reportRoutes(
             // context would otherwise reach this report's models). External
             // "prefill" requests use AI_NEW_REPORT_WITH_PARAMS, not this route.
             LaunchedEffect(Unit) { appViewModel.clearExternalInstructions() }
+            DropStaleShareStaging(appViewModel)
             NewReportScreen(viewModel = appViewModel, reportViewModel = reportViewModel,
                 onNavigateBack = safePopBack, onNavigateHome = navigateHome,
                 onNavigateToReports = { navController.navigate(NavRoutes.aiReports()) },
                 onNavigateToTraceFile = { navController.navigate(NavRoutes.traceDetail(it)) })
         }
-        composable(NavRoutes.AI_NEW_REPORT_WITH_PARAMS) { entry ->
+        composable(
+            NavRoutes.AI_NEW_REPORT_WITH_PARAMS,
+            arguments = listOf(
+                navArgument("ext") { type = NavType.BoolType; defaultValue = false },
+                navArgument("share") { type = NavType.BoolType; defaultValue = false }
+            )
+        ) { entry ->
+            // Share-to-report, prompt history and examples use this route too:
+            // only an external prefill (ext) may carry an external request's
+            // system prompt / context. Drop one left over from an abandoned
+            // request, or it reached every model without its own system prompt.
+            if (entry.arguments?.getBoolean("ext") != true) {
+                LaunchedEffect(Unit) { appViewModel.clearExternalInstructions() }
+            }
+            if (entry.arguments?.getBoolean("share") != true) DropStaleShareStaging(appViewModel)
             // Navigation Compose already decodes path-segment arguments once
             // (NavDeepLink.getMatchingPathArguments calls Uri.decode() before
             // populating this Bundle) — decoding again here double-decoded a
@@ -372,7 +387,9 @@ internal fun NavGraphBuilder.reportRoutes(
                 onNavigateBack = safePopBack, onNavigateHome = navigateHome,
                 onNavigateToReports = { navController.navigate(NavRoutes.aiReports()) },
                 onNavigateToTraceFile = { navController.navigate(NavRoutes.traceDetail(it)) },
-                initialTitle = title, initialPrompt = prompt)
+                initialTitle = title, initialPrompt = prompt,
+                restoreDraft = false,
+                saveDraft = entry.arguments?.getBoolean("ext") != true)
         }
         composable(
             NavRoutes.AI_REPORTS,
@@ -860,4 +877,21 @@ internal fun NavGraphBuilder.reportRoutes(
                 }
             }
         }
+}
+
+/** Once per New Report nav entry that did NOT come from the share target:
+ *  drop image / file staging an abandoned share left behind (Home skips the
+ *  screen's Back drain), or it attached to this unrelated report. Once —
+ *  not on return from a Help / trace hop, where the staging holds this
+ *  screen's own attached image. Synchronous, so the screen seeds from the
+ *  cleared state on its first composition. */
+@Composable
+private fun DropStaleShareStaging(appViewModel: AppViewModel) {
+    val done = androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
+    if (!done.value) {
+        done.value = true
+        appViewModel.updateUiState { it.copy(
+            reportImageBase64 = null, reportImageMime = null, pendingReportKnowledgeUris = emptyList()
+        ) }
+    }
 }

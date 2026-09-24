@@ -211,6 +211,7 @@ internal fun ReportIconFlowOverlays(
                 autoDispatchModels = autoModels,
                 genericPromptText = uiState.genericPromptText,
                 targetTitleFor = st.findTitlesFor.value,
+                picks = st.modelSelectionPicks,
                 onStartTitleFanOut = { target, models, pIds, spId ->
                     if (target == "report") {
                         onStartReportTitleFanOut(currentReportId, uiState.genericPromptText, models, st.findTitlesLong.value, pIds, spId)
@@ -272,6 +273,10 @@ internal fun ReportIconFlowOverlays(
                     st.findTitlesFor.value = null
                     st.findTitlesLong.value = false
                     st.pairTitleDetailFor.value = null
+                    // The abandoned flow's picks + edited prompt must not
+                    // pre-fill / drive the NEXT Find-alternative flow.
+                    st.findIconsModels.value = emptyList()
+                    onStashAltEdit(null)
                     // The language-icon flags are owned by the report/
                     // language Icon-lookup detail's onClose. When that
                     // detail is NOT layered beneath this picker, backing
@@ -440,6 +445,9 @@ internal fun ReportIconFlowOverlays(
         )
         if (handled) return true
         st.agentIconDetailFor.value = null
+        // A leaked agent target turns the next report-icon Find-alternative
+        // into this agent's icon flow (altFlowFor checks it first).
+        st.fanOutTargetAgentId.value = null
     }
 
     val pairIconDetailFor = st.pairIconDetailFor.value

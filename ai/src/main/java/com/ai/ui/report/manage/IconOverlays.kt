@@ -153,7 +153,8 @@ internal fun FindIconsPickerRouter(
     onRemoveModel: (Int) -> Unit,
     onClearAll: () -> Unit,
     onConfirm: () -> Unit,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    picks: com.ai.ui.report.start.ModelSelectionPicks? = null
 ) {
     val targetPrompt = targetPromptId?.let { id ->
         internalPrompts.firstOrNull { it.id == id }
@@ -180,6 +181,9 @@ internal fun FindIconsPickerRouter(
         return
     }
     ModelSelectionScreen(
+        picks = picks,
+        picksOwner = listOf(reportId, targetTitleFor, targetPairTitleId, targetPromptId, targetLanguageIcon,
+            targetLanguage, targetPairId, targetAgentId).joinToString("|"),
         models = models,
         aiSettings = aiSettings,
         title = if (isTitleFlow) "Find titles" else "Find icons",

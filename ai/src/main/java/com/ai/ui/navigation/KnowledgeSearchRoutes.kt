@@ -191,9 +191,12 @@ internal fun NavGraphBuilder.knowledgeSearchRoutes(
         }
         composable(NavRoutes.AI_KNOWLEDGE) {
             val uiState by appViewModel.uiState.collectAsState()
+            // Leaving the list abandons the share: left queued, the files were
+            // silently imported into whichever KB was opened next, any time.
+            val dropShare = { appViewModel.updateUiState { it.copy(pendingKnowledgeUris = emptyList()) } }
             com.ai.ui.knowledge.KnowledgeListScreen(
-                onBack = safePopBack,
-                onNavigateHome = navigateHome,
+                onBack = { dropShare(); safePopBack() },
+                onNavigateHome = { dropShare(); navigateHome() },
                 onOpenKb = { kbId -> navController.navigate(NavRoutes.aiKnowledgeDetail(kbId)) },
                 onCreateKb = { navController.navigate(NavRoutes.AI_KNOWLEDGE_NEW) },
                 pendingUris = uiState.pendingKnowledgeUris,

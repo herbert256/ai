@@ -94,18 +94,22 @@ class CompareEngine internal constructor(
 
     override suspend fun redispatchRows(context: Context, runKey: CompareRunKey, rows: List<SecondaryResult>) {
         val run = _runs.value[runKey] ?: return
-        val report = ReportStorage.getReport(context, runKey) ?: return
+        val current = ReportStorage.getReport(context, runKey) ?: return
+        // The question / title the run's saved answers + meta were scored
+        // against (a rerun after a prompt edit used the NEW question), as
+        // Tournament / JudgeEval do.
+        val report = com.ai.data.ReportEvidenceStore.requireHistoricalReport(current, rows.first())
         // The report's Worker-batches mode must hold on resume / Broken-work
         // restart too — the hydrated prompt carries the CONFIGURED swarm, so
         // re-scoring without the swap would pull in foreign workers.
-        val prompt = run.comparePrompt.withBatchWorkers(report)
+        val prompt = run.comparePrompt.withBatchWorkers(current)
         val cellsById = run.cells.values.associateBy { it.id }
         val pending = rows.mapNotNull { row ->
             val c = cellsById[row.id] ?: return@mapNotNull null
             PendingCell(c.agentId, c.metaResultId, row)
         }
         if (pending.isEmpty()) return
-        withTracerTags(reportId = runKey, category = TRACE_CATEGORY) {
+        withTracerTags(reportId = runKey, category = TRACE_CATEGORY, runId = run.runId) {
             dispatchCells(context, runKey, prompt, report.prompt, report.title, pending)
         }
     }

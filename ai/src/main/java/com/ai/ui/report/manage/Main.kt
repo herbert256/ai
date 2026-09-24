@@ -27,6 +27,7 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.lifecycle.withResumed
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
@@ -371,6 +372,33 @@ fun ReportsScreen(
     val isComplete = reportsProgress >= reportsTotal && reportsTotal > 0
     val currentReportId = uiState.currentReportId
 
+    // The saved selection (models, worker config, setup flag) belongs to the
+    // draft this screen set up. After process death — or back on this screen
+    // after that draft was dismissed / replaced — UiState no longer holds it:
+    // Generate ran with an empty prompt and without the draft's image, KBs,
+    // system prompt and parameters. Leave instead. Only a screen that owned a
+    // draft can go stale, so a fresh entry awaiting a report load never does.
+    val ownedDraftState = rememberSaveable { mutableStateOf<String?>(null) }
+    val inSelection = !isGenerating && currentReportId == null
+    val liveDraft = uiState.reportDraftId
+    val ownedDraft = when {
+        // Edit-models is started from this very screen: adopt its draft.
+        inSelection && liveDraft != null && (ownedDraftState.value == null || uiState.editModeReportId != null) -> liveDraft
+        else -> ownedDraftState.value
+    }
+    SideEffect { ownedDraftState.value = ownedDraft }
+    if (inSelection && ownedDraft != null && ownedDraft != liveDraft) {
+        val lifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
+        LaunchedEffect(ownedDraft) {
+            // Only the visible entry leaves: a screen still composed during
+            // its own pop animation (after a normal dismiss cleared the draft)
+            // never resumes, so it can't pop a second entry.
+            lifecycle.withResumed { }
+            onDismiss()
+        }
+        return
+    }
+
     val iconGenEnabled = uiState.generalSettings.reportIconOn()
     val runtime = rememberReportRuntimeState(
         context = context,
@@ -689,6 +717,17 @@ fun ReportsScreen(
     var pendingSecondaryScope by st.pendingSecondaryScope
     var pendingLanguageScope by st.pendingLanguageScope
     var fanOutSelfRespond by st.fanOutSelfRespond
+    // Report-scoped launch state must not follow an in-place report switch:
+    // an armed runtime-prompt editor carries report A's meta ids / translation
+    // run and would run them against report B (Compare also replaces B's
+    // run). Reset here, before anything below reads them, so B never renders
+    // A's request.
+    val launchStateOwner = rememberSaveable { mutableStateOf(currentReportId) }
+    if (launchStateOwner.value != currentReportId) {
+        launchStateOwner.value = currentReportId
+        st.runtimePromptReq.value = null
+        fanOutSelfRespond = false
+    }
     // Fan-out confirm dialog: shown after the scope screen, before
     // kicking off N answerers × S sources calls. The user can still
     // cancel from here if the count looks too high.
@@ -887,7 +926,8 @@ fun ReportsScreen(
             onNavigateToAgentsEdit = onNavigateToAgentsEdit,
             onNavigateToSwarmsEdit = onNavigateToSwarmsEdit,
             onNavigateHome = onNavigateHome,
-            onRecordRecentReportModel = onRecordRecentReportModel
+            onRecordRecentReportModel = onRecordRecentReportModel,
+            allowOpenReports = currentReportId != null
         )
     ) return
 
@@ -1036,7 +1076,7 @@ fun ReportsScreen(
                         }
                     }
                 },
-                onBack = { secondaryScopeMetaPrompt = null },
+                onBack = { secondaryScopeMetaPrompt = null; fanOutSelfRespond = false },
                 onNavigateHome = onNavigateHome
             )
         }
@@ -1087,6 +1127,10 @@ fun ReportsScreen(
                     showFanOutPicker = false
                     pendingSecondaryScope = com.ai.data.SecondaryScope.AllReports
                     pendingLanguageScope = com.ai.data.SecondaryLanguageScope.AllPresent
+                    // One-shot like the scope: the next fan-out (any report)
+                    // starts from "off", not this run's self-respond choice.
+                    val selfRespond = fanOutSelfRespond
+                    fanOutSelfRespond = false
                     // Build stage: block behind "Preparing…" while the pairs
                     // are created, then land on the Fan Out L1 page once done.
                     val rid = currentReportId
@@ -1109,7 +1153,7 @@ fun ReportsScreen(
                         responders,
                         sourceLanguage,
                         pIds, spId,
-                        fanOutSelfRespond,
+                        selfRespond,
                         key
                     )
                 }
@@ -1134,6 +1178,7 @@ fun ReportsScreen(
             }
             val scope = pendingSecondaryScope
             val selfRespond = fanOutSelfRespond
+            fanOutSelfRespond = false
             // Clear the whole fan-out launch stack before dispatch so a
             // double-fire can't re-enter and back lands on main.
             fanOutDirectRunPrompt = null
@@ -1761,6 +1806,8 @@ fun ReportsScreen(
             com.ai.ui.shared.LocalCurrentReportIdForSwipe provides null
         ) {
             ModelSelectionScreen(
+                picks = st.modelSelectionPicks,
+                picksOwner = "translation|${altTgt.reportId}|${altTgt.runId}|${altTgt.itemId}|${altTgt.traceType}",
                 models = translationModels,
                 aiSettings = aiSettings,
                 title = "Find alternative translation",
@@ -1933,7 +1980,10 @@ fun ReportsScreen(
     // keyed by the same row ids buildReportTasks resolves
     // (agent id / "swarm:provider:model"); threaded into
     // generateGenericReports as selectionParamsById.
-    var selectionRowParams by remember { mutableStateOf(mapOf<String, List<String>>()) }
+    // Hoisted into the screen state (saveable): the +Add sub-pickers are
+    // early-return overlays above and unmounted a plain remember here, so the
+    // picks were silently dropped and the run fired with defaults.
+    var selectionRowParams by st.selectionRowParams
     var rowParamsPickerFor by remember { mutableStateOf<String?>(null) }
     if (!isGenerating) {
         if (st.showSelectWorkers.value) {
@@ -1947,6 +1997,9 @@ fun ReportsScreen(
                 onGenerate = {
                     st.showSelectWorkers.value = false
                     onGenerate(models, selectedParametersIds, st.pendingReportType.value, st.workerConfig.value, selectionRowParams)
+                    // Consumed: row ids repeat across reports, so a later
+                    // selection on this screen must not inherit them.
+                    selectionRowParams = emptyMap()
                 },
                 onSave = null,
                 onDismiss = { st.showSelectWorkers.value = false },

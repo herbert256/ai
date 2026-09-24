@@ -105,6 +105,12 @@ data class AltEditPayload(
     val promptId: String,
     val edited: String,
     val subs: List<Pair<String, String>>,
+    /** The resolved text the editor opened with — Next without an edit
+     *  must not re-save the template (the re-abstraction bakes this run's
+     *  language / values into it when a marker occurs more than once). */
+    val original: String = edited,
+    /** The report the edit was made on (null = report-less flow). */
+    val reportId: String? = null,
 )
 
 /** The category=="alt" internal-prompt name a find-alternative [flow] composes
@@ -240,10 +246,15 @@ class IconGenerationManager(
     /** Take the stashed edit (if any), clear it, and kick off a
      *  best-effort persist back to the template. Called once at the top
      *  of every start*FanOut. */
-    internal fun consumeAltEdit(): AltEditPayload? {
+    internal fun consumeAltEdit(promptId: String?, reportId: String?): AltEditPayload? {
         val e = pendingAltEdit
         pendingAltEdit = null
-        e?.let { persistAltEdit(it) }
+        // Only the flow the edit was made for may use it: a stash left behind
+        // by an abandoned picker must not become another prompt's — or
+        // another report's — request text.
+        if (e == null || e.promptId != promptId ||
+            (e.reportId != null && reportId != null && e.reportId != reportId)) return null
+        if (e.edited != e.original) persistAltEdit(e)
         return e
     }
 
@@ -326,9 +337,10 @@ class IconGenerationManager(
         // longer one doesn't grab the wrong span.
         for ((marker, value) in subs.sortedByDescending { it.second.length }) {
             if (value.isBlank()) return null
-            val idx = t.indexOf(value)
-            if (idx < 0) return null
-            t = t.substring(0, idx) + marker + t.substring(idx + value.length)
+            if (!t.contains(value)) return null
+            // Every occurrence: a marker used twice (e.g. @LANGUAGE@) would
+            // otherwise keep this run's value hard-coded in the template.
+            t = t.replace(value, marker)
         }
         // Faithfulness check: re-resolving (in the original apply order)
         // must reproduce the edited text exactly.
@@ -1301,7 +1313,7 @@ class IconGenerationManager(
         }
         val unique = models.distinctBy { "${it.provider.id}:${it.model}" }
         if (unique.isEmpty()) return
-        val altEdit = consumeAltEdit()
+        val altEdit = consumeAltEdit(altPrompt.id, reportId)
         val resolved = altEdit?.edited ?: altPrompt.text
             .replace("@NAME@", prompt.name)
             .replace("@TITLE@", prompt.title)
@@ -1529,7 +1541,7 @@ class IconGenerationManager(
         }
         val unique = models.distinctBy { "${it.provider.id}:${it.model}" }
         if (unique.isEmpty()) return
-        val altEdit = consumeAltEdit()
+        val altEdit = consumeAltEdit(altPrompt.id, reportId)
         appViewModel.updatePairIconFanOut(pairId) {
             unique.map { IconCandidate.Running(it.provider, it.model) }
         }
@@ -1717,7 +1729,7 @@ class IconGenerationManager(
         }
         val unique = models.distinctBy { "${it.provider.id}:${it.model}" }
         if (unique.isEmpty()) return
-        val altEdit = consumeAltEdit()
+        val altEdit = consumeAltEdit(altPrompt.id, reportId)
         appViewModel.updatePairTitleFanOut(pairId) {
             unique.map { TitleCandidate.Running(it.provider, it.model) }
         }
@@ -1947,7 +1959,7 @@ class IconGenerationManager(
         }
         val unique = models.distinctBy { "${it.provider.id}:${it.model}" }
         if (unique.isEmpty()) return
-        val resolved = consumeAltEdit()?.edited ?: altPrompt.text.replace("@LANGUAGE@", language)
+        val resolved = consumeAltEdit(altPrompt.id, reportId)?.edited ?: altPrompt.text.replace("@LANGUAGE@", language)
         val key = translationIconKey(language)
         // Resolve the SecondaryResult that owns the per-row alt-cost
         // attribution for this (report, language) pair — the first
@@ -2137,7 +2149,7 @@ class IconGenerationManager(
         val unique = models.distinctBy { "${it.provider.id}:${it.model}" }
         if (unique.isEmpty()) return
         val request = buildMetadataRequest(
-            consumeAltEdit()?.edited ?: altPrompt.text, MetadataTask.REPORT_ICON,
+            consumeAltEdit(altPrompt.id, reportId)?.edited ?: altPrompt.text, MetadataTask.REPORT_ICON,
             "@PROMPT@" to (ReportStorage.getReport(context, reportId)?.prompt ?: promptText)
         )
         // Pre-populate Running rows so the Alternative icons screen
@@ -2304,7 +2316,7 @@ class IconGenerationManager(
         val unique = models.distinctBy { "${it.provider.id}:${it.model}" }
         if (unique.isEmpty()) return
         val request = buildMetadataRequest(
-            consumeAltEdit()?.edited ?: altPrompt.text, MetadataTask.REPORT_TITLE,
+            consumeAltEdit(altPrompt.id, reportId)?.edited ?: altPrompt.text, MetadataTask.REPORT_TITLE,
             "@PROMPT@" to (ReportStorage.getReport(context, reportId)?.prompt ?: promptText)
         )
         appViewModel.updateReportTitleFanOut(reportId) { unique.map { TitleCandidate.Running(it.provider, it.model) } }
@@ -2326,7 +2338,7 @@ class IconGenerationManager(
         } ?: return
         val unique = models.distinctBy { "${it.provider.id}:${it.model}" }
         if (unique.isEmpty()) return
-        val altEdit = consumeAltEdit()
+        val altEdit = consumeAltEdit(altPrompt.id, reportId)
         appViewModel.updateAgentTitleFanOut(reportId, agentId) { unique.map { TitleCandidate.Running(it.provider, it.model) } }
         val outer = appViewModel.viewModelScope.launch(rvm.reportLogContext()) {
             // Clear the pre-inserted ⏳ candidates if the target vanished (see
@@ -2497,7 +2509,7 @@ class IconGenerationManager(
         @Suppress("UNUSED_VARIABLE") val _unusedPrompt = promptText
         val unique = models.distinctBy { "${it.provider.id}:${it.model}" }
         if (unique.isEmpty()) return
-        val resolved = consumeAltEdit()?.edited ?: altLanguagePrompt.text.replace("@LANGUAGE@", languageName)
+        val resolved = consumeAltEdit(altLanguagePrompt.id, reportId)?.edited ?: altLanguagePrompt.text.replace("@LANGUAGE@", languageName)
         appViewModel.updateLanguageIconFanOut(reportId) {
             unique.map { IconCandidate.Running(it.provider, it.model) }
         }
@@ -2638,7 +2650,7 @@ class IconGenerationManager(
         }
         val unique = models.distinctBy { "${it.provider.id}:${it.model}" }
         if (unique.isEmpty()) return
-        val altEdit = consumeAltEdit()
+        val altEdit = consumeAltEdit(altPrompt.id, reportId)
         appViewModel.updateAgentIconFanOut(reportId, agentId) {
             unique.map { IconCandidate.Running(it.provider, it.model) }
         }

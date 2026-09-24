@@ -75,7 +75,9 @@ internal fun NavGraphBuilder.chatRoutes(
                     // ChatSessionScreen seeds attachedImage from
                     // these UiState fields on first composition and
                     // clears them via onConsumeStarter.
-                    appViewModel.updateUiState { it.copy(chatStarterImageBase64 = b64, chatStarterImageMime = mime) }
+                    // Text too: a draft left staged by an earlier flow must not
+                    // ride along with this photo.
+                    appViewModel.updateUiState { it.copy(chatStarterText = null, chatStarterImageBase64 = b64, chatStarterImageMime = mime) }
                     navController.navigate(NavRoutes.AI_CHAT_PROVIDER)
                 })
         }
@@ -93,6 +95,11 @@ internal fun NavGraphBuilder.chatRoutes(
             val uiState by appViewModel.uiState.collectAsState()
             val agent = remember(agentId, uiState.aiSettings.agents) { uiState.aiSettings.agents.find { it.id == agentId } }
 
+            // A staged starter belongs to a chat reached through the picker it
+            // was staged for; any other way in (Model Info → Start chat, …)
+            // drops a leftover one instead of sending it to this chat.
+            val starterApplies = remember(entry) { chatStarterPickerOnStack(navController) }
+            LaunchedEffect(entry) { if (!starterApplies) clearChatStarter(appViewModel) }
             if (agent != null) {
                 val resolvedParams = uiState.aiSettings.resolveAgentParameters(agent)
                 val chatParams = resolvedParams.toChatParameters()
@@ -112,10 +119,10 @@ internal fun NavGraphBuilder.chatRoutes(
                     repository = appViewModel.repository,
                     isVisionCapable = uiState.aiSettings.isVisionCapable(agent.provider, effectiveModel),
                     onNavigateToTraceFile = { navController.navigate(NavRoutes.traceDetail(it)) },
-                    initialUserInput = uiState.chatStarterText?.takeIf { it.isNotBlank() }
+                    initialUserInput = uiState.chatStarterText?.takeIf { starterApplies && it.isNotBlank() }
                         ?: uiState.aiSettings.resolveDefaultPrompt(agent.id)?.prompt,
-                    initialUserImageBase64 = uiState.chatStarterImageBase64,
-                    initialUserImageMime = uiState.chatStarterImageMime,
+                    initialUserImageBase64 = uiState.chatStarterImageBase64?.takeIf { starterApplies },
+                    initialUserImageMime = uiState.chatStarterImageMime?.takeIf { starterApplies },
                     onConsumeStarter = {
                         appViewModel.updateUiState {
                             it.copy(
@@ -186,6 +193,9 @@ internal fun NavGraphBuilder.chatRoutes(
                         handle["chatParams"] = com.ai.data.createAppGson().toJson(it)
                     }
             }
+            // Same starter rule as the agent chat above.
+            val starterApplies = remember(entry) { chatStarterPickerOnStack(navController) }
+            LaunchedEffect(entry) { if (!starterApplies) clearChatStarter(appViewModel) }
             if (provider != null) {
                 val apiKey = uiState.aiSettings.getApiKey(provider)
                 val isLocal = provider.id == AppService.LOCAL.id
@@ -204,9 +214,9 @@ internal fun NavGraphBuilder.chatRoutes(
                     repository = appViewModel.repository,
                     isVisionCapable = !isLocal && uiState.aiSettings.isVisionCapable(provider, model),
                     onNavigateToTraceFile = { navController.navigate(NavRoutes.traceDetail(it)) },
-                    initialUserInput = uiState.chatStarterText,
-                    initialUserImageBase64 = uiState.chatStarterImageBase64,
-                    initialUserImageMime = uiState.chatStarterImageMime,
+                    initialUserInput = uiState.chatStarterText?.takeIf { starterApplies },
+                    initialUserImageBase64 = uiState.chatStarterImageBase64?.takeIf { starterApplies },
+                    initialUserImageMime = uiState.chatStarterImageMime?.takeIf { starterApplies },
                     onConsumeStarter = {
                         appViewModel.updateUiState {
                             it.copy(
@@ -292,3 +302,12 @@ private fun clearChatStarter(appViewModel: AppViewModel) {
         it.copy(chatStarterText = null, chatStarterImageBase64 = null, chatStarterImageMime = null)
     }
 }
+
+/** Is one of the pickers that chat starters are staged for (agent picker /
+ *  configure-on-the-fly model picker) on the back stack? Every staging flow
+ *  (share-to-chat, Start with photo, continue-in-chat, chat with report
+ *  prompt) routes through one of them. */
+private fun chatStarterPickerOnStack(navController: NavHostController): Boolean =
+    listOf(NavRoutes.AI_CHAT_PROVIDER, NavRoutes.AI_CHAT_AGENT_SELECT).any { route ->
+        runCatching { navController.getBackStackEntry(route) }.isSuccess
+    }

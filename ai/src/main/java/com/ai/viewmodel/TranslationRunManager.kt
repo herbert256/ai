@@ -643,7 +643,7 @@ class TranslationRunManager(
         val rawTemplate = prompt?.text?.takeIf { it.isNotBlank() }
             ?: if (isTitleKind) DEFAULT_TRANSLATE_TITLE_TEMPLATE else ""
         if (rawTemplate.isBlank()) return
-        val template = rvm.iconGen.consumeAltEdit()?.edited ?: rawTemplate
+        val template = rvm.iconGen.consumeAltEdit(prompt?.id, reportId)?.edited ?: rawTemplate
         val request = buildTranslationRequest(template, targetLanguageName, sourceText)
         val key = altTranslationKey(reportId, runId, itemId)
         appViewModel.updateAltTranslationFanOut(key) { unique.map { TranslationCandidate.Running(it.provider, it.model) } }

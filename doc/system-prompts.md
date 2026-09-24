@@ -97,6 +97,14 @@ in the resolved system prompt are replaced with named entries from its
 external `system` extra. The saved system template remains unchanged; the
 expanded text is captured in the report's execution parameters. See
 [custom-intent.md](custom-intent.md#prompt-placeholders).
+The request's context values are persisted as `Report.externalContextValues`,
+so replays that re-resolve the report-level overrides
+(`resolveReportOverrideParams(...).withReportContext(report)`) expand the same
+placeholders instead of sending the raw `@name@` template.
+
+A literal `<system>` instruction tag is held in `UiState.reportLiteralSystemPrompt`
+and folded into `reportAdvancedParameters.systemPrompt`; changing the
+Parameters preset on the setup screen re-applies it rather than dropping it.
 
 `<system>Name</system>` in those instructions selects a saved system prompt
 as the report-level override. If no saved definition resolves (including an

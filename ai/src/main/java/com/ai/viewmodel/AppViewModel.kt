@@ -1418,10 +1418,26 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         updateSettings(base)   // publish + persist the toggle now (off-main save)
         infoProviderRecomputeJob?.cancel()
         infoProviderRecomputeJob = viewModelScope.launch(Dispatchers.IO) {
-            val recomputed = base.recomputeAllCapabilities()
-            com.ai.model.SettingsHolder.current = recomputed
-            _uiState.update { it.copy(aiSettings = recomputed) }
-            settingsPrefs.saveSettings(recomputed)
+            // Recompute from the CURRENT settings and publish only when
+            // nothing changed meanwhile (as recomputeRefreshedCapabilities
+            // does): publishing a snapshot derived from `base` wiped — and
+            // persisted the loss of — any agent / key / prompt edit made
+            // during the multi-second catalog scan.
+            while (true) {
+                val current = _uiState.value.aiSettings
+                val recomputed = current.recomputeAllCapabilities()
+                var applied = false
+                _uiState.update { state ->
+                    applied = state.aiSettings === current
+                    if (applied) state.copy(aiSettings = recomputed) else state
+                }
+                if (applied) {
+                    com.ai.model.SettingsHolder.current = recomputed
+                    settingsPrefs.saveSettings(recomputed)
+                    break
+                }
+                kotlinx.coroutines.currentCoroutineContext().ensureActive()
+            }
         }
     }
 
@@ -2368,12 +2384,26 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setChatParameters(params: ChatParameters) { _uiState.update { it.copy(chatParameters = params) } }
     fun setDualChatConfig(config: DualChatConfig?) { _uiState.update { it.copy(dualChatConfig = config) } }
-    fun setReportAdvancedParameters(params: AgentParameters?) { _uiState.update { it.copy(reportAdvancedParameters = params) } }
+    fun setReportAdvancedParameters(params: AgentParameters?) {
+        _uiState.update { it.copy(reportAdvancedParameters = params,
+            // An edit that removes / changes the literal system prompt wins.
+            reportLiteralSystemPrompt = it.reportLiteralSystemPrompt?.takeIf { lit -> params?.systemPrompt == lit }) }
+    }
     /** Set the report-level Parameters preset ids and resolve them into
      *  the pre-gen override so generation honours them through the
      *  existing [reportAdvancedParameters] path. Empty → clears both. */
     fun setReportParametersIds(ids: List<String>) {
-        _uiState.update { it.copy(reportParametersIds = ids, reportAdvancedParameters = it.aiSettings.mergeParameters(ids)) }
+        _uiState.update {
+            val merged = it.aiSettings.mergeParameters(ids)
+            it.copy(reportParametersIds = ids, reportAdvancedParameters = it.reportLiteralSystemPrompt
+                ?.let { lit -> (merged ?: AgentParameters()).copy(systemPrompt = lit) } ?: merged)
+        }
+    }
+    /** An external request's literal system prompt (report-level, same
+     *  precedence as a saved one) — survives later preset changes. */
+    fun setReportLiteralSystemPrompt(system: String) {
+        _uiState.update { it.copy(reportLiteralSystemPrompt = system,
+            reportAdvancedParameters = (it.reportAdvancedParameters ?: AgentParameters()).copy(systemPrompt = system)) }
     }
     fun setReportSystemPromptId(id: String?) { _uiState.update { it.copy(reportSystemPromptId = id) } }
 

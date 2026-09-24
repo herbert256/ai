@@ -24,6 +24,25 @@ import com.ai.ui.shared.TitleBar
 import com.ai.ui.shared.modelInfoClickable
 import com.ai.viewmodel.IconCandidate
 
+/** The 🌡️ / 🎭 per-launch picks of a [ModelSelectionScreen]. Callers whose
+ *  +Add sub-pickers are early-return overlays (they unmount the screen, so a
+ *  rememberSaveable inside it resets) hoist this into their screen state.
+ *  [owner] names the flow the picks were made for — a different flow (another
+ *  target / report) starts clean instead of inheriting them. */
+class ModelSelectionPicks(
+    val owner: MutableState<String?>,
+    val paramsIds: MutableState<List<String>>,
+    val systemPromptId: MutableState<String?>,
+)
+
+@Composable
+fun rememberModelSelectionPicks(): ModelSelectionPicks {
+    val owner = rememberSaveable { mutableStateOf<String?>(null) }
+    val paramsIds = rememberSaveable { mutableStateOf<List<String>>(emptyList()) }
+    val systemPromptId = rememberSaveable { mutableStateOf<String?>(null) }
+    return remember { ModelSelectionPicks(owner, paramsIds, systemPromptId) }
+}
+
 /** Multi-model accumulator with the +Agent / +Flock / +Swarm /
  *  +Report / +Model chip row used by the New-Report SelectionPhase,
  *  but stripped of the Params / Sys-prompt / Knowledge rows. Shared
@@ -53,24 +72,37 @@ fun ModelSelectionScreen(
     /** When set, the screen shows 🌡️ / 🎭 for a per-launch Parameters /
      *  System-prompt pick and routes the action button to THIS callback
      *  (with the picked ids) instead of [onAction]. */
-    onActionWithParams: ((List<String>, String?) -> Unit)? = null
+    onActionWithParams: ((List<String>, String?) -> Unit)? = null,
+    /** Hoisted 🌡️/🎭 picks (see [ModelSelectionPicks]); null = screen-local. */
+    picks: ModelSelectionPicks? = null,
+    /** Identity of the flow the picks belong to. */
+    picksOwner: String = "",
 ) {
-    BackHandler { onBack() }
     val context = LocalContext.current
-    // rememberSaveable: every selected-model row is modelInfoClickable, and
-    // tapping one pops out to Model Info (unmounting AI_REPORTS). The hoisted
-    // model list survives that hop via ReportModelListSaver; without saving
-    // these too the 🌡️/🎭 picks were silently reset to empty on return and
-    // the run fired with defaults. (List<String>/String? are bundle-savable.)
-    var pickedParamsIds by rememberSaveable { mutableStateOf<List<String>>(emptyList()) }
-    var pickedSystemPromptId by rememberSaveable { mutableStateOf<String?>(null) }
+    // Saveable: every selected-model row is modelInfoClickable, and tapping
+    // one pops out to Model Info (unmounting AI_REPORTS). The hoisted model
+    // list survives that hop via ReportModelListSaver; without saving these
+    // too the 🌡️/🎭 picks were silently reset to empty on return and the run
+    // fired with defaults. Hoisted callers also keep them across +Add.
+    val localPicks = rememberModelSelectionPicks()
+    val holder = picks ?: localPicks
+    if (holder.owner.value != picksOwner) {
+        holder.owner.value = picksOwner
+        holder.paramsIds.value = emptyList()
+        holder.systemPromptId.value = null
+    }
+    var pickedParamsIds by holder.paramsIds
+    var pickedSystemPromptId by holder.systemPromptId
+    // Leaving (back or launch) ends the flow: its picks never seed the next.
+    val leave: () -> Unit = { holder.owner.value = null; onBack() }
+    BackHandler { leave() }
     var showSecParamsDialog by remember { mutableStateOf(false) }
     var showSecSystemPromptDialog by remember { mutableStateOf(false) }
     if (showSecParamsDialog) {
         com.ai.ui.shared.ParametersSelectScreen(
             aiSettings = aiSettings, selectedIds = pickedParamsIds,
             onConfirm = { pickedParamsIds = it },
-            onBack = { showSecParamsDialog = false }, onNavigateHome = onBack
+            onBack = { showSecParamsDialog = false }, onNavigateHome = leave
         )
         return
     }
@@ -78,13 +110,13 @@ fun ModelSelectionScreen(
         com.ai.ui.shared.SystemPromptSelectScreen(
             aiSettings = aiSettings, selectedId = pickedSystemPromptId,
             onSelect = { pickedSystemPromptId = it },
-            onBack = { showSecSystemPromptDialog = false }, onNavigateHome = onBack
+            onBack = { showSecSystemPromptDialog = false }, onNavigateHome = leave
         )
         return
     }
 
     Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
-        TitleBar(helpTopic = helpTopic, title = title, subject = subject, onBackClick = onBack,
+        TitleBar(helpTopic = helpTopic, title = title, subject = subject, onBackClick = leave,
             onClear = if (models.isNotEmpty()) onClearAll else null,
             onParameters = if (onActionWithParams != null) { { showSecParamsDialog = true } } else null,
             onSystemPrompt = if (onActionWithParams != null) { { showSecSystemPromptDialog = true } } else null)
@@ -93,7 +125,12 @@ fun ModelSelectionScreen(
         // `models.isNotEmpty()` so the empty-state still shows a
         // disabled button as a hint. Clear stays at the bottom.
         Button(
-            onClick = { if (onActionWithParams != null) onActionWithParams(pickedParamsIds, pickedSystemPromptId) else onAction() },
+            onClick = {
+                val pIds = pickedParamsIds
+                val spId = pickedSystemPromptId
+                holder.owner.value = null
+                if (onActionWithParams != null) onActionWithParams(pIds, spId) else onAction()
+            },
             enabled = models.isNotEmpty(),
             modifier = Modifier.fillMaxWidth(),
             colors = ButtonDefaults.buttonColors(containerColor = actionColor)

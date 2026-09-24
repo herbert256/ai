@@ -1066,10 +1066,11 @@ internal fun ReportSelectFromReportScreen(
      *  picked report's model list into the current selection (the
      *  +Report flow's primary action). Default no-op so callers that
      *  haven't wired the additive shortcut keep working. */
-    onOpenReportManage: (String) -> Unit = {},
+    onOpenReportManage: ((String) -> Unit)? = {},
     /** Per-row 👁 View icon target — opens the referenced report at
-     *  the View tile grid. Sibling of [onOpenReportManage]. */
-    onOpenReportView: (String) -> Unit = {}
+     *  the View tile grid. Sibling of [onOpenReportManage]. Null (either)
+     *  hides both icons. */
+    onOpenReportView: ((String) -> Unit)? = {}
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
@@ -1134,10 +1135,12 @@ internal fun ReportSelectFromReportScreen(
                         // report itself, sidestepping the picker — same
                         // affordance every other report-list renderer in
                         // the app exposes.
-                        com.ai.ui.shared.ReportRowActionIcons(
-                            onOpenManage = { onOpenReportManage(report.id) },
-                            onOpenView = { onOpenReportView(report.id) }
-                        )
+                        if (onOpenReportManage != null && onOpenReportView != null) {
+                            com.ai.ui.shared.ReportRowActionIcons(
+                                onOpenManage = { onOpenReportManage(report.id) },
+                                onOpenView = { onOpenReportView(report.id) }
+                            )
+                        }
                         Text(">", color = AppColors.InfoAccent, fontSize = 14.sp,
                             modifier = Modifier.padding(start = 8.dp))
                     }

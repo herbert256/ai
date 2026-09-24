@@ -573,6 +573,17 @@ data class UiState(
     val genericReportsSelectedAgents: Set<String> = emptySet(),
     val currentReportId: String? = null,
     val reportAdvancedParameters: AgentParameters? = null,
+    /** An external request's literal system prompt for the report being set
+     *  up. Folded into [reportAdvancedParameters].systemPrompt; kept apart
+     *  so a later Parameters-preset change (which rebuilds that overlay)
+     *  re-applies it instead of silently dropping it. */
+    val reportLiteralSystemPrompt: String? = null,
+    /** Identity of the report draft being set up — minted by
+     *  showGenericAgentSelection / prepareEditModels, cleared on dismiss. A
+     *  report screen's saved model selection belongs to one draft; when this
+     *  no longer matches (process death, an older screen after a dismiss)
+     *  the selection must not generate. */
+    val reportDraftId: String? = null,
     /** Report-level Parameters PRESET ids picked via the New-Report 🌡️
      *  "Configure API parameters" screen. Kept only so that picker can
      *  show its current selection; the chosen presets are resolved into
