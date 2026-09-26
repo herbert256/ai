@@ -428,7 +428,6 @@ private fun CompareL1(
         )
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
             Spacer(Modifier.height(8.dp))
-            com.ai.ui.shared.ReportRunEvidenceNotice(run.reportId, com.ai.data.SecondaryKind.COMPARE, run.runId)
             BatchStatsRow(listOf(
                 Triple("Total", counts.total.toString(), AppColors.InfoAccent),
                 Triple("Done", counts.done.toString(), AppColors.SuccessAccent),

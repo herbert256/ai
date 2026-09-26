@@ -286,7 +286,6 @@ internal fun AnswerMatrixViewScreen(
                         .verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Text("Wording cues scan English phrases only; quotes, negation and other languages can mislead. They do not measure correctness or model confidence. ≈ marks estimated usage/cost. Costs refer to the current answer attempt.", color = AppColors.TextTertiary, fontSize = 11.sp)
                     MatrixSummaryCard(
                         modelCount = matrixRows.size,
                         rankedCount = matrixRows.count { it.rank != null },

@@ -3,7 +3,7 @@ package com.ai.ui.admin
 internal val reportsHelp: Map<String, HelpContent> = mapOf(
     "report_reading" to HelpContent(title="Help - Read and finish report", cards=listOf(
         HelpCard("Answers", "Read and improve individual answers, compare two selected texts, translate only the content you need, or inspect saved previous versions."),
-        HelpCard("Analysis", "Add an independently authored reference with attribution, then evaluate against it. Read the criterion and saved source coverage before interpreting scores."),
+        HelpCard("Analysis", "Add an independently authored reference with attribution, then evaluate against it. Evaluation is evidence under a criterion, not a fact check: question relevance, reference agreement and a judge's preference answer different questions."),
         HelpCard("Conclusion", "Choose an answer or synthesis and explain why. The saved text, question and evidence versions remain unchanged when the report changes. Export the conclusion with an optional evidence appendix, update the selection, or clear it.")
     )),
     "translation_scope" to HelpContent(title="Help - Translation scope", cards=listOf(
@@ -264,7 +264,8 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
         title = "Help - View report",
         cards = listOf(
             HelpCard("What you see", "The View home for a report — a grid of tiles, one per thing this report has to look at: the original prompt, the per-model responses, the cost breakdown, the in-app HTML preview, plus one tile for each kind of post-run result the report carries (Meta, Compare, Rerank, Tournament, Judge the Judges, Moderation, Fan-out, Fan-in, Translate). The title bar carries the AI logo (taps go to the app home), the report's own title centred in white, and the help icon."),
-            HelpCard("How to read it", "Each tile shows an emoji, a label, and — when a kind has more than one item — a small count badge in the top-right. Tiles you can tap are at full colour; tiles for kinds this report doesn't have yet aren't shown at all. Tap a tile to open the matching View screen. Long-press a tile and drag it onto another to swap their positions — your order persists across reports, so once you've arranged the grid the way you like it, it stays that way. When the report has translations, a row of large flag-style icons at the top picks the active language; that language is carried into every tile you open.")
+            HelpCard("How to read it", "Each tile shows an emoji, a label, and — when a kind has more than one item — a small count badge in the top-right. Tiles you can tap are at full colour; tiles for kinds this report doesn't have yet aren't shown at all. Tap a tile to open the matching View screen. Long-press a tile and drag it onto another to swap their positions — your order persists across reports, so once you've arranged the grid the way you like it, it stays that way. When the report has translations, a row of large flag-style icons at the top picks the active language; that language is carried into every tile you open."),
+            HelpCard("Answer matrix", "Wording cues scan English phrases only; quotes, negation and other languages can mislead. They do not measure correctness or model confidence. ≈ marks estimated usage/cost. Costs refer to the current answer attempt.")
         )
     ),
     "view_tournament" to HelpContent(
@@ -278,6 +279,7 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
         title = "Help - Tournament",
         cards = listOf(
             HelpCard("What it is", "A tournament ranks the report's answers by pairwise head-to-head judging. Every unordered pair of responses is judged twice — once each way (A-vs-B and B-vs-A) — to cancel first-position bias, so for N answers there are N(N-1) matches. Each match is judged by the worker engine using the configured tournament workers, so judging can spread across many models rather than one. Start a tournament from the report's 🆕 Create launcher → Tournament."),
+            HelpCard("What the result means", com.ai.data.evaluationMeaning(com.ai.data.SecondaryKind.TOURNAMENT)),
             HelpCard("Statistics + grouping", "The counters show Total / Done / Error / Run / Wait / Queue / Costs (Wait = parked on a provider rate-limit cap). Matches are worker-judged, so a rate-limited judge is skipped and another picked — no Bench column is used, and terminal failures count as Error. The list groups by the report answer being compared; the green row fill shows progress. Tap a group to drill into its matches, then a match to see the two responses and the verdict. The 🐜 icon opens Tournament workers — the same matches grouped by the judge model that scored them."),
             HelpCard("Viewing the ranking", "The 👁 view icon at the bottom opens the View Tournament screen — the 1..N ranking with the tournament method switch. The 🗑 in the title bar deletes the whole tournament; 'Restart failed' re-judges any errored matches.")
         )
@@ -319,6 +321,7 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
         title = "Help - Judge the judges",
         cards = listOf(
             HelpCard("What it is", "This batch evaluates the JUDGES. It takes the same judge models the Tournament uses (the worker models in your 'tournament' swarm) and gives EVERY judge the SAME 25 random head-to-head pairs from this report's answers, so their verdicts can be compared. Start it from the report's 🆕 Create launcher → Judge the judges."),
+            HelpCard("What the result means", com.ai.data.evaluationMeaning(com.ai.data.SecondaryKind.JUDGES)),
             HelpCard("Statistics", "The counters show Total cells (judges × matches) / Done / Error / Run / Bench / Wait / Queue / Costs, with the judge and match counts below. Each cell is a fixed judge model (no substitution), so a benched judge — one on a >1h rate-limit cooldown — gets its own Bench column (it'll recover when the cooldown lifts), and Wait = cells parked on a provider rate-limit cap. The 'Judges' / 'Matches' toggle switches the table below between the judge leaderboard (default) and the per-match list. While running, the Judges view shows one progress row per judge."),
             HelpCard("The analysis", "When every cell is judged, the judges are ranked by CONSENSUS AGREEMENT — how often each judge matched the majority verdict across the 25 matches. 'Consensus strength' is the average agreement (high = the judges broadly agree). Each judge row also shows its cost, total API time, and agreement. Tap a judge to see its verdict on each match next to the consensus; the ✏️ opens the judge swarm for editing, the 🔄 redoes the whole batch from scratch, the 🗑 deletes the whole run, 'Restart failed' re-judges errored cells.")
         )
@@ -353,6 +356,7 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
         title = "Help - Compare with meta",
         cards = listOf(
             HelpCard("What it is", "The results grid for a Compare-with-meta run: each report answer scored 0–100 for how closely it matches the chosen meta result, judged by the worker engine. Start one from the report's 🆕 Create launcher → Compare with meta, then pick one meta result (it runs the same-named meta-compare prompt automatically)."),
+            HelpCard("What the result means", com.ai.data.evaluationMeaning(com.ai.data.SecondaryKind.COMPARE)),
             HelpCard("Statistics + list", "The counters show Total / Done / Error / Run / Wait / Queue / Costs (Wait = parked on a provider rate-limit cap). Cells are worker-judged, so a rate-limited judge is skipped and another picked — no Bench column is used, and terminal failures count as Error. Below them each report answer is listed with its score against the meta result — one cell per answer, since a run only ever scores against the one meta item you picked. Tap an answer to open its full detail directly."),
             HelpCard("Actions", "🔄 redoes the whole comparison from scratch, 🗑 deletes the run, 'Restart failed' re-scores any errored cells.")
         )
@@ -553,6 +557,8 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
         title = "Help - Secondary result — detail",
         cards = listOf(
             HelpCard("Overview", "Full content of one Rerank / Meta / Moderation row. Errors render as a red Error block; blank content shows '(no content)'."),
+            HelpCard("What the result means", listOf(com.ai.data.SecondaryKind.RERANK, com.ai.data.SecondaryKind.META, com.ai.data.SecondaryKind.MODERATION, com.ai.data.SecondaryKind.TRANSLATE)
+                .joinToString("\n\n") { "${com.ai.data.legacyKindDisplayName(it)}: ${com.ai.data.evaluationMeaning(it)}" }),
             HelpCard("Rerank rendering", "Tries to parse the structured JSON ([{id, rank, score, reason}, ...]) and render a sorted RerankTable. Falls back to raw markdown via ContentWithThinkSections when the model deviated from the schema."),
             HelpCard("Moderation rendering", "Parses [{id, flagged, categories, scores}, ...] into a ModerationTable with 🚩 / ✓ flags, fired categories, and the top 3 scores. Falls back to raw text on bad JSON."),
             HelpCard("Meta rendering", "Always renders via ContentWithThinkSections so <think> blocks collapse and the rest is plain Markdown-ish text."),
@@ -567,6 +573,7 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
         title = "Help - Rerank result — detail",
         cards = listOf(
             HelpCard("Overview", "Dedicated detail screen for a rerank result — the 1..N best-first ranking of the report's answers. Errors render as a red Error block; blank content shows '(no content)'."),
+            HelpCard("What the result means", com.ai.data.evaluationMeaning(com.ai.data.SecondaryKind.RERANK)),
             HelpCard("Ranking table", "Parses the structured JSON ([{id, rank, score, reason}, ...]) the rerank flow produces (chat-prompt path or the native rerank API) and renders a sorted Rank / Model / Score / Reason table, resolving each bracketed [N] to its real provider / model. Falls back to raw markdown when the model deviated from the schema."),
             HelpCard("Title bar", "✏️ opens 'Change result', 👁 opens the View Rerank screen, ℹ️ jumps to Model Info for this row's (provider, model), 🐞 opens the captured trace when tracing was on, 🗑 deletes the rerank, and Copy / Share export the raw ranking JSON. ✍️ adds a note."),
             HelpCard("Change result — ✏️", "🔄 Reload re-runs in place with the saved model. 'Switch model / agent' re-runs the ranking against a different saved agent or provider+model — it previews the new ranking so you can Use (replace this row) or Discard it.")
@@ -576,6 +583,7 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
         title = "Help - Moderation result — detail",
         cards = listOf(
             HelpCard("Overview", "Dedicated detail screen for a moderation result — the per-response policy classification of the report's answers. Errors render as a red Error block; blank content shows '(no content)'."),
+            HelpCard("What the result means", com.ai.data.evaluationMeaning(com.ai.data.SecondaryKind.MODERATION)),
             HelpCard("Classification table", "Parses the structured JSON ([{id, flagged, categories, scores}, ...]) the moderation flow produces (chat-prompt path or the native moderation API) into a table with 🚩 / ✓ flags, fired categories and the top scores, resolving each bracketed [N] to its real provider / model. Falls back to raw markdown when the model deviated from the schema."),
             HelpCard("Per-response detail", "Tap a row to drill into that response's full classification — every category (fired or not) with its score, plus the exact text that was moderated."),
             HelpCard("Title bar", "✏️ opens 'Change result', 👁 opens the View Moderation screen, ℹ️ jumps to Model Info for this row's (provider, model), 🐞 opens the captured trace when tracing was on, 🗑 deletes the moderation, and Copy / Share export the raw classification JSON. ✍️ adds a note."),
@@ -586,6 +594,7 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
         title = "Help - Meta result — detail",
         cards = listOf(
             HelpCard("Overview", "Dedicated detail screen for a meta result that isn't a fan-out pair: a plain meta (Compare / Critique / Summarize / Synthesize / …) or a fan-in combined report. Renders the full content via ContentWithThinkSections; errors show a red Error block, blank content shows '(no content)'. Fan-out pairs / rerank / moderation rows still use the shared Secondary-detail screen."),
+            HelpCard("What the result means", com.ai.data.evaluationMeaning(com.ai.data.SecondaryKind.META)),
             HelpCard("Title bar — ✏️", "Opens 'Change result' — a list of ways to re-do this meta result: 🔄 Reload, ✏️ Edit prompt, 🗣️ Chat, 🌡️ Temperature sweep, 🧠 Reasoning Effort, 🧭 Web search, and 🤖 Switch model / agent. Each writes the chosen output back to this same row."),
             HelpCard("Switch model / agent", "Re-runs this result against a different saved agent (which brings its own model + parameter presets + system prompt) or a raw provider+model. The new output is previewed first so you can Use (replace this row, re-pointing it at the new model) or Discard it. Works on plain meta, fan-in, rerank and moderation."),
             HelpCard("Reload", "Re-runs in place with the row's saved prompt, model, parameters and language, replacing content, cost and tokens. A plain meta rebuilds from the report's answers (honouring its scope); a fan-in rebuilds from the current fan-out matrix (joining any still-running fan-out first)."),

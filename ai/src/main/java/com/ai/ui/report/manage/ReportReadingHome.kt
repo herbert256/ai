@@ -104,7 +104,6 @@ internal fun ReportReadingHome(
             } else when(tab) {
                 0 -> {
                     item {
-                        Text("${answers.size} answers to the same question. Read an answer to refine it; choose a conclusion when ready.")
                         TextButton(onClick={compareMode=!compareMode}) { Text(if(compareMode) "Close comparison" else "Compare two answers") }
                         TextButton(onClick={onTranslate(null)}) { Text("Translate selected content…") }
                     }
@@ -126,7 +125,6 @@ internal fun ReportReadingHome(
                 }
                 1 -> {
                     item {
-                        Text("Evaluation is evidence under a criterion, not a fact check. Question relevance, reference agreement and a judge's preference answer different questions.")
                         TextButton(onClick=onAnalysis) { Text("Create a synthesis or new analysis") }
                         TextButton(onClick=onCompareReference) { Text("Evaluate against a saved reference") }
                         TextButton(onClick={editingReference=!editingReference}) { Text("Add my independent reference") }
@@ -145,7 +143,6 @@ internal fun ReportReadingHome(
                     items(secondaries.filter { it.kind==SecondaryKind.META && !it.content.isNullOrBlank() },key={it.id}) { row ->
                         Card(Modifier.fillMaxWidth()) { Column(Modifier.padding(12.dp)) {
                             Text("${row.metaPromptName ?: "Analysis"} · ${row.providerId}/${row.model}")
-                            com.ai.ui.shared.ReportSourceNotice(row)
                             SelectionContainer { Text(row.content.orEmpty().take(1800)) }
                             TextButton(onClick={editDecision("meta",row.id)}) { Text("Choose as my conclusion") }
                         } }

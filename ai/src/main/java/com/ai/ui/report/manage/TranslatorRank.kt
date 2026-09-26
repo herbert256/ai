@@ -327,7 +327,6 @@ private fun TranslatorRankL1(
             textAlign = TextAlign.Center, maxLines = 1, overflow = TextOverflow.Ellipsis,
             modifier = Modifier.fillMaxWidth().padding(top = 2.dp)
         )
-        Text("Not enough comparable evidence for a model leaderboard: passages and judges differ. Reviews below are alphabetical, with equal weight per passage. Scores describe the produced work only.", color = AppColors.TextTertiary, fontSize = 11.sp)
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
             Spacer(Modifier.height(8.dp))
             BatchStatsRow(buildList {
