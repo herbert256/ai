@@ -265,8 +265,6 @@ internal fun ModerationDetailScreen(
         Spacer(modifier = Modifier.height(12.dp))
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState())) {
-            com.ai.ui.shared.ReportSourceNotice(eff)
-            InternalPromptCard(eff, aiSettings)
             when {
                 eff.errorMessage != null -> {
                     Text("Error", fontSize = 14.sp, color = AppColors.DangerAccent, fontWeight = FontWeight.SemiBold)

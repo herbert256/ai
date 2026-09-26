@@ -286,8 +286,6 @@ internal fun RerankDetailScreen(
         Spacer(modifier = Modifier.height(12.dp))
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState())) {
-            com.ai.ui.shared.ReportSourceNotice(eff)
-            InternalPromptCard(result, aiSettings)
             // Read the error from the fresh row so a model switch (which clears it)
             // stops hiding the replaced result.
             val freshError = (resultFresh ?: result).errorMessage
