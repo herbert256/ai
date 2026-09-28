@@ -587,6 +587,9 @@ model answers about the subject; the second responds to the first;
 they take turns until they hit the count. Useful for adversarial
 cross-examination, devil's-advocate setups, or multi-step pipelines.
 Conversations persist across rotation and process recreation.
+While the models are taking turns, ℹ️, the model names and the 🐞
+trace icons are disabled: leaving the screen would stop the run and
+discard the answer in flight. Stop first to open them.
 
 ### Share-target
 

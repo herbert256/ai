@@ -117,6 +117,7 @@ internal val chatHelp: Map<String, HelpContent> = mapOf(
             HelpCard("Continue more", "After Stop or after the round budget is reached, an Extra chats field + \"Chat N more\" button appears. The new total is currentInteraction + N; the loop resumes from where it stopped."),
             HelpCard("Title-bar icons", "ℹ️ pops a two-row picker (\"Provider — model\" for each side); tapping a row jumps to that model's Model Info. Help and Home are always-on."),
             HelpCard("Per-bubble 🐞", "Each bubble carries the exact trace filename captured at the moment that turn's API call ran (no timestamp probing needed), so same model speaking again still opens the right trace. Suppressed entirely when API tracing is off in Settings."),
+            HelpCard("Links while running", "While the models are taking turns, ℹ️, the model names and the 🐞 icons are disabled — leaving the screen would stop the run and discard the answer in flight. Stop first (or wait for the rounds to finish) to open them."),
             HelpCard("Tips", "Provider / model labels in each bubble are click-targets for Model Info too. The session id is prefixed with dualchat_ + start time so traces from this run are easy to find."),
             HelpCard("Pitfalls", "If either provider has no API key configured the call will error and the loop stops. Errors render in red below the message list and the run flips to the stopped state.")
         )

@@ -18,6 +18,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
@@ -569,7 +570,10 @@ fun DualChatSessionScreen(
         TitleBar(
             helpTopic = "dual_chat_session",
             title = "Dual Chat", subject = "Two models taking turns automatically", onBackClick = onExit,
-            onInfo = { showInfoPicker = true }
+            // ℹ️ / model-name / 🐞 links navigate away, which disposes this
+            // screen — cancelling the loop and discarding the paid answer in
+            // flight. They're disabled while the loop runs.
+            onInfo = if (isRunning) null else ({ showInfoPicker = true })
         )
 
         // Cost row
@@ -590,7 +594,7 @@ fun DualChatSessionScreen(
         // Messages
         LazyColumn(state = listState, modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             items(messages.size, key = { messages[it].id }) { index ->
-                DualMessageBubble(messages[index], onNavigateToTraceFile)
+                DualMessageBubble(messages[index], onNavigateToTraceFile, linksEnabled = !isRunning)
             }
             if (thinkingModel != null) {
                 item(key = "thinking") {
@@ -662,7 +666,7 @@ fun DualChatSessionScreen(
         }
     }
 
-    if (showInfoPicker) {
+    if (showInfoPicker && !isRunning) {
         AlertDialog(
             onDismissRequest = { showInfoPicker = false },
             title = { Text("Model info") },
@@ -705,7 +709,10 @@ private fun CostLabel(name: String, costCents: Double, color: Color) {
 @Composable
 private fun DualMessageBubble(
     msg: DualMessage,
-    onNavigateToTraceFile: (String) -> Unit
+    onNavigateToTraceFile: (String) -> Unit,
+    /** False while the loop runs: the model name and 🐞 don't navigate
+     *  (leaving would cancel the loop); the 🐞 shows dimmed. */
+    linksEnabled: Boolean = true
 ) {
     val isModel1 = msg.modelIndex == 1
     val color = if (isModel1) AppColors.InfoAccent else AppColors.SuccessAccent
@@ -724,13 +731,14 @@ private fun DualMessageBubble(
                         com.ai.ui.shared.modelLabel(msg.providerName, msg.modelName, separator = " / "),
                         fontSize = 11.sp, fontWeight = FontWeight.Bold, color = color,
                         modifier = Modifier.weight(1f)
-                            .modelInfoClickable(msgProviderService, msg.modelName)
+                            .then(if (linksEnabled) Modifier.modelInfoClickable(msgProviderService, msg.modelName) else Modifier)
                     )
                     val tf = msg.traceFilename
                     if (com.ai.data.ApiTracer.ladybugLinksEnabled && tf != null) {
                         Text(com.ai.data.MetadataIconsHolder.current.traces, fontSize = 14.sp,
                             modifier = Modifier
-                                .clickable { onNavigateToTraceFile(tf) }
+                                .alpha(if (linksEnabled) 1f else 0.4f)
+                                .clickable(enabled = linksEnabled) { onNavigateToTraceFile(tf) }
                                 .padding(start = 6.dp))
                     }
                 }
