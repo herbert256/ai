@@ -277,6 +277,12 @@ so a malformed or restored manifest cannot write outside the
 `knowledge/` root.
 `resolveKbDir` is the public validated-root accessor used by
 `persistSourceLocally`.
+`saveSource` reads the manifest under that lock before creating
+`chunks/`, so an index finishing after its KB was deleted fails instead
+of resurrecting the directory, and a re-index
+(`requireExisting = true`) never re-adds a source deleted meanwhile.
+The Knowledge base screen also disables the per-source Delete and the
+KB delete while an index runs.
 
 The separate `<filesDir>/embeddings/` directory belongs to
 `EmbeddingsStore`'s per-document report-embedding cache — **not** KB

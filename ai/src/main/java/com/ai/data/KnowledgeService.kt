@@ -211,7 +211,7 @@ object KnowledgeService {
             charCount = chunks.sumOf { it.text.length },
             errorMessage = null
         )
-        KnowledgeStore.saveSource(context, kbId, src, chunks, embeddingDim)
+        KnowledgeStore.saveSource(context, kbId, src, chunks, embeddingDim, requireExisting = existingSourceId != null)
         AppLog.i(
             "Knowledge",
             "← index \"$displayName\" kb=$kbId chunks=${chunks.size} chars=${src.charCount} dim=$embeddingDim in ${System.currentTimeMillis() - indexStart}ms"

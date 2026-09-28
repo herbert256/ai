@@ -416,7 +416,9 @@ fun KnowledgeDetailScreen(
             title = "Knowledge base",
             subject = kbForTitle?.name,
             onBackClick = onBack,
-            onDelete = if (kb != null) { { showDeleteConfirm = true } } else null
+            // Not while indexing: the in-flight index would write into the
+            // KB being deleted.
+            onDelete = if (kb != null && !working) { { showDeleteConfirm = true } } else null
         )
         kb?.let {
             Text(embedderLabel(it), fontSize = 11.sp, color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace)
@@ -537,16 +539,21 @@ fun KnowledgeDetailScreen(
                             },
                             enabled = !working
                         ) { Text("Re-index", fontSize = 11.sp, color = AppColors.InfoAccent) }
-                        TextButton(onClick = {
-                            // Off the main thread — deleting a source with many
-                            // chunks rewrites the KB index and would block the UI.
-                            scope.launch {
-                                withContext(Dispatchers.IO) { KnowledgeStore.deleteSource(context, kbId, src.id) }
-                                val current = displayedSources ?: kb?.sources.orEmpty()
-                                displayedSources = current.filter { it.id != src.id }
-                                refreshTick++
-                            }
-                        }) { Text("Delete", fontSize = 11.sp, color = AppColors.DangerAccent) }
+                        TextButton(
+                            onClick = {
+                                // Off the main thread — deleting a source with many
+                                // chunks rewrites the KB index and would block the UI.
+                                scope.launch {
+                                    withContext(Dispatchers.IO) { KnowledgeStore.deleteSource(context, kbId, src.id) }
+                                    val current = displayedSources ?: kb?.sources.orEmpty()
+                                    displayedSources = current.filter { it.id != src.id }
+                                    refreshTick++
+                                }
+                            },
+                            // Not while indexing — a re-index of this source
+                            // would otherwise race the delete.
+                            enabled = !working
+                        ) { Text("Delete", fontSize = 11.sp, color = AppColors.DangerAccent) }
                     }
                 }
             }
@@ -560,7 +567,7 @@ fun KnowledgeDetailScreen(
             title = { Text("Delete knowledge base?") },
             text = { Text("Removes the manifest, every source, and every chunk. Cannot be undone.") },
             confirmButton = {
-                TextButton(onClick = {
+                TextButton(enabled = !working, onClick = {
                     showDeleteConfirm = false
                     // Off-thread deleteRecursively — KBs with hundreds
                     // of source chunks would otherwise block the UI

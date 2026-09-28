@@ -199,8 +199,11 @@ object KnowledgeStore {
      *  its chunks file is replaced (re-index). Throws
      *  [java.io.IOException] when the source could not be stored — it
      *  used to return silently (and ignore failed writes), so the
-     *  index flow reported success for a source that was never saved. */
-    fun saveSource(context: Context, kbId: String, source: KnowledgeSource, chunks: List<KnowledgeChunk>, embeddingDim: Int) {
+     *  index flow reported success for a source that was never saved.
+     *  [requireExisting] (re-index) refuses to re-add a source the user
+     *  deleted while it was being re-indexed. */
+    fun saveSource(context: Context, kbId: String, source: KnowledgeSource, chunks: List<KnowledgeChunk>, embeddingDim: Int,
+                   requireExisting: Boolean = false) {
         init(context)
         val kbDir = kbDirOrNull(kbId) ?: throw java.io.IOException("Knowledge base no longer exists")
         // kbId now has a flat-id + canonical containment check in
@@ -213,17 +216,25 @@ object KnowledgeStore {
             throw java.io.IOException("Refusing to save a source with a suspect id")
         }
         lock.withLock {
+            // Load the manifest BEFORE touching chunks/: deleteKnowledgeBase
+            // (same lock) may have removed the KB while this source was
+            // indexing, and the mkdirs below would otherwise resurrect its
+            // directory as an orphan. A corrupt/missing manifest shouldn't
+            // crash the index flow (Bug 40); the other public mutators wrap
+            // loadKb, so do the same here — but fail it visibly.
+            val current = runCatching { loadKb(kbDir) }.getOrNull()
+                ?: throw java.io.IOException(
+                    if (kbDir.isDirectory) "Knowledge base manifest is unreadable"
+                    else "Knowledge base was deleted while indexing")
+            if (requireExisting && current.sources.none { it.id == source.id }) {
+                throw java.io.IOException("${source.name} was removed while it was being re-indexed")
+            }
             val chunksDir = File(kbDir, CHUNKS_DIR).also { it.mkdirs() }
             val chunkFile = File(chunksDir, "${source.id}.json")
             if (!chunkFile.canonicalPath.startsWith(chunksDir.canonicalPath + File.separator)) {
                 AppLog.e("Knowledge", "Refusing to save source that escapes chunks dir: ${source.id}")
                 throw java.io.IOException("Refusing to save a source outside the knowledge base")
             }
-            // A corrupt/missing manifest shouldn't crash the index flow
-            // (Bug 40); the other public mutators wrap loadKb, so do the
-            // same here — but fail it visibly rather than report success.
-            val current = runCatching { loadKb(kbDir) }.getOrNull()
-                ?: throw java.io.IOException("Knowledge base manifest is unreadable")
             if (!chunkFile.writeTextAtomic(gson.toJson(chunks))) {
                 throw java.io.IOException("Could not write the chunks of ${source.name}")
             }
