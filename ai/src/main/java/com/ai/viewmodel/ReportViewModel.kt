@@ -3311,10 +3311,16 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         if (orphans.isEmpty()) return
         var costDelta = 0.0
         orphans.forEach { tr ->
-            costDelta += (tr.inputCost ?: 0.0) + (tr.outputCost ?: 0.0)
+            // fullCost: the row's icon / title spend too, not just in + out.
+            costDelta += tr.fullCost()
             SecondaryResultStorage.delete(context, reportId, tr.id)
         }
-        ReportStorage.removeIconCallsForSecondaryIds(context, reportId, orphans.map { it.id }.toSet())
+        val orphanIds = orphans.map { it.id }.toSet()
+        ReportStorage.removeIconCallsForSecondaryIds(context, reportId, orphanIds)
+        // Same as deleteSecondaryResult: the banked spend's ledger rows go,
+        // or Costs kept listing the deleted translations as current items.
+        ReportStorage.removeLedgerRowsForSecondaryIds(context, reportId, orphanIds,
+            orphans.mapNotNull { it.traceFile?.takeIf { f -> f.isNotBlank() } }.toSet())
         if (costDelta > 0.0) ReportStorage.bumpCostsFromDeletedItems(context, reportId, costDelta)
     }
 
