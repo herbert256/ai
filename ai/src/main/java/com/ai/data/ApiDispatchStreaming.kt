@@ -60,7 +60,11 @@ private suspend fun AnalysisRepository.collectStreamResponse(
     val text = sb.toString().takeIf { it.isNotBlank() }
     return if (text != null)
         AnalysisResponse(service, text, null, usage, rawUsageJson = rawUsage, httpHeaders = headers, httpStatusCode = statusCode)
-    else AnalysisResponse(service, null, "No response content", usage, rawUsageJson = rawUsage, httpHeaders = headers, httpStatusCode = statusCode)
+    // A billed stream that ended cleanly without answer text (reasoning only,
+    // an empty completion) is finished-but-unusable: without the flag the
+    // non-streaming fallback and then withRetry each paid for it again.
+    else AnalysisResponse(service, null, "No response content", usage, rawUsageJson = rawUsage, httpHeaders = headers,
+        httpStatusCode = statusCode, generationFailed = usage != null)
 }
 
 internal suspend fun AnalysisRepository.streamOpenAiReport(
@@ -115,15 +119,27 @@ internal suspend fun AnalysisRepository.streamResponsesApiReport(
         temperature = params?.temperature, top_p = params?.topP, text = responsesJsonText(params)
     )
     val response = api.responsesStream(responsesUrl, "Bearer $apiKey", request)
-    return collectStreamResponse(
+    // The terminal event carries the same response object the non-streaming
+    // call returns; keep it so the stream gets the same status / error check.
+    var finalResponse: OpenAiResponsesApiResponse? = null
+    val result = collectStreamResponse(
         service,
         response,
-        ::extractResponsesApiContent,
+        { event, data ->
+            if (event == "response.completed") {
+                runCatching {
+                    gson.fromJson(data, com.google.gson.JsonObject::class.java)?.getAsJsonObject("response")
+                        ?.let { gson.fromJson(it, OpenAiResponsesApiResponse::class.java) }
+                }.getOrNull()?.let { finalResponse = it }
+            }
+            extractResponsesApiContent(event, data)
+        },
         extractResponsesApiUsage(service),
         requireTerminator = true,
         usageMergeMode = StreamingUsageMergeMode.LastComplete,
         onDelta = onDelta
     )
+    return if (result.error == null) validateResponsesCompletion(result, finalResponse) else result
 }
 
 internal suspend fun AnalysisRepository.streamAnthropicReport(

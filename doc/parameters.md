@@ -103,7 +103,9 @@ Even temperature zero or a seed does not guarantee identical outputs.
 Token limits can include hidden reasoning. Explicit caps are preserved; Claude
 requests that conflict with the chosen thinking budget fail rather than raising
 the cap. Truncated Claude/Gemini/OpenAI report responses retain partial output
-and usage but are marked failed, preventing an automatic paid retry.
+and usage but are marked failed, preventing an automatic paid retry. The same
+applies to Claude refusals / paused turns, Gemini safety or recitation blocks,
+and any billed answer that arrives without text.
 
 See the [parameter audit](parameter-audit-2026-09-12.md) for observed results and
 provider documentation. Native rerank/moderation have separate parameter schemas.

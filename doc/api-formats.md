@@ -243,6 +243,11 @@ Claude's `/v1/messages` API has its own request/response shape.
   input(+cache) tokens off `message_start` and output off
   `message_delta`. Error responses on streaming endpoints have their
   body drained and surfaced rather than left half-consumed.
+- **Completion check** (`validateNativeReportCompletion`, shared with
+  Gemini): `stop_reason` `max_tokens`, `model_context_window_exceeded`,
+  `refusal` and `pause_turn` keep any partial text and usage but mark the
+  generation failed, so neither the stream fallback nor `withRetry` pays
+  for it again. A billed 200 with no answer text is failed the same way.
 - **Web-search tool**: `web_search_20250305` (`anthropicWebSearchTool()`)
   injected when the agent's `webSearchTool` parameter is set. The 🌐
   toggle's availability is gated by `provider.webSearchModelPatterns`
@@ -303,6 +308,9 @@ Gemini's `:generateContent` path-style API.
   candidate carrying a non-null `finishReason` as the final chunk
   (`isGeminiFinalChunk`); content is `candidates[0].content.parts[*].text`
   joined; usage reads the cumulative `usageMetadata` per chunk.
+- **Completion check**: `finishReason` `MAX_TOKENS`, `SAFETY`,
+  `RECITATION`, `PROHIBITED_CONTENT`, `BLOCKLIST` and `SPII` are failed
+  generations (partial text and usage kept, no automatic paid retry).
 - **Web-search tool**: `google_search` descriptor (`geminiWebSearchTool()`)
   injected when the agent's `webSearchTool` parameter is set. The 🌐
   toggle's availability is gated by `provider.webSearchModelPatterns`

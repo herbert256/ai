@@ -498,10 +498,20 @@ internal fun ChatMessage.toGeminiContent(): GeminiContent {
     return GeminiContent(parts.ifEmpty { listOf(GeminiPart(text = "")) }, role)
 }
 
-/** A clean HTTP/SSE ending can still be an incomplete answer. Keep partial text and billing. */
+/** A clean HTTP/SSE ending can still be an incomplete answer. Keep partial text and billing.
+ *  Anthropic `stop_reason` and Gemini `finishReason` values that mean "no usable
+ *  answer" are marked failed so neither the stream fallback nor withRetry pays
+ *  for the same refusal / block again. */
 internal fun validateNativeReportCompletion(response: AnalysisResponse, reason: String?): AnalysisResponse {
-    return if (reason in setOf("max_tokens", "MAX_TOKENS")) response.copy(
-        error = "Response truncated: output token limit reached. Increase max tokens and retry.",
-        generationFailed = true, finishReason = reason
-    ) else response.copy(finishReason = reason)
+    val failure = when (reason) {
+        "max_tokens", "MAX_TOKENS" -> "Response truncated: output token limit reached. Increase max tokens and retry."
+        "model_context_window_exceeded" -> "Response truncated: the model's context window is full (stop_reason=$reason)."
+        "refusal" -> "No answer: the model declined the request (stop_reason=refusal)."
+        "pause_turn" -> "No final answer: the provider paused a long server-tool turn (stop_reason=pause_turn)."
+        "SAFETY", "RECITATION", "PROHIBITED_CONTENT", "BLOCKLIST", "SPII" ->
+            "No complete answer: the provider blocked the response (finishReason=$reason)."
+        else -> null
+    }
+    if (failure != null) return response.copy(error = failure, generationFailed = true, finishReason = reason)
+    return response.copy(finishReason = reason)
 }

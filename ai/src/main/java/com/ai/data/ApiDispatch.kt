@@ -493,8 +493,10 @@ private suspend fun AnalysisRepository.analyzeResponsesApi(
         // model that exhausted max_tokens on hidden thinking still
         // reports completion_tokens, and downstream callers (the
         // "Test all models" probe) treat 200 + outputTokens > 0 as
-        // reachable rather than a hard failure.
-        else AnalysisResponse(service, null, body?.error?.message ?: "No response content", usage, rawUsageJson = rawUsageJson, httpHeaders = headers, httpStatusCode = statusCode)
+        // reachable rather than a hard failure. A billed empty answer is
+        // failed so withRetry doesn't pay for it again.
+        else AnalysisResponse(service, null, body?.error?.message ?: "No response content", usage, rawUsageJson = rawUsageJson,
+            httpHeaders = headers, httpStatusCode = statusCode, generationFailed = usage != null)
         validateResponsesCompletion(result, body)
     } else {
         val errorBody = try { response.errorBody()?.string() } catch (_: Exception) { null }
@@ -547,7 +549,10 @@ private suspend fun AnalysisRepository.analyzeAnthropic(
             citations = webData.citations, searchResults = webData.searchResults, relatedQuestions = webData.queries,
             rawUsageJson = rawUsageJson, httpHeaders = headers, httpStatusCode = statusCode
         )
-        else AnalysisResponse(service, null, body?.error?.message ?: "No response content", usage, rawUsageJson = rawUsageJson, httpHeaders = headers, httpStatusCode = statusCode)
+        // A billed 200 without answer text is finished-but-unusable; like the
+        // OpenAI validator, don't let withRetry buy the same empty answer again.
+        else AnalysisResponse(service, null, body?.error?.message ?: "No response content", usage, rawUsageJson = rawUsageJson,
+            httpHeaders = headers, httpStatusCode = statusCode, generationFailed = usage != null)
         validateNativeReportCompletion(result, body?.stop_reason)
     } else {
         val errorBody = try { response.errorBody()?.string() } catch (_: Exception) { null }
@@ -599,7 +604,8 @@ private suspend fun AnalysisRepository.analyzeGemini(
             citations = webData.citations, searchResults = webData.searchResults, relatedQuestions = webData.queries,
             rawUsageJson = rawUsageJson, httpHeaders = headers, httpStatusCode = statusCode
         )
-        else AnalysisResponse(service, null, body?.error?.message ?: "No response content", usage, rawUsageJson = rawUsageJson, httpHeaders = headers, httpStatusCode = statusCode)
+        else AnalysisResponse(service, null, body?.error?.message ?: "No response content", usage, rawUsageJson = rawUsageJson,
+            httpHeaders = headers, httpStatusCode = statusCode, generationFailed = usage != null)
         validateNativeReportCompletion(result, body?.candidates?.firstOrNull()?.finishReason)
     } else {
         val errorBody = try { response.errorBody()?.string() } catch (_: Exception) { null }
