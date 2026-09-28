@@ -234,8 +234,10 @@ object ProviderThrottle {
         val window = windows.computeIfAbsent(host) { java.util.concurrent.ConcurrentLinkedDeque() }
         try {
             // Rate-limit gate — loop until we claim a slot in the 60 s window.
+            // Window stamps are monotonic: a wall-clock change can't strand
+            // the host at "full" for the size of the jump.
             while (true) {
-                val now = System.currentTimeMillis()
+                val now = monotonicNowMs()
                 val sleepMs: Long = synchronized(window) {
                     while (true) {
                         val head = window.peekFirst() ?: break
@@ -284,8 +286,10 @@ object ProviderThrottle {
             return Outcome.Blocked(System.currentTimeMillis() + CONCURRENCY_POLL_MS)
         }
         val window = windows.computeIfAbsent(host) { java.util.concurrent.ConcurrentLinkedDeque() }
-        val blockedUntil: Long? = synchronized(window) {
-            val now = System.currentTimeMillis()
+        // Monotonic window stamps (see acquire); the wait is converted to a
+        // wall-clock ETA only for the Outcome.
+        val waitMs: Long? = synchronized(window) {
+            val now = monotonicNowMs()
             while (true) {
                 val head = window.peekFirst() ?: break
                 if (head < now - 60_000L) window.pollFirst() else break
@@ -294,14 +298,14 @@ object ProviderThrottle {
                 window.addLast(now)
                 null
             } else {
-                (window.peekFirst() ?: now) + 60_001L
+                ((window.peekFirst() ?: now) + 60_001L - now).coerceIn(1L, 60_001L)
             }
         }
-        return if (blockedUntil == null) {
+        return if (waitMs == null) {
             Outcome.Acquired(Releaser(sem))
         } else {
             sem.release()
-            Outcome.Blocked(blockedUntil)
+            Outcome.Blocked(System.currentTimeMillis() + waitMs)
         }
     }
 
@@ -366,36 +370,49 @@ object ProviderThrottle {
      *  that froze a big sweep). Cheap, read-only. */
     fun diagnostics(): String {
         if (sems.isEmpty()) return "(no active hosts)"
+        val cutoff = monotonicNowMs() - 60_000L
         return sems.entries.joinToString("; ") { (host, sem) ->
             val limit = (ProviderRegistry.findByHost(host)?.maxConcurrentCallsPerProvider
                 ?: NetworkSettings.maxConcurrentCallsPerProvider).coerceAtLeast(1)
-            val win = windows[host]?.size ?: 0
-            "$host conc=${sem.availablePermits()}/$limit win=$win"
+            "$host conc=${sem.availablePermits()}/$limit win=${windowCount(host, cutoff)}"
         }
     }
 
+    /** Calls in [host]'s window newer than [cutoff]. The window itself is
+     *  only trimmed when the next call is admitted, so an idle host's raw
+     *  deque size stayed at its last value ("min 60/60") forever. */
+    private fun windowCount(host: String, cutoff: Long): Int =
+        windows[host]?.count { it >= cutoff } ?: 0
+
     /** One active host's live gate state. [inUse]/[limit] is the
      *  concurrency saturation; [windowCount] is how many calls landed
-     *  in the trailing 60 s sliding window (against
+     *  in the trailing 60 s sliding window, against [windowLimit] — the
+     *  host's own per-minute cap (provider override, else
      *  [NetworkSettings.maxCallsPerProviderPerMinute]). */
     data class HostThrottleStat(
         val host: String,
         val free: Int,
         val limit: Int,
-        val windowCount: Int
+        val windowCount: Int,
+        val windowLimit: Int
     ) {
         val inUse: Int get() = (limit - free).coerceAtLeast(0)
     }
 
     /** Structured sibling of [diagnostics] for the AI Dashboard — one
      *  row per host that has an active semaphore, busiest first. Cheap,
-     *  read-only (semaphore permit counts + deque sizes). */
-    fun snapshot(): List<HostThrottleStat> =
-        sems.entries.map { (host, sem) ->
-            val limit = (ProviderRegistry.findByHost(host)?.maxConcurrentCallsPerProvider
+     *  read-only (semaphore permit counts + deque scans). */
+    fun snapshot(): List<HostThrottleStat> {
+        val cutoff = monotonicNowMs() - 60_000L
+        return sems.entries.map { (host, sem) ->
+            val override = ProviderRegistry.findByHost(host)
+            val limit = (override?.maxConcurrentCallsPerProvider
                 ?: NetworkSettings.maxConcurrentCallsPerProvider).coerceAtLeast(1)
-            HostThrottleStat(host, sem.availablePermits(), limit, windows[host]?.size ?: 0)
+            val windowLimit = (override?.maxCallsPerProviderPerMinute
+                ?: NetworkSettings.maxCallsPerProviderPerMinute).coerceAtLeast(1)
+            HostThrottleStat(host, sem.availablePermits(), limit, windowCount(host, cutoff), windowLimit)
         }.sortedByDescending { it.inUse }
+    }
 }
 
 /** OkHttp application interceptor that gates every outbound request

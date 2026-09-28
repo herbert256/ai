@@ -3,6 +3,13 @@ package com.ai.data
 import okhttp3.Interceptor
 import okhttp3.Response
 
+/** Monotonic milliseconds for the live dashboard's rolling windows and the
+ *  provider throttle's per-minute window. Unlike System.currentTimeMillis
+ *  it never jumps when the wall clock is changed, so a window can't get
+ *  stuck "full" (or empty) after a clock adjustment. Only differences are
+ *  meaningful. */
+internal fun monotonicNowMs(): Long = System.nanoTime() / 1_000_000L
+
 /**
  * Process-wide rolling tally of HTTP response codes (bucketed) plus response
  * times, feeding the Live Dashboard's "HTTP responses" and "Response times"
@@ -46,7 +53,8 @@ object HttpStatusStats {
     /** One slow call surfaced by [slowestWithin]. */
     data class Slow(val host: String?, val model: String?, val durationMs: Long)
 
-    /** One error response surfaced by [recentErrors]. */
+    /** One error response surfaced by [recentErrors]. [t] is on the
+     *  [monotonicNowMs] clock — compare it with that, not wall time. */
     data class ErrorEvent(
         val t: Long,
         val host: String?,
@@ -86,7 +94,7 @@ object HttpStatusStats {
     /** Record one response/attempt. [durationMs] is the response time (null
      *  for a thrown failure). Prunes anything older than [WINDOW_MS]. */
     fun record(code: Int, durationMs: Long? = null, host: String? = null, model: String? = null) {
-        val now = System.currentTimeMillis()
+        val now = monotonicNowMs()
         val cutoff = now - WINDOW_MS
         val bucket = bucketOf(code)
         synchronized(lock) {
@@ -98,7 +106,7 @@ object HttpStatusStats {
     /** Record one error response/failure for the live "recent errors" feed.
      *  Bounded by both time ([ERROR_WINDOW_MS]) and count ([ERROR_CAP]). */
     fun recordError(host: String?, model: String?, code: Int, message: String) {
-        val now = System.currentTimeMillis()
+        val now = monotonicNowMs()
         val cutoff = now - ERROR_WINDOW_MS
         synchronized(lock) {
             errors.addLast(ErrorEvent(now, host, model, code, message))
@@ -110,7 +118,7 @@ object HttpStatusStats {
 
     /** Up to [max] most-recent errors, newest first. */
     fun recentErrors(max: Int): List<ErrorEvent> {
-        val cutoff = System.currentTimeMillis() - ERROR_WINDOW_MS
+        val cutoff = monotonicNowMs() - ERROR_WINDOW_MS
         synchronized(lock) {
             return errors.asReversed().asSequence()
                 .filter { it.t >= cutoff }
@@ -121,7 +129,7 @@ object HttpStatusStats {
 
     /** The [n] slowest calls in the trailing [windowMs], slowest first. */
     fun slowestWithin(windowMs: Long, n: Int): List<Slow> {
-        val cutoff = System.currentTimeMillis() - windowMs
+        val cutoff = monotonicNowMs() - windowMs
         val out = ArrayList<Slow>()
         synchronized(lock) {
             for (h in hits) {
@@ -134,7 +142,7 @@ object HttpStatusStats {
 
     /** Bucketed counts over the trailing [windowMs]. */
     fun countsWithin(windowMs: Long): Counts {
-        val cutoff = System.currentTimeMillis() - windowMs
+        val cutoff = monotonicNowMs() - windowMs
         var ok = 0; var r429 = 0; var c4 = 0; var s5 = 0; var other = 0
         synchronized(lock) {
             for (h in hits) {
@@ -155,7 +163,7 @@ object HttpStatusStats {
      *  every recorded response that carried a duration (failures excluded).
      *  Percentiles use nearest-rank on the sorted sample. */
     fun timingWithin(windowMs: Long): Timing {
-        val cutoff = System.currentTimeMillis() - windowMs
+        val cutoff = monotonicNowMs() - windowMs
         val ds = ArrayList<Long>()
         synchronized(lock) {
             for (h in hits) {

@@ -179,7 +179,11 @@ things in one pass (and no-ops entirely when the master usage-statistics
 switch is off):
 
 1. **Live dashboard** — feeds `ApiUsageRates.record` for the rolling
-   5-minute spend/token rate.
+   5-minute spend/token rate (monotonic clock). Its per-model price
+   snapshots are dropped whenever `PricingCache.manualPricingVersion`
+   changes and at least once a minute, so a manual override edit or a
+   catalog refresh shows up in the live spend instead of being ignored
+   until the app restarts.
 2. **Cost snapshot** — `computeUsageCostSnapshot`
    (`data/preferences/SettingsPreferences.kt:630`) prices the call via
    `PricingCache.lookupPricing` + `computeInOutCost` +

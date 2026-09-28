@@ -116,7 +116,17 @@ in-flight-vs-max for the stall watchdog and the Live Dashboard.
 
 Per-hostname rate + concurrency gate. One `Semaphore` per host
 caps in-flight calls; a sibling `ConcurrentLinkedDeque` of call
-timestamps enforces the 60-second sliding window. The gate is
+timestamps enforces the 60-second sliding window. The window stamps
+are **monotonic** (`monotonicNowMs()`, `System.nanoTime`-based), so a
+wall-clock change can't strand a host at "full"; `Outcome.Blocked`
+still reports a wall-clock ETA. The deque is only trimmed when the next
+call is admitted, so `snapshot()` / `diagnostics()` count just the
+entries of the last 60 s (an idle host no longer shows its last
+"min 60/60" forever), and `HostThrottleStat.windowLimit` carries the
+host's own per-minute cap (provider override, else the global) for the
+Live Dashboard's `min x/y`. The dashboard's other rolling windows
+(`HttpStatusStats`, `RetryStats`, `ApiUsageRates`) use the same
+monotonic clock. The gate is
 keyed by **hostname**, so all providers sharing a host (and a
 provider's `auxHosts`) share one set of limits; the host →
 `AppService` mapping is `ProviderRegistry.findByHost`.

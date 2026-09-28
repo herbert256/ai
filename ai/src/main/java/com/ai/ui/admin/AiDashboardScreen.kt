@@ -2374,7 +2374,6 @@ private fun ThrottleBody(
     if (hosts.isEmpty()) {
         Text("Idle — no active hosts.", fontSize = 12.sp, color = AppColors.TextTertiary)
     } else {
-        val windowCap = NetworkSettings.maxCallsPerProviderPerMinute
         hosts.forEach { h ->
             val concColor = when {
                 h.free == 0 -> AppColors.DangerAccent
@@ -2386,7 +2385,7 @@ private fun ThrottleBody(
                     Text(twoLevelHost(h.host), fontSize = 12.sp, color = AppColors.TextPrimary, fontWeight = FontWeight.Medium)
                     Spacer(Modifier.weight(1f))
                     Text(
-                        "con ${h.inUse}/${h.limit}  ·  min ${h.windowCount}/$windowCap",
+                        "con ${h.inUse}/${h.limit}  ·  min ${h.windowCount}/${h.windowLimit}",
                         fontSize = 11.sp, color = concColor
                     )
                     // 🐞 (trailing) → API Traces filtered to this host (full
@@ -2539,7 +2538,8 @@ private fun errCodeLabel(code: Int): String = if (code == 0) "FAIL" else code.to
 private fun RecentErrorsBody() {
     val tick = rememberLiveTick()
     val errors = remember(tick) { HttpStatusStats.recentErrors(5) }
-    val now = remember(tick) { System.currentTimeMillis() }
+    // ErrorEvent.t is on the monotonic dashboard clock.
+    val now = remember(tick) { com.ai.data.monotonicNowMs() }
     if (errors.isEmpty()) {
         Text("No errors recently.", fontSize = 12.sp, color = AppColors.TextTertiary)
         return

@@ -19,7 +19,7 @@ object RetryStats {
 
     /** One retry attempt happened (about to sleep + reissue). */
     fun record() {
-        val now = System.currentTimeMillis()
+        val now = monotonicNowMs()
         val cutoff = now - WINDOW_MS
         synchronized(lock) {
             attempts.addLast(now)
@@ -36,7 +36,7 @@ object RetryStats {
 
     /** Retry attempts in the trailing [windowMs]. */
     fun retriesWithin(windowMs: Long): Int {
-        val cutoff = System.currentTimeMillis() - windowMs
+        val cutoff = monotonicNowMs() - windowMs
         synchronized(lock) { return attempts.count { it >= cutoff } }
     }
 }
