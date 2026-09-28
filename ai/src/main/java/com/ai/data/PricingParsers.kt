@@ -199,6 +199,9 @@ internal fun parseHeliconeJson(json: String): Pair<Map<String, PricingCache.Mode
         val op = obj.get("operator")?.takeIf { it.isJsonPrimitive }?.asString ?: "equals"
         val ic = obj.get("input_cost_per_1m").numOrNull() ?: continue
         val oc = obj.get("output_cost_per_1m").numOrNull() ?: continue
+        // Router pseudo-models (openrouter/openrouter/auto) carry -1 =
+        // "varies per routed model"; a negative rate would produce negative costs.
+        if (ic < 0 || oc < 0) continue
         val cr = obj.get("prompt_cache_read_per_1m").numOrNull()
         val cw = obj.get("prompt_cache_write_per_1m").numOrNull()
         val pricing = PricingCache.ModelPricing(

@@ -184,7 +184,9 @@ left behind on older installs (see
 - **Endpoint:** `https://openrouter.ai/api/v1/models` (detailed)
 - **Auth:** Bearer token (External Services → OpenRouter)
 - **Provides:**
-  - `pricing.prompt`, `pricing.completion` (converted to per-token Double)
+  - `pricing.prompt`, `pricing.completion` (converted to per-token Double;
+    router pseudo-models such as `openrouter/auto` report `-1` = "varies"
+    and are skipped — Helicone's `openrouter/auto` row likewise)
   - `architecture.modality` / `architecture.input_modalities` — auto-flag
     models that accept image input
   - `top_provider.context_length` / `max_completion_tokens`

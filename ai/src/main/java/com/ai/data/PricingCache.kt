@@ -1906,7 +1906,9 @@ object PricingCache {
                     response.body()?.data?.mapNotNull { model ->
                         val pp = model.pricing?.prompt?.toDoubleOrNull()
                         val cp = model.pricing?.completion?.toDoubleOrNull()
-                        if (pp != null && cp != null) model.id to ModelPricing(model.id, pp, cp, "OPENROUTER") else null
+                        // Router models (openrouter/auto, pareto-code, bodybuilder)
+                        // report -1 = "depends on the routed model" — not a price.
+                        if (pp != null && cp != null && pp >= 0 && cp >= 0) model.id to ModelPricing(model.id, pp, cp, "OPENROUTER") else null
                     }?.toMap() ?: emptyMap()
                 } else emptyMap()
             } catch (_: Exception) { emptyMap() }
