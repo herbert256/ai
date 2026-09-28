@@ -85,6 +85,17 @@ private val FlaggedTripleSaver = Saver<Triple<String, com.ai.data.ModerationInpu
     }
 )
 
+/** New Report's attached image (mime, base64) for the lifetime of one New
+ *  Report back-stack entry — `viewModel()` inside a nav destination is
+ *  scoped to its NavBackStackEntry, so it survives forward hops (select
+ *  models, Help, trace) without going through the Binder bundle, and is
+ *  cleared when the entry pops. [seeded] = the screen has written it once
+ *  (null then means "removed", not "seed from the share staging"). */
+class NewReportImageHolder : androidx.lifecycle.ViewModel() {
+    var image: Pair<String, String>? = null
+    var seeded = false
+}
+
 @Composable
 fun NewReportScreen(
     viewModel: AppViewModel,
@@ -155,14 +166,25 @@ fun NewReportScreen(
     // re-seeds the image on return — base64 payloads are too large for
     // rememberSaveable's Binder bundle. The staging drains on the real
     // exits (Back, Next) below, so a later fresh visit doesn't re-stage.
+    // The screen's own copy lives in [NewReportImageHolder], scoped to THIS
+    // back-stack entry: Back from "Report - select models" dismisses through
+    // dismissGenericReportsDialog, which clears the UiState staging (so an
+    // abandoned image never reaches a later, unrelated report) — seeding
+    // only from UiState then lost the photo and Next generated text-only.
+    // On return the holder re-seeds and the effect below re-stages it; the
+    // holder dies with the entry (Back / Home pop it).
+    val imageHolder: NewReportImageHolder = androidx.lifecycle.viewmodel.compose.viewModel()
     var attachedImage by remember {
         mutableStateOf<Pair<String, String>?>(
-            uiState.reportImageMime?.let { mime ->
+            if (imageHolder.seeded) imageHolder.image
+            else uiState.reportImageMime?.let { mime ->
                 uiState.reportImageBase64?.let { b64 -> mime to b64 }
             }
         )
     }
     LaunchedEffect(attachedImage) {
+        imageHolder.image = attachedImage
+        imageHolder.seeded = true
         viewModel.updateUiState { it.copy(
             reportImageBase64 = attachedImage?.second,
             reportImageMime = attachedImage?.first
