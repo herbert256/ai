@@ -52,6 +52,15 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+/** The small slices of the open report [ReportRunScreen] reloads on every
+ *  data version — one report parse shared by all three. [ledgerCost] is
+ *  null when the report's cost ledger isn't current. */
+private data class RunReportSnapshot(
+    val pinned: Boolean,
+    val notes: List<UserNote>,
+    val ledgerCost: Double?
+)
+
 /** Post-Generate page in the report flow — the per-report manage
  *  view. Shows per-agent rows, the Action row (View / Edit /
  *  Regenerate / Export / Translate / Meta / Fan out), the running
@@ -277,11 +286,21 @@ internal fun ReportRunScreen(
     // post-write read always lands (a tap-counter key could read before the
     // write and latch the pre-toggle 📌). Keyed load — after an in-place
     // report switch the previous report's pin state is never shown.
-    val isPinned = currentReportId?.let { rid ->
+    // One parse per data version feeds the 📌 tint, the report notes and the
+    // ledger cost below — they were three separate full-report loads, each
+    // re-run on every write while the report generates.
+    val runSnapshot = currentReportId?.let { rid ->
         com.ai.ui.report.view.helpers.rememberKeyedLoad(rid, ReportDataVersion.versionFor(rid)) { id ->
-            ReportStorage.getReport(context, id)?.pinned == true
+            val r = ReportStorage.getReport(context, id)
+            RunReportSnapshot(
+                pinned = r?.pinned == true,
+                notes = r?.notesFor("REPORT", id) ?: emptyList(),
+                ledgerCost = r?.takeIf { ReportStorage.isApiCallCostLedgerCurrent(it) }
+                    ?.apiCallCosts?.sumOf { it.inputCost + it.outputCost }
+            )
         }
-    } ?: false
+    }
+    val isPinned = runSnapshot?.pinned ?: false
     // Per-report worker config for the Manage 👷 edit overlay — same
     // disk-read + tick pattern as isPinned, but NULL until the read lands
     // so the overlay can't open on (and Save can't persist) the default
@@ -495,11 +514,7 @@ internal fun ReportRunScreen(
         UserNoteEditorOverlay(currentReportId, "REPORT", currentReportId, noteEdit!!) { noteEdit = null }
         return
     }
-    val reportNotes = currentReportId?.let { rid ->
-        com.ai.ui.report.view.helpers.rememberKeyedLoad(rid, ReportDataVersion.versionFor(rid)) { id ->
-            ReportStorage.getReport(context, id)?.notesFor("REPORT", id) ?: emptyList()
-        }
-    }.orEmpty()
+    val reportNotes = runSnapshot?.notes.orEmpty()
     // 👯 duplicate-report tap shows a yes/no first so an accidental
     // hit on the bottom bar doesn't silently spawn a "(Copy)" report.
     var showCopyConfirm by rememberSaveable(currentReportId) { mutableStateOf(false) }
@@ -567,14 +582,9 @@ internal fun ReportRunScreen(
     // visible result rows cannot reconstruct. Share that lifetime total
     // with all three stats lines and the deletion summary. The journal's
     // per-call flush bumps ReportDataVersion, including during translation.
+    // Read by the shared per-version load at the top ([runSnapshot]).
     var structuredCostForBar by remember(currentReportId) { mutableStateOf(0.0) }
-    val ledgerCostForBar = currentReportId?.let { rid ->
-        com.ai.ui.report.view.helpers.rememberKeyedLoad(rid, ReportDataVersion.versionFor(rid)) { id ->
-            com.ai.ui.report.view.helpers.LoadedValue(ReportStorage.getReport(context, id)
-                ?.takeIf { ReportStorage.isApiCallCostLedgerCurrent(it) }
-                ?.apiCallCosts?.sumOf { it.inputCost + it.outputCost })
-        }?.value
-    }
+    val ledgerCostForBar = runSnapshot?.ledgerCost
     val totalCostForBar = ledgerCostForBar ?: structuredCostForBar
     Box(modifier = Modifier.fillMaxSize()) {
     Column(
