@@ -690,6 +690,11 @@ keep their original call timestamp for display, but the retention cap
 orders them by import time (file write time), so importing an old report
 into a full trace directory doesn't have its traces pruned immediately.
 
+Deleting a report deletes the traces tagged with its id, except those
+another report still links to (any `…traceFile` field in its JSON) — a
+duplicated report keeps its source's 🐞 links, so they survive the
+source's deletion and age out under the normal cap.
+
 `test_run.json` now records distinct `INACCESSIBLE` and `UNSUPPORTED`
 outcomes, a diagnostic `policyVersion`, and `previousErrorMessage` where
 needed to reconcile an unchanged automatic block after migration/retry.

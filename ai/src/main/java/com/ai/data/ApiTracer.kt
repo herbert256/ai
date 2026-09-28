@@ -540,13 +540,15 @@ object ApiTracer {
         ok
     }
 
-    fun deleteTracesForReport(reportId: String): Int = lock.withLock {
+    /** Delete every trace tagged with [reportId], except the filenames in
+     *  [keep] (traces another report — e.g. a duplicate — still links to). */
+    fun deleteTracesForReport(reportId: String, keep: Set<String> = emptySet()): Int = lock.withLock {
         val dir = traceDir ?: return 0
         if (!dir.exists()) return 0
         var count = 0
         val deletedNames = mutableSetOf<String>()
         dir.listFiles()?.forEach { file ->
-            if (file.extension == "json") {
+            if (file.extension == "json" && file.name !in keep) {
                 try {
                     val info = parseTraceFileInfoStreaming(file)
                     if (info?.reportId == reportId && file.delete()) {

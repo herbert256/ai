@@ -680,13 +680,31 @@ object ReportStorage {
         File(context.filesDir, "report_work_limits/$reportId.json").delete()
         RegenerateBatchStorage.delete(context, reportId)
         ApiTracer.init(context)
-        ApiTracer.deleteTracesForReport(reportId)
+        // A duplicate ([copyReport]) keeps its source's 🐞 trace links, so
+        // traces another report still points at survive the source's delete.
+        val stillLinked = if (ApiTracer.getTraceFilesForReport(reportId).isEmpty()) emptySet()
+            else traceFilesReferencedByOtherReports(dir, reportId)
+        ApiTracer.deleteTracesForReport(reportId, keep = stillLinked)
         // Audit retention: the report's JSON is gone, but the audit trail is
         // kept (a trailing line records the deletion). The Monitor → Audit
         // list is sourced from these files, so the report still shows there.
         AuditLog.append(reportId, "Report deleted")
         ReportDataVersion.bump(reportId)
     }
+    private val tracePointer = Regex("\"[A-Za-z]*[Tt]raceFile\"\\s*:\\s*\"([^\"\\\\]+)\"")
+
+    /** Trace filenames that reports other than [excludingReportId] link to
+     *  (any `…traceFile` / `…TraceFile` field). Scans the parent JSON text —
+     *  trace pointers are never packed into report_content — instead of
+     *  hydrating every report. */
+    private fun traceFilesReferencedByOtherReports(dir: File, excludingReportId: String): Set<String> {
+        val out = HashSet<String>()
+        dir.listFiles { f -> f.extension == "json" && f.nameWithoutExtension != excludingReportId }?.forEach { f ->
+            runCatching { tracePointer.findAll(f.readText()).forEach { out += it.groupValues[1] } }
+        }
+        return out
+    }
+
     fun deleteAllReports(context: Context): Int {
         init(context)
         val deletedIds = mutableListOf<String>()
