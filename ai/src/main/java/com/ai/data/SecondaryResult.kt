@@ -226,6 +226,27 @@ object SecondaryResultStorage {
         return result
     }
 
+    /** Persist an imported row exactly as exported — no [captureSources].
+     *  [save] would attach a snapshot of the CURRENT report to a row that
+     *  has no recorded inputs (legacy / unknown provenance), so the
+     *  imported analysis would wrongly claim its sources are unchanged.
+     *  Returns false when the parent report is gone or the id is unsafe;
+     *  throws when the file can't be written. */
+    fun importRow(context: Context, result: SecondaryResult): Boolean {
+        init(context)
+        if (!isSafeResultId(result.id)) return false
+        lock.withLock {
+            if (!ReportStorage.reportFileExists(context, result.reportId)) return false
+            val dir = reportDir(result.reportId) ?: return false
+            val target = File(dir, "${result.id}.json")
+            if (!target.canonicalPath.startsWith(dir.canonicalPath + File.separator)) return false
+            if (!target.writeTextAtomic(gson.toJson(result))) throw java.io.IOException("Could not import analysis ${result.id}")
+            rememberCachedResult(result.reportId, target, result)
+        }
+        SecondaryDataVersion.bump(result.reportId, result.kind)
+        return true
+    }
+
     /** Persist many rows under the same storage lock and bump
      *  [SecondaryDataVersion] once. Used by large batch build phases
      *  that create hundreds of placeholders up front.

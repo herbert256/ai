@@ -220,8 +220,13 @@ private fun flocksToJsonTree(settings: Settings): JsonArray {
  *  keyed by reportId. */
 private fun reportEvidenceJson(reports: List<Report>): JsonObject = JsonObject().apply {
     reports.forEach { report -> add(report.id, JsonObject().apply {
+        // Exact file text as a JSON string, not a re-parsed tree: source
+        // snapshots are named by the SHA-256 of their bytes, and a tree
+        // re-serialised on import (JsonElement.toString skips Gson's HTML
+        // escaping of ' < > = &) no longer matched its name, so imported
+        // analyses showed "Saved source unavailable".
         com.ai.data.ReportEvidenceStore.files(report.id).forEach { file ->
-            add(file.nameWithoutExtension, com.google.gson.JsonParser.parseString(file.readText()))
+            addProperty(file.nameWithoutExtension, file.readText())
         }
     }) }
 }
@@ -304,8 +309,16 @@ private fun applyRuntimeReports(context: Context, root: JsonObject): ImportRepor
             skipped++
         }
         root.getAsJsonObject("reportEvidence")?.getAsJsonObject(report.id)?.entrySet()?.forEach { (id, evidence) ->
+            // Written byte-identical to the export (see reportEvidenceJson);
+            // a snapshot whose text doesn't hash to its name would only
+            // fail the integrity check later, so skip it here.
+            val text = evidence.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isString }?.asString
+            if (text == null || (!id.startsWith("run_") && com.ai.data.ReportEvidenceStore.digest(text) != id)) {
+                AppLog.w("ImportExport", "Skipped report evidence $id of ${report.id}: not an exact source snapshot")
+                return@forEach
+            }
             val existing = com.ai.data.ReportEvidenceStore.files(report.id).any { it.nameWithoutExtension == id }
-            if (!existing) com.ai.data.ReportEvidenceStore.importFile(context,report.id,id,evidence.toString())
+            if (!existing) com.ai.data.ReportEvidenceStore.importFile(context,report.id,id,text)
         }
         // Per-report secondaries — additive. For a newly-added report any
         // secondary is new by construction; for a skipped (already-present)
@@ -324,8 +337,9 @@ private fun applyRuntimeReports(context: Context, root: JsonObject): ImportRepor
             // wrong parent (Bug 47).
             if (sr.reportId != report.id) return@forEach
             if (!isNew && sr.id in existingSecondaryIds) return@forEach
-            SecondaryResultStorage.save(context, sr)
-            secondariesAdded++
+            // Verbatim, not save(): save() would attach a snapshot of the
+            // current report to a row exported without recorded inputs.
+            if (SecondaryResultStorage.importRow(context, sr)) secondariesAdded++
         }
     }
     return ImportReportsResult(added, skipped, secondariesAdded)
