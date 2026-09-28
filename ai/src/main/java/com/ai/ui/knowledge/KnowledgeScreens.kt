@@ -654,7 +654,10 @@ internal fun displayNameForUri(context: android.content.Context, uri: Uri): Stri
             val nameIdx = c.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
             if (c.moveToFirst() && nameIdx >= 0) c.getString(nameIdx) else null
         }
-    }.getOrNull()
+        // A blank DISPLAY_NAME counts as missing: callers fall back to a
+        // generated name, while a blank one made loadKb drop the source
+        // (its chunks lingering on disk unlabelled).
+    }.getOrNull()?.takeIf { it.isNotBlank() }
 }
 
 /** Multi-select dialog over the existing knowledge bases. Used by

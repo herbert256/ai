@@ -322,13 +322,18 @@ object KnowledgeStore {
      *  decoded array goes out of scope between files, so peak heap is
      *  bounded by the largest source's chunks rather than the whole
      *  KB. Retrieval uses this to do a bounded-heap top-K cosine
-     *  sweep without ever materialising the full chunk list. */
+     *  sweep without ever materialising the full chunk list.
+     *  Only chunks of sources the manifest lists are visited: a chunk
+     *  file whose source is gone (a failed manifest write, a source the
+     *  manifest dropped as invalid) used to be injected anyway, labelled
+     *  with an unknown source. */
     fun forEachChunk(context: Context, kbId: String, block: (KnowledgeChunk) -> Unit) {
         init(context)
         val kbDir = kbDirOrNull(kbId) ?: return
         val chunksDir = File(kbDir, CHUNKS_DIR)
         if (!chunksDir.exists()) return
-        chunksDir.listFiles { f -> f.extension == "json" }?.forEach { f ->
+        val sourceIds = runCatching { loadKb(kbDir) }.getOrNull()?.sources?.map { it.id }?.toSet() ?: return
+        chunksDir.listFiles { f -> f.extension == "json" && f.nameWithoutExtension in sourceIds }?.forEach { f ->
             // Stream straight into Gson — a large source's chunks file
             // (book-sized PDF, multi-MB text) would otherwise allocate the full
             // JSON as a String alongside Gson's parse buffer, doubling peak heap
@@ -345,6 +350,9 @@ object KnowledgeStore {
             // of that source from retrieval (audit data#68).
             var skipped = 0
             for (chunk in arr) {
+                // Gson can leave a corrupt chunk's sourceId null despite the
+                // non-null type; `in` then reads false and skips it.
+                if (chunk.sourceId !in sourceIds) { skipped++; continue }
                 try { block(chunk) } catch (_: Exception) { skipped++ }
             }
             if (skipped > 0) AppLog.w("Knowledge", "forEachChunk: skipped $skipped corrupt chunk(s) in ${f.name}")

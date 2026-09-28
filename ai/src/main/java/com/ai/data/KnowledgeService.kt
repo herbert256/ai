@@ -291,7 +291,9 @@ object KnowledgeService {
                     return@forEachChunk
                 }
                 val sim = EmbeddingsStore.cosine(queryVec, c.embedding)
-                val src = sourceById[c.sourceId]?.name ?: "?"
+                // forEachChunk only visits manifest-listed sources; never
+                // inject a passage whose source can't be named.
+                val src = sourceById[c.sourceId]?.name ?: return@forEachChunk
                 val candidate = Scored(Hit(kb.id, kb.name, src, c.text, sim), sim)
                 if (heap.size < cap) heap.offer(candidate)
                 else if (sim > heap.peek()!!.score) {

@@ -270,7 +270,11 @@ top-K heap — never the whole KB. It streams each file straight into
 Gson (no whole-file `String`), **skips an unreadable chunk file** with
 a logged warning instead of aborting the KB, and wraps each chunk's
 `block(...)` in a per-chunk `try` so one corrupt chunk (e.g. a null
-embedding) drops only itself, not the rest of that source.
+embedding) drops only itself, not the rest of that source. It visits
+only chunks of sources the manifest lists, so an orphaned chunk file
+is never injected under an unknown ("?") source name; a blank
+`DISPLAY_NAME` from a content provider counts as missing (a generated
+name is used) instead of producing a source `loadKb` would drop.
 
 `KnowledgeStore` is an `object` whose mutators serialise their manifest
 read-modify-write under a shared `ReentrantLock`. Both `kbId` and
