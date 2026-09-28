@@ -37,7 +37,8 @@ internal val localKnowledgeHelp: Map<String, HelpContent> = mapOf(
             HelpCard("Runtime first", "The native LLM runtime is downloaded separately and must be installed before imported .task models can run."),
             HelpCard("Model sources", "The screen links out to recommended model pages because many useful models require accepting license terms before download. After downloading, import the .task file or a supported archive from the file picker."),
             HelpCard("Installed list", "Installed local LLMs are stored in app-private storage and can be removed from this screen. Removing a model only deletes the local file; it does not affect reports already saved."),
-            HelpCard("Limits", "Local LLM quality and speed depend on device hardware and the model bundle. Large models can be slow or fail to load on memory-constrained devices.")
+            HelpCard("Limits", "Local LLM quality and speed depend on device hardware and the model bundle. Large models can be slow or fail to load on memory-constrained devices."),
+            HelpCard("Context window", "A local model has a 2048-token window shared by the prompt and the answer. Attached knowledge gets a smaller budget, local chat drops its oldest turns to fit, and a prompt that is still too long fails with an \"Input too long\" error.")
         )
     ),
     "search_local_semantic" to HelpContent(
@@ -75,7 +76,7 @@ internal val localKnowledgeHelp: Map<String, HelpContent> = mapOf(
             HelpCard("Overview", "Manage one knowledge base: add sources, inspect indexed source rows, re-index stale sources, delete sources, or delete the whole knowledge base."),
             HelpCard("Add file", "Imports a supported document from the Android file picker. Text, Markdown, CSV/TSV, PDF, Word/OpenDocument, and spreadsheet-style documents are extracted into chunks before embedding."),
             HelpCard("Add web page", "Fetches a URL, extracts readable text, chunks it, and embeds it with this knowledge base's configured embedder."),
-            HelpCard("Source rows", "Rows show status, source title/path, chunk count, and actions. Re-index when source content changed or an earlier ingest failed."),
+            HelpCard("Source rows", "Rows show status, source title/path, chunk count, and actions. Re-index when source content changed or an earlier ingest failed. A file or page with no extractable text is not added (a re-index that finds none keeps the old chunks). Delete is unavailable while an index runs."),
             HelpCard("Privacy and cost", "Local embedders keep embedding on device. Remote embedders send extracted chunks to the selected embedding provider and can incur cost proportional to source size.")
         )
     ),
