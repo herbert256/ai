@@ -52,10 +52,15 @@ private suspend fun AnalysisRepository.collectStreamResponse(
     } catch (e: Exception) {
         // Preserve already reported usage if the stream ends abnormally.
         // A paid partial generation must not be silently retried and lost.
+        // Exception: an overload / rate-limit / server error event before any
+        // answer text (Anthropic sends message_start usage first) is a
+        // transient provider failure, so leave it to the fallback and retry.
+        val transientBeforeText = e is SseProviderErrorException && e.retryable && sb.isEmpty()
         return AnalysisResponse(service, sb.toString().takeIf { it.isNotBlank() },
             "Incomplete stream: ${e.message}", usage, rawUsageJson = rawUsage,
             httpHeaders = headers, httpStatusCode = statusCode,
-            generationFailed = sb.isNotEmpty() || usage != null)
+            generationFailed = !transientBeforeText && (sb.isNotEmpty() || usage != null),
+            transientStreamError = transientBeforeText)
     }
     val text = sb.toString().takeIf { it.isNotBlank() }
     return if (text != null)

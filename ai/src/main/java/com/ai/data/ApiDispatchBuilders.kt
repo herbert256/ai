@@ -80,19 +80,33 @@ internal fun AnalysisRepository.parseOpenAiAnalysisResponse(service: AppService,
     }
 }
 
+/** One finish-reason policy for every OpenAI-compatible surface (report
+ *  stream, non-streaming report, chat stream). Lower-cases first — gateways
+ *  send "STOP" / "Length". Returns the failure message, or null for a clean
+ *  stop; a value it doesn't know (`eos`, `end_turn`, …) is accepted when an
+ *  answer arrived. `error` is OpenRouter's mid-stream failure marker. */
+internal fun openAiFinishReasonFailure(finishReason: String?): String? {
+    val reason = finishReason?.lowercase() ?: return null
+    return when (reason) {
+        "length", "max_tokens" -> "Response truncated: output token limit reached (finish_reason=$reason)."
+        "content_filter" -> "No complete answer: the provider filtered the response (finish_reason=$reason)."
+        "tool_calls", "function_call" -> "No final answer: the model requested a tool call (finish_reason=$reason)."
+        "error" -> "No complete answer: the provider reported an error mid-response (finish_reason=error)."
+        else -> null
+    }
+}
+
 /** Keep transport success separate from a usable, complete report answer. */
 internal fun validateOpenAiReportCompletion(response: AnalysisResponse, finishReason: String?): AnalysisResponse {
     val reason = finishReason?.lowercase()
     if (response.httpStatusCode !in 200..299) return response.copy(finishReason = reason)
     // Preserve a stream timeout/transport error instead of replacing it with
-    // "No final answer". A started 200 response must not trigger a paid fallback.
-    if (response.error != null) return response.copy(generationFailed = true, finishReason = reason ?: response.finishReason)
-    val failure = when (reason) {
-        "length", "max_tokens" -> "Response truncated: output token limit reached (finish_reason=$reason)."
-        "content_filter" -> "No complete answer: the provider filtered the response (finish_reason=$reason)."
-        "tool_calls", "function_call" -> "No final answer: the model requested a tool call (finish_reason=$reason)."
-        else -> if (response.analysis.isNullOrBlank()) "No final answer content returned${reason?.let { " (finish_reason=$it)" }.orEmpty()}." else null
-    }
+    // "No final answer". A started 200 response must not trigger a paid fallback
+    // — unless the stream carried a provider overload/server error before any text.
+    if (response.error != null) return response.copy(generationFailed = !response.transientStreamError,
+        finishReason = reason ?: response.finishReason)
+    val failure = openAiFinishReasonFailure(reason)
+        ?: if (response.analysis.isNullOrBlank()) "No final answer content returned${reason?.let { " (finish_reason=$it)" }.orEmpty()}." else null
     return response.copy(finishReason = reason, error = failure ?: response.error,
         generationFailed = response.generationFailed || failure != null)
 }

@@ -72,7 +72,11 @@ data class AnalysisResponse(
     val httpStatusCode: Int? = null,
     val finishReason: String? = null,
     /** A completed but unusable generation must not be billed again by retries. */
-    val generationFailed: Boolean = false
+    val generationFailed: Boolean = false,
+    /** The stream carried a provider overload / rate-limit / server error event
+     *  before any answer text. HTTP 200 had started, but nothing usable was
+     *  generated, so the stream fallback and withRetry may try again. */
+    val transientStreamError: Boolean = false
 ) {
     val isSuccess: Boolean get() = analysis != null && error == null
     val displayName: String get() = agentName ?: service.id

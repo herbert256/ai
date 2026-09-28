@@ -142,6 +142,12 @@ internal fun parseSseStream(
                     extractUsage(eventType, data)?.let { (u, raw) -> if (u != null) onUsage(u, raw) }
                 } catch (_: Exception) { /* usage is best-effort — never break the content stream */ }
             }
+            // A provider error inside the 200 stream: surface its own message
+            // instead of the generic "ended without terminator" that followed.
+            sseProviderError(eventType, data)?.let { err ->
+                AppLog.w("SSE", "provider error event (event=$eventType): ${err.message}")
+                throw err
+            }
             if (eventType == "response.incomplete" || eventType == "response.failed") {
                 // Usage above is still billable; preserve it before rejecting
                 // an incomplete report or chat answer.
@@ -215,6 +221,36 @@ internal fun parseSseStream(
         body.close()
         AppLog.d("SSE", "stream closed — $chunkCount chunks in ${System.currentTimeMillis() - parseStartMs}ms")
     }
+}
+
+/** A provider error delivered inside an HTTP-200 SSE stream: Anthropic's
+ *  `event: error` (e.g. `overloaded_error` after `message_start`), the
+ *  Responses API's `event: error`, or an OpenAI-compatible gateway's
+ *  `{"error":{…}}` chunk (OpenRouter pairs it with finish_reason "error").
+ *  [retryable] marks overload / rate-limit / server-side errors that a fresh
+ *  attempt can clear. */
+internal class SseProviderErrorException(message: String, val retryable: Boolean) : java.io.IOException(message)
+
+/** Parse [data] as a provider error event, or null for an ordinary event. */
+internal fun sseProviderError(eventType: String?, data: String): SseProviderErrorException? {
+    // Cheap pre-check: every error shape carries the word in its JSON.
+    if (eventType != "error" && !data.contains("\"error\"")) return null
+    val obj = try { gson.fromJson(data, com.google.gson.JsonObject::class.java) } catch (_: Exception) { null } ?: return null
+    val nested = obj.get("error")?.takeIf { it.isJsonObject }?.asJsonObject
+    val typeField = obj.get("type")?.takeIf { it.isJsonPrimitive }?.asString
+    if (nested == null && eventType != "error" && typeField != "error") return null
+    val source = nested ?: obj
+    fun field(name: String): String? =
+        source.get(name)?.takeIf { it.isJsonPrimitive }?.asString?.takeIf { it.isNotBlank() }
+    // Anthropic nests {type, message}; Responses puts {code, message} at the top.
+    val kind = (if (nested != null) field("type") else null) ?: field("code") ?: field("status")
+    val message = field("message") ?: kind ?: "unknown error"
+    val key = "${kind.orEmpty()} $message".lowercase()
+    val status = kind?.toIntOrNull()
+    val retryable = (status != null && (status == 429 || status >= 500)) ||
+        listOf("overloaded", "rate_limit", "rate limit", "server_error", "api_error", "unavailable", "timeout", "timed out")
+            .any { it in key }
+    return SseProviderErrorException("Provider error mid-stream${kind?.let { " ($it)" }.orEmpty()}: $message", retryable)
 }
 
 /** Gemini SSE terminator: a candidate chunk with a non-null `finishReason`. Gemini doesn't
@@ -433,9 +469,9 @@ private fun AnalysisRepository.streamOpenAi(
                     isFinalChunk = { _, _ -> ext.finishReason != null }, requireTerminator = true,
                     extractUsage = extractOpenAiUsage(service), onUsage = { usage, _ -> onUsage(usage) }
                 ).collect { emit(it) }
-                if (ext.finishReason != null && ext.finishReason != "stop") {
-                    throw java.io.IOException("Response stopped: ${ext.finishReason}")
-                }
+                // Same finish-reason policy as the report path: "STOP" / "eos" /
+                // "end_turn" are clean, length / filter / tool / error are not.
+                openAiFinishReasonFailure(ext.finishReason)?.let { throw java.io.IOException(it) }
                 if (!ext.sawContent) throw java.io.IOException("No final answer content returned")
             } ?: throw Exception("Empty response body")
         } else {

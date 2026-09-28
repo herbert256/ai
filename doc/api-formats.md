@@ -509,6 +509,22 @@ A few cross-format hardening passes in `parseSseStream`:
   is accepted only if at least one content chunk was emitted; otherwise
   it throws `IOException("SSE stream ended without terminator …")` so a
   truncated stream isn't mistaken for a complete short answer.
+- **Provider error events** — an error inside the 200 stream
+  (Anthropic `event: error` such as `overloaded_error` after
+  `message_start`, the Responses API's `event: error`, an
+  OpenAI-compatible `{"error":{…}}` chunk such as OpenRouter's
+  `finish_reason: "error"`) throws `SseProviderErrorException` with the
+  provider's own message instead of the generic missing-terminator
+  error. An overload / rate-limit / server error that arrives before any
+  answer text is flagged `transientStreamError`: it is not a paid
+  unusable answer, so the report's non-streaming fallback and
+  `withRetry` may try again.
+- **Finish reasons** — every OpenAI-compatible surface (report stream,
+  non-streaming report, chat stream) shares
+  `openAiFinishReasonFailure`: lower-cased; `length` / `max_tokens`,
+  `content_filter`, `tool_calls` / `function_call` and `error` fail;
+  other values (`stop`, `eos`, `end_turn`, …) pass when an answer
+  arrived.
 - **Error-body drain** — unsuccessful streaming responses have their
   body drained and surfaced with the HTTP status, instead of leaving
   the response half-consumed.
