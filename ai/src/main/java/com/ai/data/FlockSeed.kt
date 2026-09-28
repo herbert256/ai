@@ -65,11 +65,23 @@ object FlockSeed {
     }
 
     /** Append every bundled flock whose name (case-insensitive) is not
-     *  yet present in [existing]. Existing rows are returned unchanged. */
-    fun ensureAllPresent(existing: List<Flock>, bundled: List<Flock>): List<Flock> {
+     *  yet present in [existing]. Existing rows are returned unchanged —
+     *  except a same-named row left with NO member that resolves against
+     *  [knownAgentIds] (the Editor can't save an empty flock, so this only
+     *  happens when its agents were deleted, e.g. by the old Refresh that
+     *  re-created default agents under new ids): it gets the bundled
+     *  members re-linked, keeping its own id, params and prompts. */
+    fun ensureAllPresent(existing: List<Flock>, bundled: List<Flock>, knownAgentIds: Set<String>): List<Flock> {
         if (bundled.isEmpty()) return existing
+        val bundledByName = bundled.associateBy { it.name.lowercase() }
+        val repaired = existing.map { f ->
+            val seed = bundledByName[f.name.lowercase()]
+            if (seed != null && seed.agentIds.isNotEmpty() && f.agentIds.none { it in knownAgentIds })
+                f.copy(agentIds = seed.agentIds)
+            else f
+        }
         val known = existing.map { it.name.lowercase() }.toSet()
         val toAdd = bundled.filter { it.name.lowercase() !in known }
-        return if (toAdd.isEmpty()) existing else existing + toAdd
+        return if (toAdd.isEmpty()) repaired else repaired + toAdd
     }
 }

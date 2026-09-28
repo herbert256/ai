@@ -929,9 +929,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             val bundled = com.ai.data.FlockSeed.loadFromAssets(application, ai.agents)
             if (bundled.isNotEmpty()) {
                 val before = ai.flocks.size
-                val merged = com.ai.data.FlockSeed.ensureAllPresent(ai.flocks, bundled)
+                val merged = com.ai.data.FlockSeed.ensureAllPresent(ai.flocks, bundled, ai.agents.mapTo(HashSet()) { it.id })
                 val added = merged.size - before
-                if (added != 0) {
+                // != also catches an emptied bundled flock re-linked in place.
+                if (merged != ai.flocks) {
                     ai = ai.copy(flocks = merged)
                     settingsPrefs.saveSettings(ai)
                 }
@@ -1586,24 +1587,24 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
      *  modelSource untouched (the test itself already passed, so the
      *  provider stays "ok" either way). */
     /** Called by the per-provider settings screen after the user picks
-     *  a new default model and the API-key test succeeds. Drops every
-     *  agent named after the provider's displayName (and prunes those
-     *  ids from every flock), then recreates a fresh default agent
-     *  pointing at [defaultModel] and adds it back to the
+     *  a new default model and the API-key test succeeds. Points the
+     *  provider's default agent (named after the provider id) at
+     *  [defaultModel], keeping its id so every flock that lists it keeps
+     *  it, creating it when missing, and ensures it's in the
      *  "default agents" flock. */
     fun replaceDefaultAgent(service: AppService, defaultModel: String) {
         // CAS-style update so a concurrent updateProviderState /
         // markProviderTestedOk call doesn't get clobbered by the
         // closed-over local-snapshot pattern.
         _uiState.update { current ->
-            val droppedIds = current.aiSettings.agents
-                .filter { it.provider.id == service.id && it.name == service.id }
-                .map { it.id }.toSet()
-            val pruned = current.aiSettings.copy(
-                agents = current.aiSettings.agents.filterNot { it.id in droppedIds },
-                flocks = current.aiSettings.flocks.map { f -> f.copy(agentIds = f.agentIds.filterNot { it in droppedIds }) }
-            )
-            current.copy(aiSettings = pruned.ensureDefaultAgentInFlock(service, defaultModel))
+            // Re-point the existing default agent(s) at the new model IN
+            // PLACE (same id) rather than drop + recreate: a fresh id fell
+            // out of every other flock that listed the old one.
+            val s = current.aiSettings
+            val repointed = s.copy(agents = s.agents.map {
+                if (it.provider.id == service.id && it.name == service.id) it.copy(model = defaultModel) else it
+            })
+            current.copy(aiSettings = repointed.ensureDefaultAgentInFlock(service, defaultModel))
         }
         persistLatestSettings()
     }
@@ -1960,26 +1961,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                // ---- Clean slate: delete every agent whose name matches a
-                // provider id and whose provider id matches the same id
-                // (i.e. the "default agent for provider X" rows this run
-                // is about to rebuild) and empty the `default agents` flock.
-                // Custom agents the user authored survive untouched.
-                run {
-                    val current = _uiState.value.aiSettings
-                    val keptAgents = current.agents.filterNot { it.provider.id == it.name }
-                    val droppedIds = current.agents.filter { it !in keptAgents }.map { it.id }.toSet()
-                    val flocks = current.flocks.map { f ->
-                        when {
-                            f.name == com.ai.model.DEFAULT_AGENTS_FLOCK_NAME -> f.copy(agentIds = emptyList())
-                            droppedIds.isEmpty() -> f
-                            else -> f.copy(agentIds = f.agentIds.filterNot { it in droppedIds })
-                        }
-                    }
-                    val cleaned = current.copy(agents = keptAgents, flocks = flocks)
-                    _uiState.update { it.copy(aiSettings = cleaned) }
-                    settingsPrefs.saveSettings(cleaned)
-                }
+                // ---- Clean slate: empty the `default agents` flock so this
+                // run repopulates it from the workers that pass.
+                emptyDefaultAgentsFlock()
 
                 // ---- Run catalogs + workers in parallel.
                 coroutineScope {
@@ -2000,6 +1984,22 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 _refreshAllState.update { it?.copy(isFinished = true) }
             }
         }
+    }
+
+    /** Refresh clean slate: empty the `default agents` flock so the worker
+     *  phase repopulates it with the providers that pass. The provider-named
+     *  default agents themselves are KEPT — a passing worker updates its
+     *  model in place (same id, params, prompts, endpoint). Deleting and
+     *  re-creating them under fresh ids emptied every other flock listing
+     *  them (the bundled `cheap` flock) and broke chats started with them. */
+    private suspend fun emptyDefaultAgentsFlock() {
+        _uiState.update { st ->
+            val s = st.aiSettings
+            st.copy(aiSettings = s.copy(flocks = s.flocks.map { f ->
+                if (f.name == com.ai.model.DEFAULT_AGENTS_FLOCK_NAME) f.copy(agentIds = emptyList()) else f
+            }))
+        }
+        settingsSaveMutex.withLock { settingsPrefs.saveSettings(_uiState.value.aiSettings) }
     }
 
     /** Worker-only variant of [startRefreshAll]. Skips every catalog
@@ -2025,25 +2025,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                // Same clean-slate as startRefreshAll: drop every
-                // auto-generated default agent (name == provider id) and
-                // empty the "default agents" flock so this run repopulates
-                // both from scratch. User-authored agents survive.
-                run {
-                    val current = _uiState.value.aiSettings
-                    val keptAgents = current.agents.filterNot { it.provider.id == it.name }
-                    val droppedIds = current.agents.filter { it !in keptAgents }.map { it.id }.toSet()
-                    val flocks = current.flocks.map { f ->
-                        when {
-                            f.name == com.ai.model.DEFAULT_AGENTS_FLOCK_NAME -> f.copy(agentIds = emptyList())
-                            droppedIds.isEmpty() -> f
-                            else -> f.copy(agentIds = f.agentIds.filterNot { it in droppedIds })
-                        }
-                    }
-                    val cleaned = current.copy(agents = keptAgents, flocks = flocks)
-                    _uiState.update { it.copy(aiSettings = cleaned) }
-                    settingsPrefs.saveSettings(cleaned)
-                }
+                // Same clean-slate as startRefreshAll.
+                emptyDefaultAgentsFlock()
                 runWorkerPhase(testable)
                 _uiState.update { it.copy(aiSettings = it.aiSettings.applyOpenRouterTypes()) }
                 // Persist the complete worker result before offering restart.
@@ -2278,15 +2261,24 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
                     setWorkerStage(service.id, WorkerStage.WritingAgent)
                     val currentModel = _uiState.value.aiSettings.getModel(service)
-                    val agentId = java.util.UUID.randomUUID().toString()
-                    val newAgent = com.ai.model.Agent(agentId, service.id, service, currentModel, "")
+                    val freshId = java.util.UUID.randomUUID().toString()
                     _uiState.update { st ->
                         val cur = st.aiSettings
-                        val withAgent = cur.copy(agents = cur.agents + newAgent)
+                        // Reuse the provider's existing default agent (name ==
+                        // provider id) IN PLACE — same id, params, prompts and
+                        // endpoint, just the tested model — so other flocks,
+                        // chats and name-bound prompts that use it stay intact.
+                        // Only a provider without one gets a new agent.
+                        val existingAgent = cur.agents.firstOrNull { it.provider.id == service.id && it.name == service.id }
+                        val agentId = existingAgent?.id ?: freshId
+                        val withAgent = if (existingAgent != null)
+                            cur.copy(agents = cur.agents.map { if (it.id == agentId) it.copy(model = currentModel) else it })
+                        else cur.copy(agents = cur.agents + com.ai.model.Agent(agentId, service.id, service, currentModel, ""))
                         val flocks = withAgent.flocks
                         val existing = flocks.find { it.name == com.ai.model.DEFAULT_AGENTS_FLOCK_NAME }
                         val withFlock = if (existing != null) {
-                            withAgent.copy(flocks = flocks.map {
+                            if (agentId in existing.agentIds) withAgent
+                            else withAgent.copy(flocks = flocks.map {
                                 if (it.id == existing.id) it.copy(agentIds = it.agentIds + agentId) else it
                             })
                         } else {

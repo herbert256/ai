@@ -81,10 +81,15 @@ Field notes:
   adds the provider's tested model as an agent and joins it to this
   flock, and the **Refresh All → Providers / models / default
   agents** step (and the standalone **Refresh workers** step)
-  empties it first
-  ([`AppViewModel.kt:1790`](../ai/src/main/java/com/ai/viewmodel/AppViewModel.kt),
-  `:1849`) then repopulates it from each provider's worker phase
-  (`runWorkerPhase`, `:2038`).
+  empties it first (`emptyDefaultAgentsFlock`,
+  [`AppViewModel.kt`](../ai/src/main/java/com/ai/viewmodel/AppViewModel.kt))
+  then repopulates it from each provider's worker phase
+  (`runWorkerPhase`). The provider-named default agents are **kept,
+  not re-created**: a passing worker (and `replaceDefaultAgent`, when
+  a provider's default model changes) updates the existing agent's
+  model in place under the same id, so other flocks listing it (the
+  bundled `cheap` flock), chats started with it and its params /
+  prompts / endpoint survive.
 
 Full field tables: [datastructures.md](datastructures.md).
 
@@ -132,8 +137,12 @@ tiers offered as one-tap report picks.
 `:833`): any bundled item whose name (case-insensitive) is not
 already present is appended with a **fresh UUID**; existing rows —
 including user edits to a same-named swarm — are left strictly
-alone. A single unparseable / unknown-provider file is skipped,
-not fatal. Flocks seed after agents so their `agentNames` resolve.
+alone. One exception: a same-named flock with **no member that
+resolves** to an existing agent (only possible when its agents were
+deleted) gets the bundled members re-linked by name, keeping its own
+id, params and prompts. A single unparseable / unknown-provider file
+is skipped, not fatal. Flocks seed after agents so their `agentNames`
+resolve.
 
 ## The AI Workers setup hub
 
