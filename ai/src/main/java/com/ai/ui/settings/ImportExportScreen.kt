@@ -115,19 +115,47 @@ private fun applyWorkers(root: JsonObject, working: Settings): WorkerImportResul
         }
         return out
     }
-    fun <T, ID> upsert(existing: List<T>, incoming: List<T>, idOf: (T) -> ID): List<T> {
-        val incomingIds = incoming.map(idOf).toSet()
-        return existing.filterNot { idOf(it) in incomingIds } + incoming
+    // Upsert by id, else by name (case-insensitive — how worker chains and
+    // the bundled seeds resolve them). Bundled seeds (the `workers` swarm,
+    // the `cheap` flock) and provider default agents get a fresh UUID per
+    // install, so an id-only merge duplicated them on every cross-install
+    // import. On a name-only match the incoming row replaces the existing
+    // one but KEEPS its id, so flocks listing that agent still resolve.
+    // Returns the merged list plus old→new ids of existing rows dropped as
+    // same-named duplicates of an id-matched incoming row.
+    fun <T> upsert(existing: List<T>, incoming: List<T>, idOf: (T) -> String, nameOf: (T) -> String,
+                   withId: (T, String) -> T): Pair<List<T>, Map<String, String>> {
+        fun norm(s: String?) = s?.trim()?.lowercase(java.util.Locale.ROOT).orEmpty()
+        val out = existing.toMutableList()
+        val remap = mutableMapOf<String, String>()
+        for (inc in incoming) {
+            val incId = idOf(inc)
+            val incName = norm(nameOf(inc))
+            fun sameName(t: T) = incName.isNotEmpty() && norm(nameOf(t)) == incName
+            val byId = out.indexOfFirst { idOf(it) == incId }
+            if (byId >= 0) {
+                out[byId] = inc
+                out.filter { idOf(it) != incId && sameName(it) }.forEach { remap[idOf(it)] = incId }
+                out.removeAll { idOf(it) != incId && sameName(it) }
+            } else {
+                val byName = out.indexOfFirst { sameName(it) }
+                if (byName >= 0) out[byName] = withId(inc, idOf(out[byName])) else out.add(inc)
+            }
+        }
+        return out to remap
     }
     // Agents first, so flocks (which travel by member NAME) can re-link
     // against the just-imported agents as well as the existing ones.
     val incomingAgents = readList("agents", Agent::class.java)
-    val mergedAgents = upsert(working.agents, incomingAgents) { it.id }
+    val (mergedAgents, agentRemap) = upsert(working.agents, incomingAgents, { it.id }, { it.name }) { a, id -> a.copy(id = id) }
+    // Existing flocks that listed a dropped same-named agent now list its replacement.
+    val existingFlocks = if (agentRemap.isEmpty()) working.flocks
+        else working.flocks.map { f -> f.copy(agentIds = f.agentIds.map { agentRemap[it] ?: it }.distinct()) }
     val incomingFlocks = parseFlocks(root.getAsJsonArray("flocks"), mergedAgents)
     val incomingSwarms = readList("swarms", Swarm::class.java)
 
-    val mergedFlocks = upsert(working.flocks, incomingFlocks) { it.id }
-    val mergedSwarms = upsert(working.swarms, incomingSwarms) { it.id }
+    val mergedFlocks = upsert(existingFlocks, incomingFlocks, { it.id }, { it.name }) { f, id -> f.copy(id = id) }.first
+    val mergedSwarms = upsert(working.swarms, incomingSwarms, { it.id }, { it.name }) { s, id -> s.copy(id = id) }.first
     val updated = working.copy(agents = mergedAgents, flocks = mergedFlocks, swarms = mergedSwarms)
     return WorkerImportResult(updated, incomingAgents.size, incomingFlocks.size, incomingSwarms.size)
 }
