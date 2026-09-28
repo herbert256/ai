@@ -2465,16 +2465,28 @@ class IconGenerationManager(
     fun cancelTitleFanOutsForReport(context: Context, reportId: String) {
         rvm.iconFanOutJobs.remove("rt:$reportId")?.cancel()
         appViewModel.clearReportTitleFanOut(reportId)
-        val report = ReportStorage.getReport(context, reportId)
-        report?.agents?.forEach { a ->
-            rvm.iconFanOutJobs.remove("mt:${reportAgentKey(reportId, a.agentId)}")?.cancel()
-            appViewModel.clearAgentTitleFanOut(reportId, a.agentId)
-        }
-        val secondaryIds = SecondaryResultStorage.listForReport(context, reportId).map { it.id }
-        secondaryIds.forEach { sid ->
-            rvm.iconFanOutJobs.remove("pt:$sid")?.cancel()
-            appViewModel.clearPairTitleFanOut(sid)
-        }
+        // No report / secondary parse here: the delete paths run this on
+        // Main, once per report of a bulk delete (Trim by age, Manage →
+        // delete older than), and loading every report plus all its rows
+        // just to enumerate ids ANR'd a large trim. Per-model title keys
+        // carry the report id, so a prefix match covers every agent —
+        // including ones no longer in the report.
+        val agentPrefix = reportAgentKey(reportId, "")
+        rvm.iconFanOutJobs.keys.filter { it.startsWith("mt:$agentPrefix") }
+            .forEach { rvm.iconFanOutJobs.remove(it)?.cancel() }
+        appViewModel.titleFanOutByAgent.value.keys.filter { it.startsWith(agentPrefix) }
+            .forEach { appViewModel.clearAgentTitleFanOut(reportId, it.removePrefix(agentPrefix)) }
+        // Pair-title jobs / candidate lists are keyed by the bare pair id:
+        // map only the live ones to this report, with a cheap per-id file
+        // existence check instead of listing every row of the report.
+        val livePairIds = rvm.iconFanOutJobs.keys.filter { it.startsWith("pt:") }.map { it.removePrefix("pt:") } +
+            appViewModel.pairTitleFanOutByPair.value.keys
+        livePairIds.distinct()
+            .filter { SecondaryResultStorage.exists(context, reportId, it) }
+            .forEach { sid ->
+                rvm.iconFanOutJobs.remove("pt:$sid")?.cancel()
+                appViewModel.clearPairTitleFanOut(sid)
+            }
         rvm.iconFanOutJobs.keys.filter { it.startsWith("alttr:$reportId|") }
             .forEach { rvm.iconFanOutJobs.remove(it)?.cancel() }
         appViewModel.clearAltTranslationFanOutsForReport(reportId)

@@ -2955,13 +2955,19 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         val ids = reportIds.distinct().filter { it.isNotBlank() }
         ids.forEach { cancelReportOwnedWorkBeforeDelete(it, context) }
         return appViewModel.viewModelScope.launch(Dispatchers.IO + com.ai.data.CrashReporter.coroutineHandler) {
-            ids.forEachIndexed { index, reportId ->
-                ReportStorage.deleteReport(context, reportId)
-                if (onProgress != null) {
-                    withContext(Dispatchers.Main) { onProgress(index + 1, ids.size) }
+            try {
+                ids.forEachIndexed { index, reportId ->
+                    ReportStorage.deleteReport(context, reportId)
+                    if (onProgress != null) {
+                        withContext(Dispatchers.Main) { onProgress(index + 1, ids.size) }
+                    }
                 }
+            } finally {
+                // Callers hold a busy state until this fires (Trim by age,
+                // Manage → delete older than) — a failed delete must not
+                // leave it spinning forever.
+                if (onComplete != null) withContext(kotlinx.coroutines.NonCancellable + Dispatchers.Main) { onComplete() }
             }
-            if (onComplete != null) withContext(Dispatchers.Main) { onComplete() }
         }
     }
 

@@ -850,7 +850,7 @@ its own help topic.
 | Test | Run diagnostics such as Test all models and Stress test |
 | Prompt translations | Generate and manage internal-prompt translations per language |
 | Caches | Hub over every on-disk cache — Prompts (cached internal-prompt responses, 48 h TTL), Internal-prompt icons, Meta (titles / lang-icons, 7 d), Model lists, Pricing tiers, Supported params, and Embeddings — each with per-row 👁 view / 🔄 refresh (where regenerable) / 🗑 delete, swipe left/right to step to the next cache, and a 🗑 Clear-all on each cache's title bar |
-| Trim by age | Drop reports / chats / traces / log files older than a chosen cutoff. Hidden when there's nothing to trim |
+| Trim by age | Drop reports / chats / API traces older than a chosen cutoff — pinned reports and chats are kept, app log files are untouched. Hidden when there's nothing to trim |
 
 **Manage data**'s reset side opens one of five dedicated screens
 (reached via each card's Reset / Restore button):

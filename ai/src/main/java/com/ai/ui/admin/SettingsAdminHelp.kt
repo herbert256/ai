@@ -695,9 +695,9 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
     "trim_by_age" to HelpContent(
         title = "Help - Trim by age",
         cards = listOf(
-            HelpCard("Overview", "Bulk-deletes reports, chat sessions, and API trace files older than a cutoff. Configuration, API keys, prompt history, usage statistics — all kept."),
+            HelpCard("Overview", "Bulk-deletes reports, chat sessions, and API trace files older than a cutoff. Pinned reports and pinned chats are always kept (same rule as Manage reports → Delete old reports and the chat list's delete-older). Configuration, API keys, prompt history, usage statistics, app log files — all kept."),
             HelpCard("Days-to-keep field", "Digits-only, max four. Defaults to 30. Clear button is disabled until the value is a positive integer."),
-            HelpCard("Confirmation", "Tapping the orange button opens a dialog that shows the exact per-kind count (\"Permanently deletes everything older than N days: X reports, Y chat sessions, Z trace files\"). Confirm fires the deletes."),
+            HelpCard("Confirmation", "Tapping the orange button opens a dialog that shows the exact per-kind count (\"Permanently deletes everything older than N days (pinned reports and chats excluded): X reports, Y chat sessions, Z trace files\"). Confirm runs the deletes in the background behind a \"Trimming…\" progress dialog; a toast reports the totals when done. Any in-flight work on a trimmed report (generation, fan-out, translation, …) is cancelled first."),
             HelpCard("Pitfalls", "Cannot be undone. Counts are computed once when the dialog opens — if a chat updates between dialog open and Confirm tap, the actual delete may differ slightly."),
         )
     ),

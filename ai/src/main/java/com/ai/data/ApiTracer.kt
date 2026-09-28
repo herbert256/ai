@@ -568,21 +568,32 @@ object ApiTracer {
         count
     }
 
-    fun deleteTracesOlderThan(cutoffTimestamp: Long): Int = lock.withLock {
+    fun deleteTracesOlderThan(cutoffTimestamp: Long): Int {
+        // Pick the victims from the cached / metadata-indexed listing (built
+        // off the lock) instead of re-parsing every trace file under the
+        // writer lock — with a full trace dir that stalled every streaming
+        // response for the whole scan. Same set: an unparseable file is
+        // absent from both.
+        val victims = getTraceFiles().filter { it.timestamp < cutoffTimestamp }.map { it.filename }
+        if (victims.isEmpty()) return 0
+        return deleteTraceFilesLocked(victims)
+    }
+
+    /** Delete [filenames] from the trace dir under [lock] and keep the
+     *  cached listing / prune index in sync. Returns the number deleted. */
+    private fun deleteTraceFilesLocked(filenames: Collection<String>): Int = lock.withLock {
         val dir = traceDir ?: return 0
         if (!dir.exists()) return 0
         var count = 0
         val deletedNames = mutableSetOf<String>()
-        dir.listFiles()?.forEach { file ->
-            if (file.extension == "json") {
-                try {
-                    val info = parseTraceFileInfoStreaming(file)
-                    if (info != null && info.timestamp < cutoffTimestamp && file.delete()) {
-                        count++
-                        deletedNames += file.name
-                    }
-                } catch (_: Exception) {}
-            }
+        filenames.forEach { name ->
+            val file = File(dir, name)
+            try {
+                if (file.exists() && file.delete()) {
+                    count++
+                    deletedNames += name
+                }
+            } catch (_: Exception) {}
         }
         cachedTraceFiles?.let { current ->
             cachedTraceFiles = current.filterNot { it.filename in deletedNames }

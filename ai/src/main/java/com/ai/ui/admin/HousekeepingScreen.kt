@@ -108,7 +108,7 @@ fun HousekeepingScreen(
                     IconLinkCard(
                         icon = MetadataDefaults.DELETE,
                         title = "Trim by age",
-                        subtitle = "Delete old reports, chats, traces, logs, and other local data",
+                        subtitle = "Delete old reports, chats and API traces (pinned kept)",
                         onClick = onNavigateToTrimByAge
                     )
                 }
