@@ -818,7 +818,11 @@ Explicit catalog refreshes still recompute the affected derived fields.
 At startup, `capabilities_snapshot_revision` avoids repeating the full pass
 when the installed APK, pricing-file metadata, manual overrides and enabled
 info-provider set have not changed. Manual override edits invalidate the
-snapshot and publish one combined settings update.
+snapshot and publish one combined settings update. A model list published
+before the pricing preload finished (the startup refresh of lists older
+than 24 h runs first) is marked in `snapshotsBeforePreload` and its
+provider is recomputed once the catalogs are loaded, even when the
+revision is unchanged.
 
 ## Startup performance
 

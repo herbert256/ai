@@ -63,6 +63,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private val _settingsReady = MutableStateFlow(false)
     val settingsReady: StateFlow<Boolean> = _settingsReady.asStateFlow()
     private val capabilitySnapshotsReady = MutableStateFlow(false)
+    /** Providers whose derived snapshot was published before the pricing
+     *  catalogs finished loading ([publishFetchedModels]); declared above
+     *  `init`, whose startup refresh may publish before later initialisers run. */
+    private val snapshotsBeforePreload = java.util.concurrent.ConcurrentHashMap.newKeySet<AppService>()
     private val startupMaintenanceReady = MutableStateFlow(false)
     suspend fun awaitStartupBackgroundScanWindow() { startupMaintenanceReady.first { it } }
     suspend fun awaitStartupMaintenanceWindow() {
@@ -674,10 +678,18 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             PricingCache.manualPricingVersion.collect {
                 try {
                     val revision = PricingCache.snapshotRevision(application, _uiState.value.aiSettings.disabledInfoProviders)
+                    // The cache-respecting model-list refresh runs before this
+                    // preload; its providers' snapshots saw half-loaded catalogs
+                    // (DEFAULT prices, heuristic-only flags) whatever the revision says.
+                    val stale = drainSnapshotsBeforePreload()
                     if (prefs.getString("capabilities_snapshot_revision", null) != revision) {
                         recomputeRefreshedCapabilities()
                         settingsPrefs.saveDerivedCapabilities(_uiState.value.aiSettings, revision)
                         AppLog.d("App.start", "Derived model snapshots updated")
+                    } else if (stale.isNotEmpty()) {
+                        recomputeRefreshedCapabilities(stale)
+                        settingsPrefs.saveDerivedCapabilities(_uiState.value.aiSettings, revision)
+                        AppLog.d("App.start", "Derived snapshots of ${stale.joinToString { it.id }} recomputed (published before the catalogs loaded)")
                     } else AppLog.d("App.start", "Derived model snapshots unchanged; skipped")
                 } finally { capabilitySnapshotsReady.value = true }
             }
@@ -1692,6 +1704,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
      *  lambda. Only that provider's fetched fields are merged, so concurrent
      *  keys, overrides, agents and other catalogs are never replaced. */
     private fun publishFetchedModels(service: AppService, fetched: FetchedModels): ProviderConfig {
+        // A startup refresh (lists expire after 24 h) can publish before the
+        // pricing preload finished: that snapshot has DEFAULT prices and
+        // heuristic-only flags, so remember the provider for a recompute.
+        val catalogsLoaded = PricingCache.isPreloadCompleted()
         val computed = _uiState.value.aiSettings.withModels(
             service, fetched.ids, fetched.types, fetched.visionModels,
             fetched.capabilities, fetched.rawResponse
@@ -1711,17 +1727,33 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 modelPricing = computed.modelPricing
             )
             state.copy(aiSettings = state.aiSettings.withProvider(service, merged))
-        }.aiSettings.getProvider(service)
+        }.aiSettings.getProvider(service).also {
+            if (!catalogsLoaded) {
+                // Mark AFTER publishing, then re-check: either the post-preload
+                // pass drains this mark after our publication, or the preload
+                // already finished and we recompute here ourselves.
+                snapshotsBeforePreload.add(service)
+                if (PricingCache.isPreloadCompleted()) {
+                    val stale = drainSnapshotsBeforePreload()
+                    if (stale.isNotEmpty()) viewModelScope.launch { recomputeRefreshedCapabilities(stale) }
+                }
+            }
+        }
     }
 
-    /** Refresh all derived fields in one publication; retry if settings
-     * changed while the background computation was running. */
-    private suspend fun recomputeRefreshedCapabilities() = withContext(Dispatchers.Default) {
+    /** Atomically take the providers marked in [snapshotsBeforePreload]. */
+    private fun drainSnapshotsBeforePreload(): List<AppService> =
+        snapshotsBeforePreload.toList().filter { snapshotsBeforePreload.remove(it) }
+
+    /** Refresh all derived fields (or only [only]'s) in one publication;
+     *  retry if settings changed while the background computation was running. */
+    private suspend fun recomputeRefreshedCapabilities(only: Collection<AppService>? = null) = withContext(Dispatchers.Default) {
         // One publication for the whole snapshot prevents 91 bursts of UI work.
         // Retry from current inputs if a provider changed during computation.
         while (true) {
             val base = _uiState.value.aiSettings
-            val computed = base.recomputeAllCapabilities()
+            val computed = only?.fold(base) { s, service -> s.recomputeCapabilities(service) }
+                ?: base.recomputeAllCapabilities()
             var applied = false
             _uiState.update { state ->
                 applied = state.aiSettings === base
