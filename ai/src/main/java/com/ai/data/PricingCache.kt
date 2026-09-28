@@ -92,6 +92,10 @@ object PricingCache {
     private val gson = createAppGson()
     private val lock = Any()
     private val manualLock = Any()
+    /** Orders refreshed-tier commits ([commitTier]) against each other and
+     *  against the tier resets, so disk and memory end up in the same order.
+     *  Always taken BEFORE [lock], never while holding it. */
+    private val writeLock = Any()
     @Volatile private var startupPricing: Map<String, Map<String, ModelPricing>> = emptyMap()
     private val mapModelPricingType: Type = object : TypeToken<Map<String, ModelPricing>>() {}.type
     private val mutableMapModelPricingType: Type = object : TypeToken<MutableMap<String, ModelPricing>>() {}.type
@@ -206,23 +210,21 @@ object PricingCache {
         return when { days > 0 -> "${days}d ${hours}h ago"; hours > 0 -> "${hours}h ago"; else -> "just now" }
     }
 
-    fun saveOpenRouterPricing(context: Context, pricing: Map<String, ModelPricing>) = synchronized(lock) {
-        openRouterPricing = pricing
-        openRouterTimestamp = System.currentTimeMillis()
-        saveBlob(context, KEY_OPENROUTER_PRICING, gson.toJson(pricing))
-        getPrefs(context).edit { putLong(KEY_OPENROUTER_TIMESTAMP, openRouterTimestamp) }
-    }
+    fun saveOpenRouterPricing(context: Context, pricing: Map<String, ModelPricing>) =
+        commitTier(context, listOf(KEY_OPENROUTER_PRICING to pricing), KEY_OPENROUTER_TIMESTAMP) { now ->
+            openRouterPricing = pricing
+            openRouterTimestamp = now
+        }
 
     /** Persist Together AI native pricing — populated as a side
      *  effect of fetchModelsOpenAiCompat when the provider is
      *  Together. Keyed by raw model id (no provider prefix; this map
      *  is only consulted when the caller's provider is Together). */
-    fun saveTogetherPricing(context: Context, pricing: Map<String, ModelPricing>) = synchronized(lock) {
-        togetherPricing = pricing
-        togetherTimestamp = System.currentTimeMillis()
-        saveBlob(context, KEY_TOGETHER_PRICING, gson.toJson(pricing))
-        getPrefs(context).edit { putLong(KEY_TOGETHER_TIMESTAMP, togetherTimestamp) }
-    }
+    fun saveTogetherPricing(context: Context, pricing: Map<String, ModelPricing>) =
+        commitTier(context, listOf(KEY_TOGETHER_PRICING to pricing), KEY_TOGETHER_TIMESTAMP) { now ->
+            togetherPricing = pricing
+            togetherTimestamp = now
+        }
 
     private fun findTogetherPricing(provider: AppService, model: String): ModelPricing? {
         if (!provider.pricingFromModelList) return null
@@ -1021,14 +1023,10 @@ object PricingCache {
             if (json.isNullOrBlank()) return@withContext null
             val (pricing, meta) = parseLiteLLMJson(json)
             if (pricing.isEmpty()) return@withContext null
-            synchronized(lock) {
+            commitTier(context, listOf(KEY_LITELLM_PRICING to pricing, KEY_LITELLM_META to meta), KEY_LITELLM_TIMESTAMP) { now ->
                 litellmPricing = pricing
                 litellmMeta = meta
-
-                litellmTimestamp = System.currentTimeMillis()
-                saveBlob(context, KEY_LITELLM_PRICING, gson.toJson(pricing))
-                saveBlob(context, KEY_LITELLM_META, gson.toJson(meta))
-                getPrefs(context).edit { putLong(KEY_LITELLM_TIMESTAMP, litellmTimestamp) }
+                litellmTimestamp = now
             }
             pricing.size
         } catch (e: Exception) {
@@ -1060,14 +1058,10 @@ object PricingCache {
             val (pricing, meta) = parseModelsDevJson(json)
             AppLog.i("PricingCache", "models.dev parse: ${pricing.size} priced, ${meta.size} meta entries (raw ${json.length} bytes)")
             if (pricing.isEmpty() && meta.isEmpty()) return@withContext null
-            synchronized(lock) {
+            commitTier(context, listOf(KEY_MODELS_DEV_PRICING to pricing, KEY_MODELS_DEV_META to meta), KEY_MODELS_DEV_TIMESTAMP) { now ->
                 modelsDevPricing = pricing
                 modelsDevMeta = meta
-
-                modelsDevTimestamp = System.currentTimeMillis()
-                saveBlob(context, KEY_MODELS_DEV_PRICING, gson.toJson(pricing))
-                saveBlob(context, KEY_MODELS_DEV_META, gson.toJson(meta))
-                getPrefs(context).edit { putLong(KEY_MODELS_DEV_TIMESTAMP, modelsDevTimestamp) }
+                modelsDevTimestamp = now
             }
             pricing.size
         } catch (e: Exception) {
@@ -1223,13 +1217,10 @@ object PricingCache {
             val (exact, patterns) = parseHeliconeJson(json)
             AppLog.i("PricingCache", "Helicone parse: ${exact.size} exact, ${patterns.size} patterns")
             if (exact.isEmpty() && patterns.isEmpty()) return@withContext null
-            synchronized(lock) {
+            commitTier(context, listOf(KEY_HELICONE_PRICING to exact, KEY_HELICONE_PATTERNS to patterns), KEY_HELICONE_TIMESTAMP) { now ->
                 heliconePricing = exact
                 heliconePatterns = patterns
-                heliconeTimestamp = System.currentTimeMillis()
-                saveBlob(context, KEY_HELICONE_PRICING, gson.toJson(exact))
-                saveBlob(context, KEY_HELICONE_PATTERNS, gson.toJson(patterns))
-                getPrefs(context).edit { putLong(KEY_HELICONE_TIMESTAMP, heliconeTimestamp) }
+                heliconeTimestamp = now
             }
             exact.size + patterns.size
         } catch (e: Exception) {
@@ -1325,11 +1316,9 @@ object PricingCache {
             if (failed.size == llmPricesVendors.size) return@withContext null
             if (failed.isNotEmpty()) AppLog.w("PricingCache", "llm-prices: ${failed.joinToString()} failed; kept their previous rows")
             if (combined.isEmpty()) return@withContext null
-            synchronized(lock) {
+            commitTier(context, listOf(KEY_LLMPRICES_PRICING to combined), KEY_LLMPRICES_TIMESTAMP) { now ->
                 llmPricesPricing = combined
-                llmPricesTimestamp = System.currentTimeMillis()
-                saveBlob(context, KEY_LLMPRICES_PRICING, gson.toJson(combined))
-                getPrefs(context).edit { putLong(KEY_LLMPRICES_TIMESTAMP, llmPricesTimestamp) }
+                llmPricesTimestamp = now
             }
             combined.size
         } catch (e: Exception) {
@@ -1400,13 +1389,10 @@ object PricingCache {
             val (pricing, meta) = parseArtificialAnalysisJson(json)
             AppLog.i("PricingCache", "Artificial Analysis parse: ${pricing.size} priced, ${meta.size} meta entries")
             if (pricing.isEmpty() && meta.isEmpty()) return@withContext null
-            synchronized(lock) {
+            commitTier(context, listOf(KEY_AA_PRICING to pricing, KEY_AA_META to meta), KEY_AA_TIMESTAMP) { now ->
                 aaPricing = pricing
                 aaMeta = meta
-                aaTimestamp = System.currentTimeMillis()
-                saveBlob(context, KEY_AA_PRICING, gson.toJson(pricing))
-                saveBlob(context, KEY_AA_META, gson.toJson(meta))
-                getPrefs(context).edit { putLong(KEY_AA_TIMESTAMP, aaTimestamp) }
+                aaTimestamp = now
             }
             pricing.size + meta.size
         } catch (e: Exception) {
@@ -1464,13 +1450,10 @@ object PricingCache {
             val (pricing, meta) = parseRequestyJson(json)
             AppLog.i("PricingCache", "Requesty parse: ${pricing.size} priced, ${meta.size} meta entries")
             if (pricing.isEmpty() && meta.isEmpty()) return@withContext null
-            synchronized(lock) {
+            commitTier(context, listOf(KEY_REQUESTY_PRICING to pricing, KEY_REQUESTY_META to meta), KEY_REQUESTY_TIMESTAMP) { now ->
                 requestyPricing = pricing
                 requestyMeta = meta
-                requestyTimestamp = System.currentTimeMillis()
-                saveBlob(context, KEY_REQUESTY_PRICING, gson.toJson(pricing))
-                saveBlob(context, KEY_REQUESTY_META, gson.toJson(meta))
-                getPrefs(context).edit { putLong(KEY_REQUESTY_TIMESTAMP, requestyTimestamp) }
+                requestyTimestamp = now
             }
             pricing.size
         } catch (e: Exception) {
@@ -1566,13 +1549,10 @@ object PricingCache {
             } while (cursor != null)
             AppLog.i("PricingCache", "llm-stats parse: ${pricing.size} priced, ${meta.size} meta entries ($pages pages)")
             if (pricing.isEmpty() && meta.isEmpty()) return@withContext null
-            synchronized(lock) {
+            commitTier(context, listOf(KEY_LLMSTATS_PRICING to pricing, KEY_LLMSTATS_META to meta), KEY_LLMSTATS_TIMESTAMP) { now ->
                 llmStatsPricing = pricing
                 llmStatsMeta = meta
-                llmStatsTimestamp = System.currentTimeMillis()
-                saveBlob(context, KEY_LLMSTATS_PRICING, gson.toJson(pricing))
-                saveBlob(context, KEY_LLMSTATS_META, gson.toJson(meta))
-                getPrefs(context).edit { putLong(KEY_LLMSTATS_TIMESTAMP, llmStatsTimestamp) }
+                llmStatsTimestamp = now
             }
             pricing.size
         } catch (e: kotlinx.coroutines.CancellationException) {
@@ -1633,13 +1613,10 @@ object PricingCache {
             val (pricing, meta) = parseGenaiPricesJson(json)
             AppLog.i("PricingCache", "genai-prices parse: ${pricing.size} priced, ${meta.size} meta entries")
             if (pricing.isEmpty() && meta.isEmpty()) return@withContext null
-            synchronized(lock) {
+            commitTier(context, listOf(KEY_GENAIPRICES_PRICING to pricing, KEY_GENAIPRICES_META to meta), KEY_GENAIPRICES_TIMESTAMP) { now ->
                 genaiPricesPricing = pricing
                 genaiPricesMeta = meta
-                genaiPricesTimestamp = System.currentTimeMillis()
-                saveBlob(context, KEY_GENAIPRICES_PRICING, gson.toJson(pricing))
-                saveBlob(context, KEY_GENAIPRICES_META, gson.toJson(meta))
-                getPrefs(context).edit { putLong(KEY_GENAIPRICES_TIMESTAMP, genaiPricesTimestamp) }
+                genaiPricesTimestamp = now
             }
             pricing.size
         } catch (e: Exception) {
@@ -1700,13 +1677,10 @@ object PricingCache {
             val (pricing, meta) = parseTrueFoundryArchive(bytes)
             AppLog.i("PricingCache", "TrueFoundry parse: ${pricing.size} priced, ${meta.size} meta entries (${bytes.size} archive bytes)")
             if (pricing.isEmpty() && meta.isEmpty()) return@withContext null
-            synchronized(lock) {
+            commitTier(context, listOf(KEY_TRUEFOUNDRY_PRICING to pricing, KEY_TRUEFOUNDRY_META to meta), KEY_TRUEFOUNDRY_TIMESTAMP) { now ->
                 trueFoundryPricing = pricing
                 trueFoundryMeta = meta
-                trueFoundryTimestamp = System.currentTimeMillis()
-                saveBlob(context, KEY_TRUEFOUNDRY_PRICING, gson.toJson(pricing))
-                saveBlob(context, KEY_TRUEFOUNDRY_META, gson.toJson(meta))
-                getPrefs(context).edit { putLong(KEY_TRUEFOUNDRY_TIMESTAMP, trueFoundryTimestamp) }
+                trueFoundryTimestamp = now
             }
             pricing.size
         } catch (e: Exception) {
@@ -1872,11 +1846,9 @@ object PricingCache {
             } while (token != null)
             AppLog.i("PricingCache", "CloudPrice parse: ${meta.size} meta entries ($pages pages)")
             if (meta.isEmpty()) return@withContext null
-            synchronized(lock) {
+            commitTier(context, listOf(KEY_CLOUDPRICE_META to meta), KEY_CLOUDPRICE_TIMESTAMP) { now ->
                 cloudPriceMeta = meta
-                cloudPriceTimestamp = System.currentTimeMillis()
-                saveBlob(context, KEY_CLOUDPRICE_META, gson.toJson(meta))
-                getPrefs(context).edit { putLong(KEY_CLOUDPRICE_TIMESTAMP, cloudPriceTimestamp) }
+                cloudPriceTimestamp = now
             }
             meta.size
         } catch (e: kotlinx.coroutines.CancellationException) {
@@ -1983,6 +1955,25 @@ object PricingCache {
     /** Atomically write a tier blob. */
     private fun saveBlob(context: Context, prefsKey: String, json: String) {
         blobFile(context, prefsKey).writeTextAtomic(json)
+    }
+
+    /** Commit a freshly fetched tier: serialise and write its blobs OUTSIDE
+     *  [lock] (multi-MB JSON — a main-thread getPricing used to stall behind
+     *  it during Refresh All), stamp [timestampKey], then hold [lock] only
+     *  for the in-memory reference swap in [publish] (given the timestamp). */
+    private fun commitTier(
+        context: Context,
+        blobs: List<Pair<String, Any>>,
+        timestampKey: String,
+        publish: (Long) -> Unit
+    ) {
+        val jsons = blobs.map { (key, value) -> key to gson.toJson(value) }
+        synchronized(writeLock) {
+            val now = System.currentTimeMillis()
+            jsons.forEach { (key, json) -> saveBlob(context, key, json) }
+            getPrefs(context).edit { putLong(timestampKey, now) }
+            synchronized(lock) { publish(now) }
+        }
     }
 
     /** Lazy first-call population for every cache tier. Cold-call cost is dominated
@@ -2418,7 +2409,7 @@ object PricingCache {
      *  Caches → Pricing tiers screen's 🗑. Call off the main thread: the
      *  reload parses the bundled JSON. */
     fun deleteTier(context: Context, source: String) {
-      val dropped = synchronized(lock) {
+      val dropped = synchronized(writeLock) { synchronized(lock) {
         val blobKeys: List<String> = when (source) {
             "LiteLLM" -> listOf(KEY_LITELLM_PRICING, KEY_LITELLM_META)
             "models.dev" -> listOf(KEY_MODELS_DEV_PRICING, KEY_MODELS_DEV_META)
@@ -2467,7 +2458,7 @@ object PricingCache {
         // (or running) the reload below.
         preloadCompleted = false
         true
-      }
+      } }
       if (dropped) ensureLoaded(context)
     }
 
@@ -2481,7 +2472,7 @@ object PricingCache {
      *  response) are preserved — neither comes from an Info provider.
      *  Call off the main thread: the reload parses the bundled JSON. */
     fun clearInfoProviderTiers(context: Context) {
-      synchronized(lock) {
+      synchronized(writeLock) { synchronized(lock) {
         val tierBlobs = listOf(
             KEY_OPENROUTER_PRICING, KEY_LITELLM_PRICING, KEY_LITELLM_META,
             KEY_MODELS_DEV_PRICING, KEY_MODELS_DEV_META,
@@ -2532,7 +2523,7 @@ object PricingCache {
         // Main-thread readers use the startup prices instead of waiting on
         // (or running) the reload below.
         preloadCompleted = false
-      }
+      } }
       ensureLoaded(context)
     }
 
@@ -2541,7 +2532,7 @@ object PricingCache {
      *  pricing prefs file, the tier blobs under filesDir/pricing/,
      *  and every in-memory cache so the next [ensureLoaded] starts
      *  from a clean slate. */
-    fun clearAll(context: Context) = synchronized(lock) {
+    fun clearAll(context: Context) = synchronized(writeLock) { synchronized(lock) {
         // Disk: remove every tier blob plus the supported-parameters
         // catalog file maintained alongside it.
         try {
@@ -2597,5 +2588,5 @@ object PricingCache {
         preloadCompleted = false
 
         supportedParametersCache = null
-    }
+    } }
 }
