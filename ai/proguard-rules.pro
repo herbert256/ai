@@ -47,3 +47,8 @@
 # the library intact and silence the optional desktop-only deps it references.
 -keep class org.yaml.snakeyaml.** { *; }
 -dontwarn org.yaml.snakeyaml.**
+
+# PDFBox-Android's JPXFilter references the optional JPEG-2000 decoder
+# (com.gemalto.jp2, a separate artifact we don't ship). JPX-encoded images
+# inside a PDF are simply skipped; text extraction is unaffected.
+-dontwarn com.gemalto.jp2.**

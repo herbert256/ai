@@ -95,51 +95,52 @@ private fun VersionRow(label: String, value: String) {
  *  tables in the build files; update alongside any version bump. */
 private val DEPENDENCY_SECTIONS: List<Pair<String, List<Pair<String, String>>>> = listOf(
     "Build toolchain" to listOf(
-        "Gradle" to "9.5.1",
-        "Android Gradle Plugin" to "9.2.1",
-        "Kotlin" to "2.4.0",
-        "Compose compiler" to "2.4.0",
+        "Gradle" to "9.8.0",
+        "Android Gradle Plugin" to "9.4.1",
+        "Kotlin" to "2.4.20",
+        "Compose compiler" to "2.4.20",
         "Android build-tools" to "37.0.0",
         "JDK / Java target" to "25 (LTS)",
         "Kotlin JVM target" to "25"
     ),
     "Android platform / SDK" to listOf(
-        "compileSdk" to "37 (Android 17)",
+        "compileSdk" to "37.2 (Android 17)",
         "targetSdk" to "36 (Android 16)",
         "minSdk" to "36 (Android 16)",
         "ABI" to "arm64-v8a, x86_64"
     ),
     "AndroidX & Compose" to listOf(
-        "compose-bom" to "2026.05.01",
-        "material3" to "via BOM",
-        "material-icons-core" to "via BOM",
-        "core-ktx" to "1.19.0",
+        "compose-bom" to "2026.09.00",
+        "material3" to "1.4.0 (via BOM)",
+        "material-icons-core" to "1.7.8 (via BOM)",
+        "core-ktx" to "1.19.1",
         "activity-compose" to "1.13.0",
-        "lifecycle-runtime-ktx" to "2.10.0",
-        "lifecycle-viewmodel-compose" to "2.10.0",
-        "navigation-compose" to "2.9.8",
+        "lifecycle-runtime-ktx" to "2.11.0",
+        "lifecycle-viewmodel-compose" to "2.11.0",
+        "navigation-compose" to "2.10.2",
         "profileinstaller" to "1.4.1",
-        "emoji2-emojipicker" to "1.6.0"
+        "emoji2-emojipicker" to "1.7.0"
     ),
     "Networking / serialization" to listOf(
         "Retrofit" to "3.0.0",
-        "OkHttp" to "5.3.2",
-        "Gson" to "transitive"
+        "OkHttp" to "5.5.0",
+        "Gson" to "2.14.0",
+        "SnakeYAML" to "2.7"
     ),
     "Coroutines" to listOf(
         "kotlinx-coroutines" to "1.11.0"
     ),
     "On-device ML / documents" to listOf(
-        "MediaPipe tasks-text" to "0.10.35",
+        "MediaPipe tasks-text" to "1.0.0",
         "MediaPipe tasks-genai" to "0.10.35",
         "commons-compress" to "1.28.0",
         "pdfbox-android" to "2.0.27.0",
-        "jsoup" to "1.22.2"
+        "jsoup" to "1.23.2"
     ),
     "Testing" to listOf(
         "JUnit4" to "4.13.2",
         "Truth" to "1.4.5",
-        "Guava (test constraint)" to "33.6.0-android",
+        "Guava (test constraint)" to "33.7.1-android",
         "test ext-junit" to "1.3.0",
         "test runner / rules / core" to "1.7.0",
         "espresso-core" to "3.7.0"
