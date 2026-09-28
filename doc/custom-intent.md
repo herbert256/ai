@@ -226,6 +226,10 @@ Models, Agents, Flocks and Swarms can be combined; duplicate selections are merg
   resolves parameter presets, decodes values and expands literal text.
 - [`ExternalIntentConfirmScreen.kt`](../ai/src/main/java/com/ai/ui/share/ExternalIntentConfirmScreen.kt)
   previews the request and prevents continuing with unresolved definitions.
+  When `<open>` / `<close>` are present, a **Presentation HTML** card lists
+  each body's length and whether it contains script (`<script>`,
+  `javascript:` or an inline `on…=` handler), since that HTML later runs in
+  the HTML view with JavaScript and network access enabled.
 - [`AppNavHost.kt`](../ai/src/main/java/com/ai/ui/navigation/AppNavHost.kt)
   stages confirmation and opens model selection or worker settings after consent.
 - [`ReportLaunchPlan.kt`](../ai/src/main/java/com/ai/viewmodel/ReportLaunchPlan.kt)

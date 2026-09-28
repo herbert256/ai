@@ -91,6 +91,7 @@ fun ExternalIntentConfirmScreen(
                 intent.resolutionErrors.forEach { Text(it, color = AppColors.DangerAccent) }
             }
             SourceCard(intent)
+            if (intent.openHtml != null || intent.closeHtml != null) PresentationCard(intent)
             ActionCard(intent)
             val hasSideEffects = !intent.email.isNullOrBlank() ||
                 !intent.nextAction.isNullOrBlank() || intent.hasReturn
@@ -140,6 +141,30 @@ private fun SourceCard(intent: PendingExternalReport) {
                 Text("System prompt: ${system.take(previewLimit)}${if (system.length > previewLimit) "…" else ""}",
                     fontSize = 11.sp, color = AppColors.TextTertiary)
             }
+        }
+    }
+}
+
+/** `<script>`, a `javascript:` URL or an inline `on…=` event handler. */
+private val SCRIPT_MARKERS = Regex("""<script\b|javascript:|\son[a-z]+\s*=""", RegexOption.IGNORE_CASE)
+
+/** Discloses the request's `<open>` / `<close>` presentation: it is rendered
+ *  as HTML in the report's HTML view — JavaScript and network on — so its
+ *  size and whether it carries script are shown before Continue. */
+@Composable
+private fun PresentationCard(intent: PendingExternalReport) {
+    Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackgroundAlt)) {
+        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text("Presentation HTML", fontSize = 11.sp, color = AppColors.TextTertiary, fontWeight = FontWeight.SemiBold)
+            listOf("Opening" to intent.openHtml, "Closing" to intent.closeHtml).forEach { (label, html) ->
+                if (html != null) {
+                    val script = SCRIPT_MARKERS.containsMatchIn(html)
+                    Text("$label: ${html.length} chars, contains script: ${if (script) "yes" else "no"}",
+                        fontSize = 12.sp, color = if (script) AppColors.WarningAccent else AppColors.TextSecondary)
+                }
+            }
+            Text("Shown with the report in its HTML view, where JavaScript and network access are on.",
+                fontSize = 11.sp, color = AppColors.TextTertiary)
         }
     }
 }
