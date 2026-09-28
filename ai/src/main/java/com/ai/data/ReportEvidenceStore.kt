@@ -82,8 +82,12 @@ object ReportEvidenceStore {
         row.tournamentJudgeRunId ?: row.compareRunId ?: row.translationRunId ?: row.runId)?.sourceSnapshotId
     fun sources(row: SecondaryResult): ReportSourceSnapshot? = sources(row.reportId,sourceId(row))
     fun historicalReport(report: Report, row: SecondaryResult): Report = historicalReport(report, sources(row))
+    /** Why a row without a readable saved-inputs record can't be replayed —
+     *  shared by [requireHistoricalReport] and the batch engines' pre-clear
+     *  rerun gate, so both surface the same wording. */
+    const val SOURCE_UNAVAILABLE_MESSAGE = "Saved source inputs are unavailable. Create a new analysis using the current answers; this result cannot be replayed faithfully."
     fun requireHistoricalReport(report: Report, row: SecondaryResult): Report = historicalReport(report,
-        sources(row) ?: throw IOException("Saved source inputs are unavailable. Create a new analysis using the current answers; this result cannot be replayed faithfully."))
+        sources(row) ?: throw IOException(SOURCE_UNAVAILABLE_MESSAGE))
     fun historicalReport(report: Report, snapshot: ReportSourceSnapshot?): Report {
         // Display helpers must not attach current text to an unknown old evaluation.
         if (snapshot == null) return report.copy(prompt = "Saved source unavailable", agents = mutableListOf())

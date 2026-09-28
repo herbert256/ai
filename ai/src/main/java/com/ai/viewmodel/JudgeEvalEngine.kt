@@ -89,6 +89,10 @@ class JudgeEvalEngine internal constructor(
     override fun aggregateRowIdOf(run: JudgeEvalRunState) = run.aggregateRowId
     override fun canRedispatch(context: Context, run: JudgeEvalRunState) =
         run.prompt.text.isNotBlank()   // synthetic prompt — can't re-run; audit bug 17
+    // redispatchRows replays the run's saved answers + question.
+    override fun savedInputsProblem(rows: List<SecondaryResult>) =
+        if (com.ai.data.ReportEvidenceStore.sources(rows.first()) == null)
+            com.ai.data.ReportEvidenceStore.SOURCE_UNAVAILABLE_MESSAGE else null
     override val requeueBuildLabel = "Re-queuing judges"
     // The base clearRowForRerun keeps the row's (providerId, model) — the
     // re-judge must go to the same judge.
@@ -637,12 +641,12 @@ class JudgeEvalEngine internal constructor(
     // -----------------------------------------------------------------
 
     fun restartFailedCells(context: Context, reportId: String): Job =
-        appViewModel.viewModelScope.launch(Dispatchers.IO) {
+        launchItemRerun(context, reportId) {
             restartItemsWhere(context, reportId) { it.status == JudgeCellStatus.ERROR }
         }
 
     fun rerunCell(context: Context, reportId: String, cKey: String): Job =
-        appViewModel.viewModelScope.launch(Dispatchers.IO) {
+        launchItemRerun(context, reportId) {
             restartItemsWhere(context, reportId) { it.key == cKey }
         }
 
@@ -666,7 +670,7 @@ class JudgeEvalEngine internal constructor(
         }
 
     fun restartCellsByIds(context: Context, reportId: String, rowIds: Set<String>): Job =
-        appViewModel.viewModelScope.launch(Dispatchers.IO) {
+        launchItemRerun(context, reportId) {
             restartItemsWhere(context, reportId) { it.id in rowIds }
         }
 

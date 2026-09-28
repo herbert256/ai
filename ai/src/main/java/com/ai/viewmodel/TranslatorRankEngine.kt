@@ -537,13 +537,13 @@ class TranslatorRankEngine internal constructor(
     }
 
     fun restartFailedCells(context: Context, key: TransRankRunKey): Job =
-        appViewModel.viewModelScope.launch(Dispatchers.IO) {
+        launchItemRerun(context, key) {
             restartItemsWhere(context, key) { it.status == TransRankCellStatus.ERROR }
         }
 
     /** Broken-work per-row restart: re-judge exactly the picked cell rows. */
     fun restartCellsByIds(context: Context, key: TransRankRunKey, rowIds: Set<String>): Job =
-        appViewModel.viewModelScope.launch(Dispatchers.IO) {
+        launchItemRerun(context, key) {
             restartItemsWhere(context, key) { it.id in rowIds }
         }
 

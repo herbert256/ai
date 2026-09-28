@@ -73,6 +73,15 @@ class CompareEngine internal constructor(
     override fun markItemRunning(item: CompareCellState) = item.copy(status = CompareCellStatus.RUNNING)
     override fun canRedispatch(context: Context, run: CompareRunState) =
         run.comparePrompt.text.isNotBlank()   // synthetic prompt — can't re-run; audit bug 15
+    /** redispatchRows replays the run's saved answers + question AND the
+     *  saved body of every meta item a cell scores against. */
+    override fun savedInputsProblem(rows: List<SecondaryResult>): String? {
+        val snapshot = com.ai.data.ReportEvidenceStore.sources(rows.first())
+            ?: return com.ai.data.ReportEvidenceStore.SOURCE_UNAVAILABLE_MESSAGE
+        val bodies = snapshot.secondaryBodies.orEmpty()
+        return if (rows.any { r -> r.compareToResultId?.let { it !in bodies } == true }) SAVED_REFERENCE_UNAVAILABLE
+            else null
+    }
     override val requeueBuildLabel = "Re-queuing compare"
     override fun resetItemToPending(item: CompareCellState) =
         item.copy(
@@ -128,6 +137,7 @@ class CompareEngine internal constructor(
          *  set explicitly here so the on-disk category stays a flat token. */
         const val TRACE_CATEGORY = "meta/compare"
         const val USAGE_KIND = "compare"
+        const val SAVED_REFERENCE_UNAVAILABLE = "Saved reference unavailable; create a new comparison"
     }
 
     private fun comparePromptById(aiSettings: Settings, promptId: String?): InternalPrompt? =
@@ -297,7 +307,7 @@ class CompareEngine internal constructor(
         // Resolve each referenced meta row's content once (strip the appended
         // reference legend so [1]/[2] artifacts don't pollute the judgment).
         val metaContentById = items.map { it.metaResultId }.distinct().associateWith { mid ->
-            (snapshot?.secondaryBodies?.get(mid) ?: throw java.io.IOException("Saved reference unavailable; create a new comparison"))
+            (snapshot?.secondaryBodies?.get(mid) ?: throw java.io.IOException(SAVED_REFERENCE_UNAVAILABLE))
                 .let { stripMetaReferenceLegend(it) }
         }
         runThrottledBatch(
@@ -391,12 +401,12 @@ class CompareEngine internal constructor(
     // -----------------------------------------------------------------
 
     fun restartFailedCells(context: Context, reportId: String): Job =
-        appViewModel.viewModelScope.launch(Dispatchers.IO) {
+        launchItemRerun(context, reportId) {
             restartItemsWhere(context, reportId) { it.status == CompareCellStatus.ERROR }
         }
 
     fun rerunCell(context: Context, reportId: String, cKey: String): Job =
-        appViewModel.viewModelScope.launch(Dispatchers.IO) {
+        launchItemRerun(context, reportId) {
             restartItemsWhere(context, reportId) { it.key == cKey }
         }
 
@@ -421,7 +431,7 @@ class CompareEngine internal constructor(
         }
 
     fun restartCellsByIds(context: Context, reportId: String, rowIds: Set<String>): Job =
-        appViewModel.viewModelScope.launch(Dispatchers.IO) {
+        launchItemRerun(context, reportId) {
             restartItemsWhere(context, reportId) { it.id in rowIds }
         }
 

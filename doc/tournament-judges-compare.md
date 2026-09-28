@@ -320,7 +320,12 @@ the affected placeholders back to a blank PENDING shape via the shared
 `SecondaryBatchEngine.rerunItemsBlocking` (Tournament and Compare override
 `clearRowForRerun` to also restore their pre-judge sentinel provider/model;
 Judges keeps the judge so the retry goes to the same model). A full redo
-creates a new run id.
+creates a new run id. A rerun replays the run's **saved inputs** (answers,
+question and — for Compare — the chosen meta items); when that record is
+missing (a run that predates the saved-inputs store) the rerun is refused
+**before** any row is cleared and a toast says to start a new analysis. The
+restart launches run under the crash-reporter coroutine handler, so a failure
+there can no longer take the app down.
 
 ## Cost and usage
 

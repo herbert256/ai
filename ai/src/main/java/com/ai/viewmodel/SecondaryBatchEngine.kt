@@ -144,6 +144,15 @@ abstract class SecondaryBatchEngine<RunKey : Any, ItemState : BatchItem<String>,
      *  silently skipped. Shared by the resume scan and the rerun paths. */
     protected abstract suspend fun redispatchRows(context: Context, runKey: RunKey, rows: List<SecondaryResult>)
 
+    /** Why [rows] — the disk rows a rerun is about to clear — can't be
+     *  replayed from their saved inputs, or null when they can. Checked in
+     *  [rerunItemsBlocking] BEFORE any row is cleared: [redispatchRows]
+     *  refuses a run whose saved-inputs record is missing (one that
+     *  predates the store, or whose evidence file is gone), and by then the
+     *  rows were already blanked and their spend banked. Default null — an
+     *  engine whose redispatch needs the saved inputs opts in. */
+    protected open fun savedInputsProblem(rows: List<SecondaryResult>): String? = null
+
     // ===== Promoted flows (byte-identical across the four engines) =====
 
     /** The startRun scaffold every engine copied: refuse to double-launch
@@ -472,14 +481,27 @@ abstract class SecondaryBatchEngine<RunKey : Any, ItemState : BatchItem<String>,
         if (!canRedispatch(context, run)) { buildKey?.let { appViewModel.finishBuild(it) }; return }
         val reportId = reportIdOf(runKey)
         com.ai.data.ReportWorkLimits.checkSize(itemKeys.size)
+        // One disk read per item (cached) feeds the saved-inputs gate, the
+        // cost rollup and the clear.
+        val targets = itemKeys.mapNotNull { k ->
+            val item = run.items[k] ?: return@mapNotNull null
+            SecondaryResultStorage.get(context, reportId, item.id)?.let { k to it }
+        }
+        // Saved-inputs gate — also BEFORE any row is cleared. A run whose
+        // saved inputs are gone used to have its rows blanked + spend banked
+        // here, then redispatchRows threw: the rows stayed empty for good
+        // (and the uncaught throw killed the app). Refuse up front instead;
+        // the caller's catch shows the message.
+        if (targets.isNotEmpty()) savedInputsProblem(targets.map { it.second })?.let { problem ->
+            buildKey?.let { appViewModel.finishBuild(it) }
+            throw java.io.IOException(problem)
+        }
         var clearedCostDelta = 0.0
         val clearedRows = mutableListOf<SecondaryResult>()
         // Build stage: resetting each broken item to a PENDING placeholder is
         // the "Preparing N / M…" phase the Broken-work Continue popup covers.
         if (buildKey != null) appViewModel.beginBuild(buildKey, itemKeys.size, requeueBuildLabel)
-        for (k in itemKeys) {
-            val item = run.items[k] ?: continue
-            val cur = SecondaryResultStorage.get(context, reportId, item.id) ?: continue
+        for ((k, cur) in targets) {
             clearedCostDelta += cur.fullCost()
             val cleared = clearRowForRerun(cur)
             transitionItem(runKey, k) { resetItemToPending(it) }
@@ -496,7 +518,47 @@ abstract class SecondaryBatchEngine<RunKey : Any, ItemState : BatchItem<String>,
         // batch screen while the dispatch below keeps running in the background.
         if (buildKey != null) appViewModel.finishBuild(buildKey)
         if (clearedRows.isEmpty()) return
-        redispatchRows(context, runKey, clearedRows)
+        try {
+            redispatchRows(context, runKey, clearedRows)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            // The rows are already cleared (spend banked) — stamp them failed
+            // so they read as errors to restart, not blank forever-queued
+            // placeholders; the caller surfaces the message.
+            val message = e.message ?: "Rerun unavailable"
+            clearedRows.forEach { row ->
+                markRowInterrupted(context, reportId, row.id, message)
+                transitionItemById(runKey, row.id) { terminalizeItem(it, message) }
+            }
+            throw e
+        }
+    }
+
+    /** Launch a user-triggered re-fire of existing items — Restart failed,
+     *  rerun one item, the Broken-work per-row restart. Runs under the
+     *  report coroutine context (IO + [com.ai.data.CrashReporter] handler)
+     *  with a local catch: these launches are direct children of
+     *  viewModelScope, so a throw (e.g. a run whose saved inputs are gone)
+     *  used to take the whole process down. Now it logs and tells the user. */
+    protected fun launchItemRerun(context: Context, runKey: RunKey, body: suspend () -> Unit): Job =
+        appViewModel.viewModelScope.launch(reportViewModel.reportLogContext()) {
+            try {
+                body()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                AppLog.w(logTag, "rerun failed report=${reportIdOf(runKey)}: ${e.javaClass.simpleName}: ${e.message}")
+                notifyUser(context, e.message ?: "Rerun unavailable")
+            }
+        }
+
+    /** A long toast on the main thread — the user-visible half of a failed
+     *  rerun / Continue. */
+    protected suspend fun notifyUser(context: Context, message: String) {
+        withContext(Dispatchers.Main) {
+            android.widget.Toast.makeText(context, message, android.widget.Toast.LENGTH_LONG).show()
+        }
     }
 
     /** Rerun the items matching [predicate] — clear → PENDING → re-dispatch —
@@ -512,7 +574,7 @@ abstract class SecondaryBatchEngine<RunKey : Any, ItemState : BatchItem<String>,
      *  PENDING + errored) in one batch, driving the build-stage popup off
      *  [buildKey]. Finished items are untouched. */
     fun continueBrokenBatch(context: Context, runKey: RunKey, buildKey: String?): Job =
-        appViewModel.viewModelScope.launch(Dispatchers.IO) {
+        appViewModel.viewModelScope.launch(reportViewModel.reportLogContext()) {
             try {
                 stopInFlightKeepingState(runKey)
                 hydrate(context, reportIdOf(runKey))
@@ -526,6 +588,7 @@ abstract class SecondaryBatchEngine<RunKey : Any, ItemState : BatchItem<String>,
                 throw e
             } catch (e: Exception) {
                 AppLog.w(logTag, "continue broken batch failed report=${reportIdOf(runKey)}: ${e.javaClass.simpleName}: ${e.message}")
+                notifyUser(context, e.message ?: "Continue unavailable")
             } finally {
                 // Release the popup so the overlay still opens when there was
                 // nothing to re-queue (the normal path finishes it before dispatch).

@@ -85,6 +85,10 @@ class TournamentEngine internal constructor(
     override fun aggregateRowIdOf(run: TournamentRunState) = run.aggregateRowId
     override fun canRedispatch(context: Context, run: TournamentRunState) =
         run.tournamentPrompt.text.isNotBlank()   // synthetic prompt — can't re-run; audit bug 16
+    // redispatchRows replays the run's saved answers + question.
+    override fun savedInputsProblem(rows: List<SecondaryResult>) =
+        if (com.ai.data.ReportEvidenceStore.sources(rows.first()) == null)
+            com.ai.data.ReportEvidenceStore.SOURCE_UNAVAILABLE_MESSAGE else null
     override val requeueBuildLabel = "Re-queuing tournament"
     override fun resetItemToPending(item: MatchState) =
         item.copy(
@@ -471,12 +475,12 @@ class TournamentEngine internal constructor(
     // -----------------------------------------------------------------
 
     fun restartFailedMatches(context: Context, reportId: String): Job =
-        appViewModel.viewModelScope.launch(Dispatchers.IO) {
+        launchItemRerun(context, reportId) {
             restartItemsWhere(context, reportId) { it.status == MatchStatus.ERROR }
         }
 
     fun rerunMatch(context: Context, reportId: String, mKey: String): Job =
-        appViewModel.viewModelScope.launch(Dispatchers.IO) {
+        launchItemRerun(context, reportId) {
             restartItemsWhere(context, reportId) { it.key == mKey }
         }
 
@@ -500,7 +504,7 @@ class TournamentEngine internal constructor(
         }
 
     fun restartMatchesByIds(context: Context, reportId: String, rowIds: Set<String>): Job =
-        appViewModel.viewModelScope.launch(Dispatchers.IO) {
+        launchItemRerun(context, reportId) {
             restartItemsWhere(context, reportId) { it.id in rowIds }
         }
 
