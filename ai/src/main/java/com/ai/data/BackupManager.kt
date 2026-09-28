@@ -132,6 +132,17 @@ object BackupManager {
      *      lose them when restoring an unrelated settings/data backup. */
     internal val FILES_DIR_BACKUP_EXCLUDES = setOf("local_llms", "local_models", "native", "applog")
 
+    /** Top-level filesDir subdirs holding content-addressed blobs that the
+     *  report / secondary JSON (reports/, secondary/) point at. Blobs are
+     *  written before their parent and kept until the report is deleted,
+     *  so copying these dirs AFTER every parent keeps a backup taken while
+     *  a run is saving consistent: every blob a copied parent references
+     *  already exists when its dir is walked. The reverse order let a
+     *  parent saved mid-backup reference a blob the zip never got
+     *  ("Saved report content is missing" / "Saved source unavailable"
+     *  after restore). */
+    private val FILES_DIR_BLOB_DIRS = setOf("report_content", "report_evidence")
+
     private val gson: Gson = GsonBuilder().setPrettyPrinting().create()
 
     private const val BACKUP_FILE_PREFIX = "ai-backup-"
@@ -572,7 +583,10 @@ object BackupManager {
         // against its parent's canonical path — a real child resolves
         // under the parent, a symlink escaping outside doesn't.
         val parentCanonical = try { dir.canonicalPath } catch (_: java.io.IOException) { dir.absolutePath }
-        for (child in children) {
+        // Blob dirs last at the top level — see FILES_DIR_BLOB_DIRS. Stable
+        // sort, so every other entry keeps listFiles order.
+        val ordered = if (prefix == "files") children.sortedBy { it.name in FILES_DIR_BLOB_DIRS } else children.asList()
+        for (child in ordered) {
             // Top-level filesDir excludes — local model bundles, see
             // FILES_DIR_BACKUP_EXCLUDES. Only applied at depth 0 (prefix == "files")
             // so a deeper directory that happens to share the name still gets backed up.

@@ -156,6 +156,12 @@ file identities invalidate them automatically.
 
 Everything in `<filesDir>` is mirrored into `files/` **except**
 the four top-level `FILES_DIR_BACKUP_EXCLUDES` subdirs (below).
+The content-addressed blob dirs `report_content/` and
+`report_evidence/` (`FILES_DIR_BLOB_DIRS`) are copied **after**
+every other top-level entry: blobs are written before the
+`reports/` / `secondary/` JSON that references them and are only
+deleted with the report, so a backup taken while a run is saving
+never holds a parent pointing at a blob the zip lacks.
 Notable contents:
 
 - `reports/`, `secondary/`, `chat-history/`, `prompt-history.json`
