@@ -17,6 +17,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
@@ -371,6 +372,26 @@ abstract class SecondaryBatchEngine<RunKey : Any, ItemState : BatchItem<String>,
         _runs.value[runKey]?.items?.values?.forEach { itemJobOf(it.id)?.cancelAndJoin() }
     }
 
+    /** Run [block] (a restart / Continue / resume dispatch of existing
+     *  items) as [runKey]'s registered run job — unless the run's own job is
+     *  still live (registering would supersede, i.e. cancel, it). Without
+     *  it such a dispatch had no run job at all, and runThrottledBatch only
+     *  registers item jobs inside its admission window: on a restart of more
+     *  items than that window, the queued rest had neither an item nor a
+     *  run job, so the Broken-work scan flagged them as interrupted after
+     *  60 s, and its Continue cancelled only the admitted calls while this
+     *  coroutine went on admitting the very rows Continue re-queued (double
+     *  billing). Registered, the dispatch counts in [activeRunKeys], keeps a
+     *  resume scan off the run, and is what [stopInFlightKeepingState],
+     *  [deleteRun] and [cancelAllForReport] cancel. Mirrors
+     *  TranslationRunManager's restart paths. */
+    protected suspend fun runAsRunJob(runKey: RunKey, block: suspend () -> Unit) {
+        coroutineScope {
+            val dispatch = launch { block() }
+            if (!isRunActive(runKey)) registerRunJob(runKey, dispatch)
+        }
+    }
+
     /** Row ids whose worker Job is live in THIS process — the read-only
      *  broken-work scan's in-flight exclusion (parallel to
      *  [FanOutEngine.inFlightRowIds]). Empty after a process kill, which is
@@ -450,8 +471,10 @@ abstract class SecondaryBatchEngine<RunKey : Any, ItemState : BatchItem<String>,
                         }
                     }
                     if (retryRows.isEmpty()) continue
-                    redispatchRows(context, runKey, retryRows)
-                    recomputeAggregate(context, runKey)
+                    runAsRunJob(runKey) {
+                        redispatchRows(context, runKey, retryRows)
+                        recomputeAggregate(context, runKey)
+                    }
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
@@ -544,7 +567,7 @@ abstract class SecondaryBatchEngine<RunKey : Any, ItemState : BatchItem<String>,
     protected fun launchItemRerun(context: Context, runKey: RunKey, body: suspend () -> Unit): Job =
         appViewModel.viewModelScope.launch(reportViewModel.reportLogContext()) {
             try {
-                body()
+                runAsRunJob(runKey) { body() }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -576,12 +599,16 @@ abstract class SecondaryBatchEngine<RunKey : Any, ItemState : BatchItem<String>,
     fun continueBrokenBatch(context: Context, runKey: RunKey, buildKey: String?): Job =
         appViewModel.viewModelScope.launch(reportViewModel.reportLogContext()) {
             try {
+                // Stops a previous restart / Continue dispatch too — it is
+                // the registered run job (see runAsRunJob).
                 stopInFlightKeepingState(runKey)
-                hydrate(context, reportIdOf(runKey))
-                _runs.value[runKey]?.let { run ->
-                    val keys = run.items.values.filter { isBrokenForContinue(it) }.map { it.key }
-                    rerunItemsBlocking(context, runKey, keys, buildKey)
-                    recomputeAggregate(context, runKey)
+                runAsRunJob(runKey) {
+                    hydrate(context, reportIdOf(runKey))
+                    _runs.value[runKey]?.let { run ->
+                        val keys = run.items.values.filter { isBrokenForContinue(it) }.map { it.key }
+                        rerunItemsBlocking(context, runKey, keys, buildKey)
+                        recomputeAggregate(context, runKey)
+                    }
                 }
             } catch (e: CancellationException) {
                 buildKey?.let { appViewModel.clearBuild(it) }

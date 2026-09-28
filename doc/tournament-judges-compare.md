@@ -44,7 +44,12 @@ separate "running ids" set on `AppViewModel`). The only hot id sets on
 `AppViewModel` (outside `UiState`) are the throttled/"waiting" sets below; the
 live in-process Job ids come from each engine's `inFlightRowIds()` (the shared
 `itemJobs` map keys on the `BatchEngine` base), which the read-only
-broken-work scan excludes.
+broken-work scan excludes. A run whose job is live (`activeRunKeys()`) is
+excluded as a whole — and restarts, Broken-work Continue and resume scans
+register their dispatch as the run job (`SecondaryBatchEngine.runAsRunJob`),
+so rows still queued behind the admission window of a large restart are
+never flagged, and Continue / Delete cancel that dispatch instead of racing
+it (double billing).
 
 | Flow | Runtime owner (in `ReportViewModel`) | Run-state StateFlow | Throttled (waiting) ids |
 |---|---|---|---|
