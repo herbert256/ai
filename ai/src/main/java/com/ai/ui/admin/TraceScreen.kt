@@ -656,9 +656,11 @@ fun TraceDetailScreen(
     val hasPrev = currentIndex > 0
     val hasNext = currentIndex < traceFiles.size - 1 && currentIndex >= 0
 
-    // Load trace data
+    // Load trace data — off Main: readTraceFile parses the whole trace
+    // (multi-MB with inline images) under the tracer lock every streaming
+    // response also takes.
     LaunchedEffect(currentFilename) {
-        trace = ApiTracer.readTraceFile(currentFilename)
+        trace = withContext(Dispatchers.IO) { ApiTracer.readTraceFile(currentFilename) }
     }
 
     // Resolve the AI Report this trace belongs to (if any), so the
@@ -701,9 +703,19 @@ fun TraceDetailScreen(
         return
     }
 
-    // Parse JSON trees for the request / response bodies.
-    val requestTreeNodes = remember(t?.request?.body) { t?.request?.body?.let { parseJsonTree(it) } }
-    val responseTreeNodes = remember(t?.response?.body) { t?.response?.body?.let { parseJsonTree(it) } }
+    // Parse JSON trees for the request / response bodies — on a background
+    // dispatcher; parsing a multi-MB body in composition froze the screen.
+    // Reset to null first so a swipe never shows the previous trace's tree.
+    val requestBody = t?.request?.body
+    val responseBody = t?.response?.body
+    val requestTreeNodes by produceState<List<JsonTreeNode>?>(null, requestBody) {
+        value = null
+        value = requestBody?.let { body -> withContext(Dispatchers.Default) { parseJsonTree(body) } }
+    }
+    val responseTreeNodes by produceState<List<JsonTreeNode>?>(null, responseBody) {
+        value = null
+        value = responseBody?.let { body -> withContext(Dispatchers.Default) { parseJsonTree(body) } }
+    }
 
     // Split the request URL into (path-without-query, list of (k, v))
     // so the title-line URL never leaks query params (some carry API
@@ -759,17 +771,23 @@ fun TraceDetailScreen(
         TraceContentView.RSP_DATA -> t?.response?.body ?: ""
     }
 
-    // Text shown in PRETTY / RAW modes (PARSED renders the tree / kv
+    // Rows shown in PRETTY / RAW modes (PARSED renders the tree / kv
     // rows instead). The on-screen display shows the raw bytes
     // (including secrets) — Copy / Share redact separately below.
-    val displayContent = remember(t, currentView, currentMode, queryParams, metaEntries) {
-        if (t == null) return@remember ""
+    // Pretty-printing + splitting run on a background dispatcher: they
+    // used to run in composition on every view / mode switch.
+    val displayRows by produceState(emptyList<TraceDisplayRow>(), t, currentView, currentMode, queryParams, metaEntries) {
+        if (t == null) {
+            value = emptyList()
+            return@produceState
+        }
         val raw = rawForView(currentView)
-        if (currentMode == TraceContentMode.RAW) raw else ApiTracer.prettyPrintJson(raw)
+        val mode = currentMode
+        value = withContext(Dispatchers.Default) { traceDisplayRows(raw, mode) }
     }
 
     // Parallel content used only by the Copy and Share buttons —
-    // displayContent with sensitive headers / JSON keys / query
+    // the displayed text with sensitive headers / JSON keys / query
     // params replaced by "[REDACTED]". Meta carries no secrets.
     fun redactedContentFor(view: TraceContentView, trace: ApiTrace): String = when (view) {
         TraceContentView.META -> metaEntries.joinToString("\n") { "${it.first}: ${it.second}" }
@@ -1035,14 +1053,23 @@ fun TraceDetailScreen(
                 // Parsed tree); RAW stays uncoloured — bytes as-is.
                 val pretty = currentMode == TraceContentMode.PRETTY
                 LazyColumn {
-                    val lines = displayContent.lines()
-                    items(lines.size) { index ->
-                        if (pretty) {
-                            Text(highlightJsonLine(lines[index]), fontSize = 11.sp,
-                                fontFamily = FontFamily.Monospace, modifier = Modifier.padding(vertical = 1.dp))
-                        } else {
-                            Text(lines[index], fontSize = 11.sp, color = AppColors.TextSecondary,
-                                fontFamily = FontFamily.Monospace, modifier = Modifier.padding(vertical = 1.dp))
+                    items(displayRows.size) { index ->
+                        val row = displayRows[index]
+                        when {
+                            row.kind == TraceRowKind.NOTE ->
+                                Text(row.text, fontSize = 11.sp, color = AppColors.TextTertiary,
+                                    fontFamily = FontFamily.Monospace, modifier = Modifier.padding(vertical = 1.dp))
+                            pretty && row.kind == TraceRowKind.LINE ->
+                                Text(highlightJsonLine(row.text), fontSize = 11.sp,
+                                    fontFamily = FontFamily.Monospace, modifier = Modifier.padding(vertical = 1.dp))
+                            // A continuation of a split long line: in pretty-
+                            // printed JSON that is the inside of a string value.
+                            pretty ->
+                                Text(row.text, fontSize = 11.sp, color = AppColors.SuccessAccent,
+                                    fontFamily = FontFamily.Monospace, modifier = Modifier.padding(vertical = 1.dp))
+                            else ->
+                                Text(row.text, fontSize = 11.sp, color = AppColors.TextSecondary,
+                                    fontFamily = FontFamily.Monospace, modifier = Modifier.padding(vertical = 1.dp))
                         }
                     }
                 }
@@ -1109,6 +1136,43 @@ fun TraceDetailScreen(
 }
 
 
+// ===== Pretty / Raw rows =====
+
+// A base64 image or audio payload is one multi-MB line; rendered as a single
+// Text it froze the screen. Long lines are split into lazily rendered rows
+// of TRACE_ROW_CHARS, and anything past TRACE_LINE_CAP chars of one line is
+// replaced by a note — Copy / Share still carry the full text.
+private const val TRACE_ROW_CHARS = 4_000
+private const val TRACE_LINE_CAP = 100_000
+/** Tree string values render as one Text, so they get a tighter cap. */
+private const val TRACE_TREE_VALUE_CAP = 20_000
+
+private enum class TraceRowKind { LINE, CONTINUATION, NOTE }
+
+private data class TraceDisplayRow(val text: String, val kind: TraceRowKind)
+
+private fun omittedNote(omitted: Int) =
+    "… $omitted more characters not shown — Copy / Share carry the full text"
+
+/** Display rows for PRETTY / RAW (and the non-JSON fallback of PARSED):
+ *  pretty-printed unless [mode] is RAW, split per line, long lines split /
+ *  capped as described above. Pure — run off the main thread. */
+private fun traceDisplayRows(raw: String, mode: TraceContentMode): List<TraceDisplayRow> {
+    val text = if (mode == TraceContentMode.RAW) raw else ApiTracer.prettyPrintJson(raw)
+    val rows = ArrayList<TraceDisplayRow>()
+    text.lineSequence().forEach { line ->
+        if (line.length <= TRACE_ROW_CHARS) {
+            rows += TraceDisplayRow(line, TraceRowKind.LINE)
+        } else {
+            line.take(TRACE_LINE_CAP).chunked(TRACE_ROW_CHARS).forEachIndexed { i, chunk ->
+                rows += TraceDisplayRow(chunk, if (i == 0) TraceRowKind.LINE else TraceRowKind.CONTINUATION)
+            }
+            if (line.length > TRACE_LINE_CAP) rows += TraceDisplayRow(omittedNote(line.length - TRACE_LINE_CAP), TraceRowKind.NOTE)
+        }
+    }
+    return rows
+}
+
 // ===== JSON Tree View =====
 
 private enum class JsonNodeType { OBJECT, ARRAY, STRING, NUMBER, BOOLEAN, NULL }
@@ -1134,7 +1198,12 @@ private fun parseJsonElement(key: String?, element: JsonElement): JsonTreeNode {
         element.isJsonPrimitive -> {
             val p = element.asJsonPrimitive
             when {
-                p.isString -> JsonTreeNode(key, JsonNodeType.STRING, "\"${p.asString}\"")
+                p.isString -> {
+                    val s = p.asString
+                    JsonTreeNode(key, JsonNodeType.STRING,
+                        if (s.length <= TRACE_TREE_VALUE_CAP) "\"$s\""
+                        else "\"${s.take(TRACE_TREE_VALUE_CAP)}\" ${omittedNote(s.length - TRACE_TREE_VALUE_CAP)}")
+                }
                 p.isNumber -> JsonTreeNode(key, JsonNodeType.NUMBER, p.asString)
                 p.isBoolean -> JsonTreeNode(key, JsonNodeType.BOOLEAN, p.asString)
                 else -> JsonTreeNode(key, JsonNodeType.NULL, "null")
