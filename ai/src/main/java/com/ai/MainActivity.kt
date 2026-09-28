@@ -216,8 +216,8 @@ class MainActivity : ComponentActivity() {
             Intent.ACTION_SEND -> {
                 val uri = uriExtra(intent, Intent.EXTRA_STREAM)
                 sharedContent.value = SharedContent(
-                    text = intent.getStringExtra(Intent.EXTRA_TEXT),
-                    subject = intent.getStringExtra(Intent.EXTRA_SUBJECT),
+                    text = charSequenceExtra(intent, Intent.EXTRA_TEXT),
+                    subject = charSequenceExtra(intent, Intent.EXTRA_SUBJECT),
                     uris = listOfNotNull(uri?.toString()),
                     mime = intent.type
                 )
@@ -225,14 +225,20 @@ class MainActivity : ComponentActivity() {
             Intent.ACTION_SEND_MULTIPLE -> {
                 val uris = uriListExtra(intent, Intent.EXTRA_STREAM)
                 sharedContent.value = SharedContent(
-                    text = intent.getStringExtra(Intent.EXTRA_TEXT),
-                    subject = intent.getStringExtra(Intent.EXTRA_SUBJECT),
+                    text = charSequenceExtra(intent, Intent.EXTRA_TEXT),
+                    subject = charSequenceExtra(intent, Intent.EXTRA_SUBJECT),
                     uris = uris.map { it.toString() },
                     mime = intent.type
                 )
             }
         }
     }
+
+    /** EXTRA_TEXT / EXTRA_SUBJECT as plain text. Senders may put a styled
+     *  CharSequence (a Spanned, e.g. ShareCompat.setHtmlText) there, which
+     *  getStringExtra returns as null — the share arrived empty. */
+    private fun charSequenceExtra(intent: Intent, key: String): String? =
+        intent.getCharSequenceExtra(key)?.toString()
 
     /** API-level-aware Uri parcelable extractor. The newer typed
      *  variant landed in API 33; below that we fall back to the

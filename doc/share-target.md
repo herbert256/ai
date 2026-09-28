@@ -118,7 +118,10 @@ data class SharedContent(
 - `ACTION_SEND_MULTIPLE` reads the Uri `ArrayList` and maps each to a
   string.
 - Both branches also pull `EXTRA_TEXT`, `EXTRA_SUBJECT`, and
-  `intent.type`.
+  `intent.type`. Text and subject are read with
+  `getCharSequenceExtra(...)?.toString()`, not `getStringExtra`: a
+  sender may put a styled `CharSequence` there (a `Spanned`, e.g.
+  `ShareCompat.setHtmlText`), which `getStringExtra` returns as `null`.
 
 Uri extraction is API-version-aware: `getParcelableExtra(key,
 Uri::class.java)` / `getParcelableArrayListExtra(key, Uri::class.java)`
