@@ -147,6 +147,13 @@ per-report 🌐 web-search and 🧠 reasoning-effort toggles
 `reasoningEffort`). The explicitly selected report system prompt is applied last,
 including over system text embedded in a parameter preset.
 
+The two chips are report-wide, so they are gated per model when each model's
+execution config is captured (`withoutUnsupportedReportChips`, used by
+`preparePrimaryExecution` and `executeReportTask`): a model that doesn't accept
+`reasoning_effort` or can't use web search runs without the chip's value, as the
+per-model retry already did. Values from presets / advanced parameters are not
+dropped — they still fail preflight when unsupported.
+
 This bundle is **not** merged into the per-model presets during `buildReportTasks`.
 It is passed straight to `executeReportTask` as `overrideParams`, so the
 **dispatch fold** is what makes it win field-wise over each model's resolved

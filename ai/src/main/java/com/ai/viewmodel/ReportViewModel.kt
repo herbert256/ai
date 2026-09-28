@@ -659,7 +659,8 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             try {
                 com.ai.data.ReportWorkLimits.checkSize(reportTasks.size)
                 preparePrimaryExecution(context, aiPrompt, reportTasks, overrideParams,
-                    state.attachedKnowledgeBaseIds, aiSettings, appViewModel.repository, state.externalIntent.context)
+                    state.attachedKnowledgeBaseIds, aiSettings, appViewModel.repository, state.externalIntent.context,
+                    chipWebSearch = state.reportWebSearchTool, chipReasoning = state.reportReasoningEffort)
             } catch (e: Exception) {
                 if (latestGenerationJob == thisJob && ownsGenerationScreen()) {
                     // Back to the selection screen with everything this run
@@ -1197,7 +1198,10 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             } else if (isRegeneration && previous.attemptId != null) saved else storedReport.knowledgeContext?.takeIf { it.isNotBlank() }
                 ?.let { saved.copy(prompt="$it\n\n${saved.prompt}") } ?: saved
         } ?: run {
-            val params = appViewModel.repository.effectiveReportParameters(task.resolvedParams, overrideParams,
+            val params = appViewModel.repository.effectiveReportParameters(task.resolvedParams,
+                overrideParams?.withoutUnsupportedReportChips(appViewModel.uiState.value.aiSettings,
+                    task.runtimeAgent.provider, task.runtimeAgent.model,
+                    storedReport.webSearchTool, storedReport.reasoningEffort),
                 task.runtimeAgent.provider, task.runtimeAgent.model, context)
             val question = appViewModel.repository.resolveReportPrompt(aiPrompt, task.runtimeAgent)
             val prompt = storedReport.knowledgeContext?.takeIf { it.isNotBlank() }?.let { "$it\n\n$question" } ?: question
