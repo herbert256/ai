@@ -320,12 +320,14 @@ fun ReportListRow(
     selected: Boolean = false,
     onToggleSelect: ((String) -> Unit)? = null,
     onEnterSelection: ((String) -> Unit)? = null
-) = ReportListRow(
-    reportId = report.id, title = report.title, icon = report.icon,
-    onOpenManage = onOpenManage, onOpenView = onOpenView, onDelete = onDelete,
-    selectionMode = selectionMode, selected = selected,
-    onToggleSelect = onToggleSelect, onEnterSelection = onEnterSelection
-)
+) {
+    ReportListRow(
+        reportId = report.id, title = report.title, icon = report.icon,
+        onOpenManage = onOpenManage, onOpenView = onOpenView, onDelete = onDelete,
+        selectionMode = selectionMode, selected = selected,
+        onToggleSelect = onToggleSelect, onEnterSelection = onEnterSelection
+    )
+}
 
 /** [ReportListRow] from just the fields it shows — lets a list built from
  *  [com.ai.data.ReportStorage.getReportHeaders] (the Reports hub) skip
