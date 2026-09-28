@@ -157,17 +157,18 @@ fun parseMatchVerdict(content: String?): MatchVerdict? {
     // Labeled-line form (what the workers/tournament prompt asks for).
     // Markdown around the label ("**Verdict:** A", "- verdict: A",
     // "### Verdict: A") is stripped first — it used to hide the line.
+    // The FIRST line carrying a value wins: a bare "### Verdict" heading
+    // (stripped to "Verdict", nothing after a ':') is skipped rather than
+    // ending the search before the real "Verdict: B" below it.
     val lines = cleaned.lineSequence().map { stripLineMarkup(it) }.toList()
-    val verdictLine = lines
-        .firstOrNull { it.startsWith("verdict", ignoreCase = true) }
-        ?.substringAfter(":", "")?.takeIf { it.isNotBlank() }
+    fun labelled(label: String): String? = lines.asSequence()
+        .filter { it.startsWith(label, ignoreCase = true) }
+        .map { it.substringAfter(":", "") }
+        .firstOrNull { it.isNotBlank() }
+    val verdictLine = labelled("verdict")
     if (verdictLine != null) {
-        val confLine = lines
-            .firstOrNull { it.startsWith("confidence", ignoreCase = true) }
-            ?.substringAfter(":", "")
-        val reasonLine = lines
-            .firstOrNull { it.startsWith("reason", ignoreCase = true) }
-            ?.substringAfter(":", "")?.trim()
+        val confLine = labelled("confidence")
+        val reasonLine = labelled("reason")?.trim()
         // A present verdict line that normalises to null is garbage ("cannot
         // decide from these") — a logical MISS, not a spurious tie: return null
         // so the round-robin tries the next worker instead of halting on it.

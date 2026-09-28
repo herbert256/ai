@@ -101,7 +101,8 @@ Verdicts are parsed by `parseMatchVerdict` — it prefers the labelled
 JSON fallback, normalising the verdict to `A` / `B` / `tie`. Markdown around
 the label or value (`**Verdict:** A`, `verdict: **A**`) is ignored, and the
 slot named first wins over later mentions (`verdict: A (response B misses X)`
-is A; `A.` is A). A reply with no verdict is a logical miss, so the chain
+is A; `A.` is A). The first labelled line with a value counts, so a bare
+`### Verdict` heading above `Verdict: B` is skipped. A reply with no verdict is a logical miss, so the chain
 advances to the next worker.
 
 Stored rows:
