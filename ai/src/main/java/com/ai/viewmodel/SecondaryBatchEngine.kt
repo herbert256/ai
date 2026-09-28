@@ -194,12 +194,20 @@ abstract class SecondaryBatchEngine<RunKey : Any, ItemState : BatchItem<String>,
         // deleted-items tally; the new coroutine joins the disk sweep
         // before dispatching. Captured here, synchronously, so deleteRun
         // grabs the OLD (inactive) run job — not the one launched below.
+        // A delete of this key whose disk sweep is still running must finish
+        // before the new build writes its placeholders: cancelling an
+        // unpublished build sweeps EVERY row of this kind for the report
+        // (deleteRun's run == null path), so a quick relaunch used to have
+        // its fresh rows deleted by the old sweep. Captured before the
+        // superseding delete below registers its own.
+        val pendingDelete = pendingDeleteOf(runKey)
         val supersededDelete = if (_runs.value[runKey] != null) deleteRun(context, runKey) else null
         appViewModel.updateUiState { it.copy(activeSecondaryBatches = it.activeSecondaryBatches + 1) }
         val reportId = reportIdOf(runKey)
         val runId = java.util.UUID.randomUUID().toString()
         val job = appViewModel.viewModelScope.launch(reportViewModel.reportLogContext()) {
             try {
+                pendingDelete?.join()
                 supersededDelete?.join()
                 withTracerTags(reportId = reportId, category = traceCategory, runId = runId) {
                     body(runId)

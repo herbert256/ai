@@ -86,6 +86,14 @@ abstract class BatchEngine<RunKey : Any, ItemKey, ItemState : BatchItem<ItemKey>
      *  that haven't been deleted off disk yet. */
     protected fun isDeleting(runKey: RunKey): Boolean = runKey in _deletingRuns.value
 
+    /** The background disk work of each run key's in-progress delete. */
+    private val deleteJobs = ConcurrentHashMap<RunKey, Job>()
+
+    /** [runKey]'s delete disk work while it is still running, else null — a
+     *  relaunch on the same key joins it before writing new rows, so the
+     *  sweep can't take the new run's rows with it. */
+    protected fun pendingDeleteOf(runKey: RunKey): Job? = deleteJobs[runKey]?.takeIf { it.isActive }
+
     /** Split a run delete: do the cheap, user-visible part synchronously before
      *  returning — mark the run deleting, cancel the batch coroutines, drop the
      *  in-memory run — then run the slow [diskWork] on [scope] (after joining the
@@ -103,7 +111,7 @@ abstract class BatchEngine<RunKey : Any, ItemKey, ItemState : BatchItem<ItemKey>
         runJob?.cancel()
         itemJobs.forEach { it.cancel() }
         dropRun(runKey)
-        return scope.launch(Dispatchers.IO) {
+        val job = scope.launch(Dispatchers.IO) {
             try {
                 runJob?.join()
                 itemJobs.forEach { it.join() }
@@ -112,6 +120,9 @@ abstract class BatchEngine<RunKey : Any, ItemKey, ItemState : BatchItem<ItemKey>
                 _deletingRuns.update { it - runKey }
             }
         }
+        deleteJobs[runKey] = job
+        job.invokeOnCompletion { deleteJobs.remove(runKey, job) }
+        return job
     }
 
     // ===== Shared job lifecycle (audit R01) =====
