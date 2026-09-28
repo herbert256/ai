@@ -278,7 +278,11 @@ internal fun parseArtificialAnalysisJson(json: String): Pair<Map<String, Pricing
         val priceObj = m.get("pricing")?.takeIf { it.isJsonObject }?.asJsonObject
         val ic = priceObj?.get("price_1m_input_tokens").numOrNull()
         val oc = priceObj?.get("price_1m_output_tokens").numOrNull()
-        if (ic != null && oc != null) {
+        // AA reports 0/0 for every model it has no price for (open weights it
+        // benchmarks but doesn't price, gpt-5.5-pro, gemini-3-deep-think, …).
+        // Storing that as "free" would stop the layered lookup at this tier
+        // before OpenRouter / Requesty / genai-prices could price the model.
+        if (ic != null && oc != null && (ic != 0.0 || oc != 0.0)) {
             pricing[composite] = PricingCache.ModelPricing(
                 modelId = slug,
                 promptPrice = ic / 1_000_000.0,

@@ -264,7 +264,10 @@ step-8 fallback. Together this is what makes OpenRouter's catalog
   Artificial Analysis; free tier — sign up at
   artificialanalysis.ai/api)
 - **Provides:**
-  - `pricing.price_1m_input_tokens` / `price_1m_output_tokens`
+  - `pricing.price_1m_input_tokens` / `price_1m_output_tokens` — a
+    0 / 0 pair is AA's "no price known" (≈ a third of the catalog), so
+    those rows are not stored as pricing and the lookup falls through
+    to the later tiers; the model's scores are still kept
   - `evaluations.artificial_analysis_intelligence_index` — quality score
   - `median_output_tokens_per_second` — speed score
 - **Composite key:** `<model_creator.slug>/<slug>` (lowercased), e.g.
