@@ -641,9 +641,52 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         }
         saveUsageStats(usageStats)
         saveUsageCategoryStats(categoryStats)
-        rebuildUsageReportStatsFromReports(context)
+        // Fold each repaired report's ledger change into its own per-report
+        // row. Rebuilding every row from every report's ledger here brought
+        // the whole pre-clear history back after "Clear all statistics".
+        synchronized(usageStatsLock) {
+            val reports = ensureUsageReportStatsCache()
+            deltas.forEach { adjustReportStatsForLedgerDelta(reports, it) }
+            saveUsageReportStats(HashMap(reports))
+        }
         flushUsageStats()
         return true
+    }
+
+    private fun adjustReportStatsForLedgerDelta(
+        stats: java.util.concurrent.ConcurrentHashMap<String, UsageReportStats>,
+        delta: ReportStorage.ApiCallCostLedgerDelta
+    ) {
+        val before = delta.reportOldRows
+        val after = delta.newRows
+        val calls = after.size - before.size
+        val inputTokens = after.sumOf { it.inputTokens.toLong() } - before.sumOf { it.inputTokens.toLong() }
+        val outputTokens = after.sumOf { it.outputTokens.toLong() } - before.sumOf { it.outputTokens.toLong() }
+        val searchUnits = after.sumOf { it.searchUnits.toLong() } - before.sumOf { it.searchUnits.toLong() }
+        val inputCost = after.sumOf { it.inputCost } - before.sumOf { it.inputCost }
+        val outputCost = after.sumOf { it.outputCost } - before.sumOf { it.outputCost }
+        if (calls == 0 && inputTokens == 0L && outputTokens == 0L && searchUnits == 0L &&
+            inputCost == 0.0 && outputCost == 0.0
+        ) return
+        stats.compute(delta.reportId) { _, existing ->
+            val base = existing ?: UsageReportStats(
+                reportId = delta.reportId,
+                title = delta.title,
+                timestamp = delta.timestamp
+            )
+            val next = base.copy(
+                title = base.title.ifBlank { delta.title },
+                callCount = (base.callCount + calls).coerceAtLeast(0),
+                inputTokens = (base.inputTokens + inputTokens).coerceAtLeast(0L),
+                outputTokens = (base.outputTokens + outputTokens).coerceAtLeast(0L),
+                searchUnits = (base.searchUnits + searchUnits).coerceAtLeast(0L),
+                inputCost = (base.inputCost + inputCost).coerceAtLeast(0.0),
+                outputCost = (base.outputCost + outputCost).coerceAtLeast(0.0)
+            )
+            if (next.callCount == 0 && next.inputTokens == 0L && next.outputTokens == 0L &&
+                next.searchUnits == 0L && next.inputCost == 0.0 && next.outputCost == 0.0
+            ) null else next
+        }
     }
 
     private fun ensureUsageReportStatsCache(): java.util.concurrent.ConcurrentHashMap<String, UsageReportStats> {
@@ -1030,9 +1073,15 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         // window made the post-clear cache hold writes invisible
         // on disk for the rest of the debounce period.
         lastUsageStatsFlush = 0L
-        filesDir?.let { File(it, FILE_USAGE_STATS) }?.let { if (it.exists()) it.delete() }
-        filesDir?.let { File(it, FILE_USAGE_CATEGORY_STATS) }?.let { if (it.exists()) it.delete() }
-        filesDir?.let { File(it, FILE_USAGE_REPORT_STATS) }?.let { if (it.exists()) it.delete() }
+        // Write empty stores instead of deleting them: a missing
+        // usage-report-stats.json means "never built", so the next Spend &
+        // usage load rebuilt every report's row from its ledger and the
+        // Reports tab showed the pre-clear history again.
+        val dir = filesDir ?: return@synchronized
+        listOf(FILE_USAGE_STATS, FILE_USAGE_CATEGORY_STATS, FILE_USAGE_REPORT_STATS).forEach { name ->
+            val file = File(dir, name)
+            if (!file.writeTextAtomic("[]")) file.delete()
+        }
     }
 
     // ===== Model Lists Cache =====

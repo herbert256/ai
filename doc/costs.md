@@ -234,8 +234,13 @@ provider id (a deleted custom provider) doesn't drop the whole file;
 if *every* row fails (ProviderRegistry not yet initialised) the cache
 is left null so the next read retries.
 
-`clearUsageStats` (`data/preferences/SettingsPreferences.kt:976`) clears all three
-caches, resets the flush timestamp, and deletes the three JSON files.
+`clearUsageStats` (`data/preferences/SettingsPreferences.kt`) clears all three
+caches, resets the flush timestamp, and rewrites the three JSON files as
+empty lists (`[]`). It does not delete them: a missing
+`usage-report-stats.json` means "never built", and the Spend & usage load
+then rebuilds every report's row from its ledger — which used to bring the
+whole pre-clear history back on the Reports tab. That rebuild now only runs
+as a first-time migration (file absent).
 
 ## Per-report API-call cost ledger
 
@@ -262,9 +267,13 @@ icon rows via `buildStructuredApiCallCostRows`
 (`data/ReportStorage.kt:1733`), marks it complete + version 3, and
 recomputes `totalCost`. That reconcile runs lazily — from the Spend &
 usage screen (`reconcileReportCostLedgers`,
-`data/preferences/SettingsPreferences.kt:575`) and from the per-report cost views — so a
+`data/preferences/SettingsPreferences.kt`) and from the per-report cost views — so a
 report's displayed types are always the structured ones once it has
-been reconciled.
+been reconciled. `reconcileReportCostLedgers` folds each repaired report's
+ledger change (new rows minus the ledger as it was before the repair) into
+that report's `UsageReportStats` row; it no longer rebuilds every
+per-report row from every report, so a repair after **Clear all
+statistics** adds only the repaired difference.
 
 Two correctness guards live on the live-append path:
 

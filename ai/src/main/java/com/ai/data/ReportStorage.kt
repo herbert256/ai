@@ -194,7 +194,12 @@ object ReportStorage {
         val timestamp: Long,
         val oldRows: List<ReportApiCallCost>,
         val newRows: List<ReportApiCallCost>,
-        val adjustAggregateStats: Boolean = true
+        val adjustAggregateStats: Boolean = true,
+        /** The report's ledger before this repair, for the per-report usage
+         *  row. Differs from [oldRows] only on the version-3/4 path, whose
+         *  [oldRows] already hold the recovered title rows that global
+         *  statistics counted but per-report statistics never did. */
+        val reportOldRows: List<ReportApiCallCost> = oldRows
     )
 
     fun init(context: Context) {
@@ -2012,7 +2017,8 @@ object ReportStorage {
                 updated.totalCost = ledgerTotalCost(updated)
                 saveReport(updated)
                 ApiCallCostLedgerDelta(updated.id, updated.barTitle, updated.createdAt,
-                    repaired.apiCallCosts.toList(), updated.apiCallCosts.toList(), adjustAggregateStats = missing.isNotEmpty())
+                    repaired.apiCallCosts.toList(), updated.apiCallCosts.toList(), adjustAggregateStats = missing.isNotEmpty(),
+                    reportOldRows = current.apiCallCosts.toList())
             }
         }
 

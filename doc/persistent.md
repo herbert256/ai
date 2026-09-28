@@ -538,7 +538,10 @@ All three are updated in-memory by every successful API call (the
 single `updateUsageStats` chokepoint) and disk-flushed on a 2-second
 debounce. `onCleared` forces a flush off the main thread on
 `NonCancellable` so a Refresh-all auto-restart can't drop in-flight
-stats. Read by the AI Usage screen. See [costs.md](costs.md).
+stats. Read by the AI Usage screen. **Clear all statistics** rewrites
+all three as empty lists (`[]`) rather than deleting them — a missing
+`usage-report-stats.json` triggers the one-time rebuild from every
+report's ledger. See [costs.md](costs.md).
 
 ### `prompt_cache/`
 Cached `PromptCache` entries — per-prompt cached responses used to
