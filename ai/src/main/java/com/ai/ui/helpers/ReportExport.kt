@@ -429,10 +429,10 @@ internal fun buildHtmlReportData(
     // running translations), and the original report's API calls keep
     // their old id.
     val traceFmt = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US)
-    val ownTraces = if (!includeTraces) emptyList() else ApiTracer.getTraceFilesForReport(report.id)
+    val ownTraces = if (!includeTraces) emptyList<Pair<ApiTrace, String>>() else ApiTracer.getTraceFilesForReport(report.id)
         .mapNotNull { ApiTracer.readTraceFile(it.filename) }
         .map { it to "this" }
-    val sourceTraces = if (!includeTraces) emptyList() else report.sourceReportId
+    val sourceTraces = if (!includeTraces) emptyList<Pair<ApiTrace, String>>() else report.sourceReportId
         ?.let { ApiTracer.getTraceFilesForReport(it) }
         ?.mapNotNull { ApiTracer.readTraceFile(it.filename) }
         ?.map { it to "source" }
