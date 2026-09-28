@@ -292,9 +292,15 @@ filename). Three-line body header (time-of-day / `LEVEL  TAG`,
 level-coloured + bold / the message), followed by any indented
 stack-trace continuation lines. Title-bar actions: 📋 Copy
 (whole entry), 📤 Share, and 🐞 **Trace** — which appears only when
-the entry's timestamp falls within **30 s** of an `ApiTracer`
-trace file (the nearest such trace wins); tapping it navigates to
-that trace. Walk to the **previous / next** entry in the current
+a matching `ApiTracer` trace exists; tapping it navigates to that
+trace. The match (`findTraceForLogEntry`, resolved on `Dispatchers.IO`)
+uses the fact that a trace's timestamp is its request **start**: an
+`ApiCall` line is matched on its host + model and its own request start
+(the `→` line's time, or the `←` / failure line's time minus its
+`in Nms` / `(Nms)` duration), within 10 s before / 1 s after, closest
+first — so a call longer than 30 s, or a concurrent call to another model,
+opens the right trace. Any other line falls back to the latest trace that
+started in the 30 s before it. Walk to the **previous / next** entry in the current
 filtered set by tapping the left / right half of the body (no-op
 at the ends); a counter at the bottom reads
 `pos / total (tap left ← prev, tap right → next)`.

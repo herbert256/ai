@@ -956,6 +956,47 @@ private fun parseLogTimestampToMillis(timestamp: String): Long? {
     } catch (_: Exception) { null }
 }
 
+private val API_CALL_RESPONSE_LINE = Regex("""^← \d+ (.*?) in (\d+)ms(?: — .*)?$""", RegexOption.DOT_MATCHES_ALL)
+private val API_CALL_FAILURE_LINE = Regex("""^\S+ (.*?) — .*\((\d+)ms\)$""", RegexOption.DOT_MATCHES_ALL)
+
+/** The trace behind a log entry, or null. A trace's timestamp is its
+ *  request START (TracingInterceptor stamps it before sending), so an
+ *  `ApiCall` line is matched on its own host + model and request start:
+ *  the "→" line is written at the start, the "← <code> … in Nms" and
+ *  failure "… (Nms)" lines N ms later — so a call longer than 30 s, or a
+ *  concurrent call to another model, no longer picks the wrong trace.
+ *  Any other line falls back to the latest trace that started in the
+ *  30 s before it. Reads the trace index; call off the main thread. */
+private fun findTraceForLogEntry(parts: HeaderParts): String? {
+    val logMillis = parseLogTimestampToMillis(parts.timestamp) ?: return null
+    val traces = ApiTracer.getTraceFiles()
+    if (parts.tag == "ApiCall") {
+        val rest = parts.rest
+        val (label, durationMs) = if (rest.startsWith("→ ")) {
+            rest.removePrefix("→ ") to 0L
+        } else {
+            val m = API_CALL_RESPONSE_LINE.matchEntire(rest) ?: API_CALL_FAILURE_LINE.matchEntire(rest) ?: return null
+            m.groupValues[1] to (m.groupValues[2].toLongOrNull() ?: 0L)
+        }
+        // callLabel = "METHOD host [model] [[category]]"
+        val tokens = label.split(' ')
+        val host = tokens.getOrNull(1) ?: return null
+        val model = tokens.getOrNull(2)?.takeIf { it.isNotBlank() && !it.startsWith("[") }
+        val requestStart = logMillis - durationMs
+        return traces.asSequence()
+            .filter { it.hostname == host && (model == null || it.model == model) }
+            // The request body is read between the trace stamp and the
+            // "→" line, so the stamp can precede the start by a few seconds.
+            .filter { it.timestamp in (requestStart - 10_000L)..(requestStart + 1_000L) }
+            .minByOrNull { kotlin.math.abs(it.timestamp - requestStart) }
+            ?.filename
+    }
+    return traces.asSequence()
+        .filter { it.timestamp in (logMillis - 30_000L)..(logMillis + 1_000L) }
+        .maxByOrNull { it.timestamp }
+        ?.filename
+}
+
 private fun parseHeader(header: String): HeaderParts {
     // Fast path: AppLog's exact format. Anchored so a misshapen line
     // (no timestamp, raw stack trace at line 0, etc.) falls through.
@@ -997,20 +1038,11 @@ private fun AppLogEntryScreen(
         if (entry.lines.size <= 1) emptyList() else entry.lines.drop(1)
     }
 
-    // Match this log entry against the API-trace index. ApiTracer
-    // stamps each trace with the same wall-clock millis AppLog uses to
-    // format the header timestamp, so the line written by the
-    // interceptor's "← <code> …" sits within a few ms of its trace.
-    // Widen the window enough to also pick up the matching "→" request
-    // line (the trace timestamp is the response time; the request line
-    // can precede it by an entire round trip). 30 s is the soft cap.
-    val matchingTrace: String? = remember(entry.header) {
-        val logMillis = parseLogTimestampToMillis(parts.timestamp) ?: return@remember null
-        ApiTracer.getTraceFiles()
-            .asSequence()
-            .filter { kotlin.math.abs(it.timestamp - logMillis) <= 30_000L }
-            .minByOrNull { kotlin.math.abs(it.timestamp - logMillis) }
-            ?.filename
+    // Match this log entry against the API-trace index — off the main
+    // thread (the index can hold thousands of traces). See
+    // findTraceForLogEntry for the matching rules.
+    val matchingTrace by produceState<String?>(null, entry.header) {
+        value = withContext(Dispatchers.IO) { findTraceForLogEntry(parts) }
     }
 
     Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {

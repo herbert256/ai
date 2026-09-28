@@ -188,6 +188,7 @@ internal val developerHelp: Map<String, HelpContent> = mapOf(
             HelpCard("Time range", "Start / End buttons open clock pickers. Constraints are HH:mm. Each has a Clear button to drop the bound."),
             HelpCard("Counter line", "\"Showing X of Y\" shows the filter result vs. total, right-aligned above the entry list."),
             HelpCard("Prev / Next file", "Swipe horizontally on the content area to walk to the previous / next day's file. Only the free-text search carries over across the swap — the level chips, tag pick and time range reset to their defaults on the new file."),
+            HelpCard("Log entry — 🐞", "On a single entry, 🐞 opens the API trace behind it. An ApiCall line (→ request, ← response, or a failure) is matched on its host, model and request start time, so a slow call or a concurrent call to another model opens the right trace. Any other line opens the latest trace that started in the 30 s before it. Hidden when nothing matches (e.g. tracing was off)."),
             HelpCard("Reached from", "Tap a row on the Application log list. Some screens (Report → View Log) deep-link in with the search pre-seeded to the report id.")
         )
     ),
