@@ -171,7 +171,11 @@ abstract class SecondaryBatchEngine<RunKey : Any, ItemState : BatchItem<String>,
         body: suspend (runId: String) -> Unit,
     ): Job {
         runJobOf(runKey)?.let {
-            if (it.isActive) {
+            // A live restart / Continue / resume dispatch (runAsRunJob) is
+            // not a run in progress: a fresh launch supersedes it — the
+            // superseding deleteRun below cancels it — as it did before
+            // those dispatches were registered as run jobs.
+            if (it.isActive && it !in dispatchJobs) {
                 // The UI arms the "Preparing…" build popup BEFORE calling
                 // into the engine and relies on this launch's finally to
                 // release it. Refusing a double-launch must release it too
@@ -396,9 +400,17 @@ abstract class SecondaryBatchEngine<RunKey : Any, ItemState : BatchItem<String>,
     protected suspend fun runAsRunJob(runKey: RunKey, block: suspend () -> Unit) {
         coroutineScope {
             val dispatch = launch { block() }
-            if (!isRunActive(runKey)) registerRunJob(runKey, dispatch)
+            if (!isRunActive(runKey)) {
+                dispatchJobs.add(dispatch)
+                dispatch.invokeOnCompletion { dispatchJobs.remove(dispatch) }
+                registerRunJob(runKey, dispatch)
+            }
         }
     }
+
+    /** Run jobs registered by [runAsRunJob] — told apart from a launchRun job
+     *  so a fresh launch supersedes them instead of being refused. */
+    private val dispatchJobs: MutableSet<Job> = ConcurrentHashMap.newKeySet()
 
     /** Row ids whose worker Job is live in THIS process — the read-only
      *  broken-work scan's in-flight exclusion (parallel to
