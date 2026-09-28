@@ -434,6 +434,9 @@ private fun buildGeneralSettingsTree(g: GeneralSettings, context: Context): Json
     })
     addProperty("loggingMasterEnabled", g.loggingMasterEnabled)
     addProperty("tracingEnabled", g.tracingEnabled)
+    addProperty("showLadybugIcons", g.showLadybugIcons)
+    // Sparse (0–10 per key) — same shape as the ranking_weights pref.
+    add("rankingWeights", JsonObject().apply { g.rankingWeights.forEach { (k, v) -> addProperty(k, v) } })
     // Previously dropped from the JSON Settings export (audit settings#11), so a
     // config round-trip to a clean install lost them.
     addProperty("auditLogEnabled", g.auditLogEnabled)
@@ -539,6 +542,13 @@ private fun applyGeneralSettings(obj: JsonObject, current: GeneralSettings, cont
         m
     }
     val uiColorMode = str("uiColorMode")?.let { runCatching { com.ai.viewmodel.UiColorMode.valueOf(it) }.getOrNull() }
+    val rankingWeights: Map<String, Int>? = obj.getAsJsonObject("rankingWeights")?.let { o ->
+        val m = LinkedHashMap<String, Int>()
+        o.entrySet().forEach { (k, v) ->
+            if (v.isJsonPrimitive && v.asJsonPrimitive.isNumber) runCatching { v.asInt }.getOrNull()?.let { m[k] = it.coerceIn(0, 10) }
+        }
+        m
+    }
     val titleMode = str("reportTitleMode")?.let {
         runCatching { com.ai.viewmodel.ReportTitleMode.valueOf(it) }.getOrNull()
     }
@@ -559,6 +569,8 @@ private fun applyGeneralSettings(obj: JsonObject, current: GeneralSettings, cont
         defaultTypePaths = typePaths ?: current.defaultTypePaths,
         loggingMasterEnabled = bool("loggingMasterEnabled") ?: current.loggingMasterEnabled,
         tracingEnabled = bool("tracingEnabled") ?: current.tracingEnabled,
+        showLadybugIcons = bool("showLadybugIcons") ?: current.showLadybugIcons,
+        rankingWeights = rankingWeights ?: current.rankingWeights,
         auditLogEnabled = bool("auditLogEnabled") ?: current.auditLogEnabled,
         usageStatsEnabled = bool("usageStatsEnabled") ?: current.usageStatsEnabled,
         uiColorMode = uiColorMode ?: current.uiColorMode,
@@ -930,7 +942,24 @@ private fun buildAllBundle(
     bundle.add("blockedModels", buildBlockedModelsTree(aiSettings))
     bundle.add("testExcludedModels", buildTestExcludedModelsTree(aiSettings))
     bundle.add("inaccessibleModels", buildInaccessibleModelsTree(aiSettings))
+    bundle.add("defaultMetaItems", gson.toJsonTree(aiSettings.defaultMetaItems))
+    bundle.add("disabledInfoProviders", gson.toJsonTree(aiSettings.disabledInfoProviders.sorted()))
     return bundle
+}
+
+/** Parse the All-bundle `defaultMetaItems` array. Built field by field so a
+ *  row missing an optional name gets "" (Gson would leave a null in the
+ *  non-null field); rows without an id or meta name are skipped. */
+private fun parseDefaultMetaItems(arr: JsonArray): List<DefaultMetaItem> = arr.mapNotNull { el ->
+    val o = el as? JsonObject ?: return@mapNotNull null
+    fun s(name: String) = o.get(name)?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isString }?.asString
+    val id = s("id")?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
+    val metaName = s("metaName")?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
+    DefaultMetaItem(
+        id = id, metaName = metaName,
+        agentName = s("agentName").orEmpty(), providerName = s("providerName").orEmpty(), modelName = s("modelName").orEmpty(),
+        active = o.get("active")?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isBoolean }?.asBoolean ?: true
+    )
 }
 
 @Composable
@@ -1859,6 +1888,29 @@ fun ImportExportScreen(
                             working = res.settings
                             parts.add(importPart(res.imported, "inaccessible models", res.replaced))
                         }
+                    }
+
+                    // Upsert by id — and by seed identity, so the same bundled
+                    // item seeded under another id on this install isn't doubled.
+                    root.getAsJsonArray("defaultMetaItems")?.let { arr ->
+                        val incoming = parseDefaultMetaItems(arr)
+                        if (incoming.isNotEmpty()) {
+                            val ids = incoming.map { it.id }.toSet()
+                            val seedKeys = incoming.map { it.seedKey }.toSet()
+                            working = working.copy(defaultMetaItems = working.defaultMetaItems
+                                .filterNot { it.id in ids || it.seedKey in seedKeys } + incoming)
+                            parts.add("${incoming.size} default meta items")
+                        }
+                    }
+
+                    // A selection, not a list: replaces the disabled set.
+                    // Unknown ids (a provider this build lacks) are dropped.
+                    root.getAsJsonArray("disabledInfoProviders")?.let { arr ->
+                        val disabled = arr.mapNotNull { el ->
+                            el.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isString }?.asString
+                        }.filter { it in com.ai.data.InfoProvider.ALL_IDS }.toSet()
+                        working = working.copy(disabledInfoProviders = disabled)
+                        parts.add("info-provider selection")
                     }
 
                     if (workingGs != generalSettings) onSaveGeneral(workingGs)
