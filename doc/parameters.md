@@ -149,7 +149,8 @@ including over system text embedded in a parameter preset.
 
 The two chips are report-wide, so they are gated per model when each model's
 execution config is captured (`withoutUnsupportedReportChips`, used by
-`preparePrimaryExecution` and `executeReportTask`): a model that doesn't accept
+`preparePrimaryExecution`, `executeReportTask` and the Edit-models capture of
+added models in `applyStagedModelList`): a model that doesn't accept
 `reasoning_effort` or can't use web search runs without the chip's value, as the
 per-model retry already did. Values from presets / advanced parameters are not
 dropped — they still fail preflight when unsupported.

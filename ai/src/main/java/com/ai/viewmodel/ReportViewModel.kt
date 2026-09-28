@@ -2414,8 +2414,13 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         val overlay = resolveReportOverrideParams(ai, report.parameterPresetIds, report.advancedParameters,
             report.webSearchTool, report.reasoningEffort, report.reportSystemPromptId).withReportContext(report)
         val newAgents = tasks.filter { it.resultId !in existingIds }.map { task ->
+            // Same per-model gate as the first run's capture: a report-wide
+            // 🌐 / 🧠 chip value the added model can't take is dropped rather
+            // than saved (and then failing "reasoning effort is not supported").
+            val modelOverlay = overlay?.withoutUnsupportedReportChips(ai, task.runtimeAgent.provider,
+                task.runtimeAgent.model, report.webSearchTool, report.reasoningEffort)
             task.reportAgent.copy(executionConfig = com.ai.data.ReportExecutionConfig(
-                appViewModel.repository.mergeParameters(task.resolvedParams, overlay),
+                appViewModel.repository.mergeParameters(task.resolvedParams, modelOverlay),
                 ai.getEffectiveEndpointUrlForAgent(task.runtimeAgent), report.prompt,
                 baseParameters = task.resolvedParams, refreshPrompt = true))
         }
