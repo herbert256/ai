@@ -18,7 +18,7 @@ screens use the generic `TitleBar`.
 |---|---|
 | About | Version, build date and credits |
 | Add Agent | \<agent name\> |
-| Add blocked model | Block one model from being called |
+| Add blocked model | Flag one model to dim it in pickers |
 | Add cooldown | Pause a model until a given time |
 | Add default meta item | Auto-run a meta prompt on report completion |
 | Add example prompt | \<prompt title\> |
@@ -59,7 +59,7 @@ screens use the generic `TitleBar`.
 | Base models | Versions and provider coverage per family |
 | Base models | \<drill-down label\> |
 | Blocked model | \<provider\> · \<model\> |
-| Blocked models | Models the app will never call |
+| Blocked models | Dimmed in model pickers, still pickable |
 | Broken work | Batch work that needs attention |
 | Caches | Browse and manage every on-disk cache |
 | Chat | Start or resume a chat with a model |
@@ -93,7 +93,7 @@ screens use the generic `TitleBar`.
 | Dual Chat | Set up two models to debate a topic |
 | Dual Chat | Two models taking turns automatically |
 | Edit Agent | \<agent name\> |
-| Edit blocked model | Block one model from being called |
+| Edit blocked model | Flag one model to dim it in pickers |
 | Edit cooldown | Pause a model until a given time |
 | Edit dashboard | Pin, reorder and preview cards |
 | Edit default meta item | Auto-run a meta prompt on report completion |

@@ -65,7 +65,7 @@ internal fun BlockedModelForm(
 
     CrudFormScaffold(
         title = if (isAdd) "Add blocked model" else "Edit blocked model",
-        subject = "Block one model from being called",
+        subject = "Flag one model to dim it in pickers",
         isAdd = isAdd,
         current = current,
         baseline = baseline,
