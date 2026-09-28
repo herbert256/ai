@@ -99,13 +99,18 @@ Both objects are Kotlin `object` singletons that cache native handles
 in a `ConcurrentHashMap<String, …>` keyed by model name, built
 atomically via `computeIfAbsent` (not `getOrPut`, whose lambda can run
 on multiple threads and leak the losing multi-hundred-MB native
-instance). Each call serialises under `synchronized(handle)` because
-the native handles are **not** thread-safe — two parallel report
-agents pointing at the same model would otherwise corrupt the runtime
-state. Both expose `release(name)` / `releaseAll()` and a
+instance). Each handle is wrapped in a `NativeHandle`
+([`data/local/NativeHandle.kt`](../ai/src/main/java/com/ai/data/local/NativeHandle.kt))
+and every call serialises under its lock (`useLocked`) because the
+native handles are **not** thread-safe — two parallel report agents
+pointing at the same model would otherwise corrupt the runtime state.
+Both expose `release(name)` / `releaseAll()` and a
 `clearAll(context): Int` that closes every engine and deletes every
 model file, returning the count removed (used by the housekeeping
-"clear all configuration" flow).
+"clear all configuration" flow). Release never closes a handle under a
+running call (a native use-after-free): it closes at once when idle,
+otherwise the running call closes it when it finishes, and a call that
+was still waiting for the lock fails with "unloaded; retry".
 
 **Model-name resolution is path-traversal-hardened.** Both
 `LocalLlm.llmFile` and `LocalEmbedder.modelFile` reject a model name

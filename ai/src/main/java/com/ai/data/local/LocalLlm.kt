@@ -33,7 +33,7 @@ import java.util.concurrent.atomic.AtomicInteger
  */
 object LocalLlm {
     private const val LOCAL_LLMS_DIR = "local_llms"
-    private val instances = ConcurrentHashMap<String, LlmInference>()
+    private val instances = ConcurrentHashMap<String, NativeHandle<LlmInference>>()
 
     /** Live state for the dashboard's Local-runtime card. */
     private val generatingCounts = ConcurrentHashMap<String, AtomicInteger>()
@@ -118,7 +118,7 @@ object LocalLlm {
         val description: String
     )
 
-    private fun getEngine(context: Context, modelName: String): LlmInference {
+    private fun getEngine(context: Context, modelName: String): NativeHandle<LlmInference> {
         // Load the on-disk native runtime before touching any
         // MediaPipe type — LlmInference.LlmInferenceOptions's static
         // init calls System.loadLibrary("llm_inference_engine_jni"),
@@ -146,19 +146,19 @@ object LocalLlm {
                 .build()
             val engine = LlmInference.createFromOptions(context, options)
             AppLog.i("LocalLlm", "← loaded $modelName in ${System.currentTimeMillis() - loadStart}ms")
-            engine
+            NativeHandle(engine) { it.close() }
         }
     }
 
     /** Drop the cached engine for [modelName]. Used after the user
-     *  removes the .task file. */
+     *  removes the .task file. A generation still running on it keeps
+     *  the engine alive until it finishes (see [NativeHandle.release]). */
     fun release(modelName: String) {
-        instances.remove(modelName)?.close()
+        instances.remove(modelName)?.release()
     }
 
     fun releaseAll() {
-        instances.values.forEach { runCatching { it.close() } }
-        instances.clear()
+        instances.keys.toList().forEach { release(it) }
     }
 
     /** Release every engine and delete every `.task` file under
@@ -184,14 +184,14 @@ object LocalLlm {
         markGeneratingStart(modelName)
         return try {
             val engine = getEngine(context, modelName)
-            val out = synchronized(engine) {
+            val out = engine.useLocked { inference ->
                 val options = LlmInferenceSession.LlmInferenceSessionOptions.builder().apply {
                     parameters.temperature?.let { setTemperature(it) }
                     parameters.topP?.let { setTopP(it) }
                     parameters.topK?.let { setTopK(it) }
                     parameters.seed?.let { setRandomSeed(it) }
                 }.build()
-                LlmInferenceSession.createFromOptions(engine, options).use { session ->
+                LlmInferenceSession.createFromOptions(inference, options).use { session ->
                     session.addQueryChunk(prompt)
                     session.generateResponse()
                 }

@@ -29,7 +29,7 @@ import java.util.concurrent.atomic.AtomicInteger
 object LocalEmbedder {
     private const val LOCAL_MODELS_DIR = "local_models"
     private const val PARTIAL_DOWNLOAD_STALE_MS = 5L * 60L * 1000L
-    private val instances = ConcurrentHashMap<String, TextEmbedder>()
+    private val instances = ConcurrentHashMap<String, NativeHandle<TextEmbedder>>()
 
     /** Live state for the dashboard's Local-runtime card. */
     private val embeddingCounts = ConcurrentHashMap<String, AtomicInteger>()
@@ -212,7 +212,7 @@ object LocalEmbedder {
      *  underlying native runtime keeps memory live while the embedder
      *  exists, so we hold one instance per model and reuse it across
      *  embed calls. */
-    private fun getEmbedder(context: Context, modelName: String): TextEmbedder {
+    private fun getEmbedder(context: Context, modelName: String): NativeHandle<TextEmbedder> {
         // Use computeIfAbsent (atomic) instead of getOrPut (lambda may
         // run on multiple threads, leaking the losing native handle).
         return instances.computeIfAbsent(modelName) {
@@ -222,19 +222,19 @@ object LocalEmbedder {
                 .setBaseOptions(BaseOptions.builder().setModelAssetPath(file.absolutePath).build())
                 .setL2Normalize(true)
                 .build()
-            TextEmbedder.createFromOptions(context, options)
+            NativeHandle(TextEmbedder.createFromOptions(context, options)) { it.close() }
         }
     }
 
     /** Drop the cached embedder for [modelName] (if any). Used after a
      *  user removes the .tflite file. */
     fun release(modelName: String) {
-        instances.remove(modelName)?.close()
+        // Never closes under a running embed — see NativeHandle.release.
+        instances.remove(modelName)?.release()
     }
 
     fun releaseAll() {
-        instances.values.forEach { runCatching { it.close() } }
-        instances.clear()
+        instances.keys.toList().forEach { release(it) }
     }
 
     /** Release every embedder and delete every `.tflite` file under
@@ -262,10 +262,11 @@ object LocalEmbedder {
             val embedder = getEmbedder(context, modelName)
             // Native TextEmbedder handle is not thread-safe — two
             // parallel index/rerank batches would otherwise corrupt
-            // runtime state. Serialise per-embedder.
-            val out = synchronized(embedder) {
+            // runtime state. Serialise per-embedder (and against a
+            // concurrent release, which must not close it mid-call).
+            val out = embedder.useLocked { native ->
                 inputs.map { input ->
-                    val r = embedder.embed(input)
+                    val r = native.embed(input)
                     val embedding: Embedding = r.embeddingResult().embeddings().first()
                     val floats = embedding.floatEmbedding()
                     List(floats.size) { i -> floats[i].toDouble() }
