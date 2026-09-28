@@ -55,6 +55,11 @@ or empty pairs, such as `<return>` or `<return></return>`.
 | `<return>` | Finish AI after its completion action. No report data is returned as an Android activity result. |
 | `<name>value</name>` | Supply data for matching `@name@` placeholders. Send it only when that placeholder is used. |
 
+Only a confirmed request's `<open>` becomes presentation HTML (internally it
+rides in the prompt as a `<user>…</user>` block matching the confirmed value).
+A `<user>…</user>` block anywhere else — a bare prefill, shared text, a typed
+prompt — is plain prompt text sent to the models, never rendered as HTML.
+
 `<default>`, `<edit>`, `<type>` and `<select>` no longer control the handoff. They do
 not choose defaults or layouts, or control navigation. Like other custom names,
 a paired value can only supply data if explicitly referenced by a placeholder.

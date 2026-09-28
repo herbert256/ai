@@ -2440,7 +2440,15 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         fun estimateTokens(text: String): Int = (text.length / 4).coerceAtLeast(1)
         internal const val AI_REPORT_AGENTS_KEY = "ai_report_agents_v2"
         internal const val AI_REPORT_MODELS_KEY = "ai_report_models_v2"
-        internal val USER_TAG_REGEX = Regex("""<user>(.*?)</user>""", RegexOption.DOT_MATCHES_ALL)
+        /** A CONFIRMED external request's `<open>` HTML rides in the prompt
+         *  as `<user>…</user>` (AppNavHost, after ExternalIntentConfirmScreen).
+         *  Returns [prompt] without exactly that block; any other `<user>`
+         *  block — typed, shared, or from an unconfirmed prefill — is
+         *  ordinary prompt text and never presentation HTML. */
+        internal fun promptWithoutTrustedOpenHtml(prompt: String, openHtml: String?): String {
+            val block = openHtml?.let { "<user>$it</user>" }
+            return if (block != null && block in prompt) prompt.replace(block, "").trim() else prompt
+        }
 
         // First-run marker. Absent on a fresh install and after a data
         // clear / reinstall, present after the very first successful

@@ -642,9 +642,17 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 currentReportId = null
             ) }
 
-            val userMatch = AppViewModel.USER_TAG_REGEX.find(prompt)
-            val rapportText = userMatch?.groupValues?.get(1)?.trim() ?: state.externalOpenHtml
-            val aiPrompt = if (userMatch != null) prompt.replace(userMatch.value, "").trim() else prompt
+            // <user>…</user> is how AppNavHost carries a CONFIRMED external
+            // request's <open> presentation HTML (HTML / CSS / JS by design)
+            // through the prompt. Only that exact block — matching the
+            // confirmed externalOpenHtml — is trusted and cut from the prompt.
+            // Any other <user> block (typed by the user, in shared text, in a
+            // bare unconfirmed prefill) used to become rapportText: rendered
+            // verbatim as HTML — JavaScript on in the preview WebView —
+            // bypassing ExternalIntentConfirmScreen, and silently removed
+            // from what the models saw. It now stays plain prompt text.
+            val rapportText = state.externalOpenHtml
+            val aiPrompt = AppViewModel.promptWithoutTrustedOpenHtml(prompt, state.externalOpenHtml)
 
             val runId = java.util.UUID.randomUUID().toString()
             val plannedReportId = java.util.UUID.randomUUID().toString()
