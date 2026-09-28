@@ -190,6 +190,36 @@ fun InternalPromptEditScreen(
     val selectedSystemPromptLabel = aiSettings.getSystemPromptByIdOrName(selectedSystemPromptRef)?.name
     var showParamsDialog by remember { mutableStateOf(false) }
     var showSysPromptDialog by remember { mutableStateOf(false) }
+
+    // Duplicate-mode is only meaningful for user-editable categories
+    // (meta / fan_*); the fixed-list categories (internal / icons)
+    // have predetermined slots that can't be cloned into a new entry.
+    // Declared ABOVE the 🌡️/🎭 picker early-returns (as the Agent /
+    // Flock / Swarm editors do): its rememberSaveable flag would otherwise
+    // leave composition while a picker is open and come back false, so
+    // a copy silently reverted to editing — and on Save renamed — the
+    // original prompt.
+    val dup = com.ai.ui.shared.rememberDuplicateMode(
+        isEditingExisting = internalPrompt != null && !isFixedList,
+        onDuplicate = { name = "$name-copy" }
+    )
+    // A fixed-list prompt (icons / info / internal) is "Edit-only": it
+    // has no duplicate path (so dup reports add-mode), but editing it
+    // must save back onto the SAME row — otherwise the locked name
+    // collides with itself and Create stays disabled, leaving these
+    // prompts (the ones that actually consume agent / provider+model)
+    // uneditable. So force real-edit semantics for an existing one.
+    val isAddMode = if (internalPrompt != null && isFixedList) false else dup.isAddMode
+    val effectiveExistingNames = if (isAddMode && internalPrompt != null) {
+        existingNames + internalPrompt.name.lowercase()
+    } else existingNames
+
+    val nameError = when {
+        name.isBlank() -> "Name is required"
+        name.lowercase() in effectiveExistingNames -> "Name already exists"
+        else -> null
+    }
+
     if (showParamsDialog) {
         // The prompt stores a single preset ref; the multi-select
         // screen hands back ids — take the first and persist the id.
@@ -213,30 +243,6 @@ fun InternalPromptEditScreen(
             onBack = { showSysPromptDialog = false }, onNavigateHome = onNavigateHome
         )
         return
-    }
-
-    // Duplicate-mode is only meaningful for user-editable categories
-    // (meta / fan_*); the fixed-list categories (internal / icons)
-    // have predetermined slots that can't be cloned into a new entry.
-    val dup = com.ai.ui.shared.rememberDuplicateMode(
-        isEditingExisting = internalPrompt != null && !isFixedList,
-        onDuplicate = { name = "$name-copy" }
-    )
-    // A fixed-list prompt (icons / info / internal) is "Edit-only": it
-    // has no duplicate path (so dup reports add-mode), but editing it
-    // must save back onto the SAME row — otherwise the locked name
-    // collides with itself and Create stays disabled, leaving these
-    // prompts (the ones that actually consume agent / provider+model)
-    // uneditable. So force real-edit semantics for an existing one.
-    val isAddMode = if (internalPrompt != null && isFixedList) false else dup.isAddMode
-    val effectiveExistingNames = if (isAddMode && internalPrompt != null) {
-        existingNames + internalPrompt.name.lowercase()
-    } else existingNames
-
-    val nameError = when {
-        name.isBlank() -> "Name is required"
-        name.lowercase() in effectiveExistingNames -> "Name already exists"
-        else -> null
     }
 
     var agentMenuOpen by remember { mutableStateOf(false) }
