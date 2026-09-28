@@ -217,24 +217,34 @@ internal fun ViewAiReportScreen(
     var reportsViewInitialAgentId by rememberSaveable(resetTick) { mutableStateOf<String?>(null) }
     var reportsViewSeededFromOutside by rememberSaveable(resetTick) { mutableStateOf(false) }
     var showValueView by rememberSaveable(resetTick) { mutableStateOf(false) }
+    // Tournament "View" overlay — keyed by the aggregate TOURNAMENT row.
+    // Declared up here (its mount block is further down) because the Value
+    // view it opens renders ABOVE it: this slot must stay composed while the
+    // Value view is showing, or Back from Value view lost the podium.
+    var tournamentViewRowId by rememberSaveable(resetTick) { mutableStateOf<String?>(null) }
     // A/B side-by-side answer compare (F55) — same overlay pattern.
     var showSideBySide by rememberSaveable(resetTick) { mutableStateOf(false) }
     if (showSideBySide) {
         SideBySideViewScreen(reportId = reportId, onBack = { showSideBySide = false })
         return
     }
-    if (showValueView) {
-        val backToMain: () -> Unit = { showValueView = false }
+    // Layered sub-views: Value view / Rerank / Tournament / Answer matrix
+    // open the Reports view (or Tournament the Value view) ON TOP of
+    // themselves — the source flag stays set and its mount yields while
+    // [reportsViewOpen] is set, so Back pops only the top layer and lands
+    // on the source view again instead of the tile grid.
+    if (showValueView && !reportsViewOpen) {
+        // Title tap = "go to the View hub": close the layers underneath too.
+        val backToMain: () -> Unit = { showValueView = false; tournamentViewRowId = null }
         androidx.compose.runtime.CompositionLocalProvider(
             com.ai.ui.shared.LocalNavigateToCurrentReport provides backToMain
         ) {
             ValueViewScreen(
                 reportId = reportId,
-                onBack = backToMain,
+                onBack = { showValueView = false },
                 // Tapping a value row / frontier point opens that model's
                 // answer instead of doing nothing.
                 onOpenAgent = { agentId ->
-                    showValueView = false
                     reportsViewInitialAgentId = agentId
                     reportsViewSeededFromOutside = false
                     reportsViewOpen = true
@@ -321,7 +331,7 @@ internal fun ViewAiReportScreen(
     // Rerank "View" overlay — keyed by the RERANK row id.
     var rerankViewRowId by rememberSaveable(resetTick) { mutableStateOf<String?>(null) }
     val activeRerankViewRowId = rerankViewRowId
-    if (activeRerankViewRowId != null) {
+    if (activeRerankViewRowId != null && !reportsViewOpen) {
         val backToMain: () -> Unit = { rerankViewRowId = null }
         androidx.compose.runtime.CompositionLocalProvider(
             com.ai.ui.shared.LocalNavigateToCurrentReport provides backToMain
@@ -330,8 +340,8 @@ internal fun ViewAiReportScreen(
                 reportId = reportId,
                 resultId = activeRerankViewRowId,
                 onBack = backToMain,
+                // Layered: Reports opens on top, Back returns to the podium.
                 onOpenReportForAgent = { agentId ->
-                    rerankViewRowId = null
                     reportsViewInitialAgentId = agentId
                     reportsViewSeededFromOutside = false
                     reportsViewOpen = true
@@ -340,10 +350,9 @@ internal fun ViewAiReportScreen(
         }
         return
     }
-    // Tournament "View" overlay — keyed by the aggregate TOURNAMENT row.
-    var tournamentViewRowId by rememberSaveable(resetTick) { mutableStateOf<String?>(null) }
+    // Tournament "View" overlay (state declared above the Value view block).
     val activeTournamentViewRowId = tournamentViewRowId
-    if (activeTournamentViewRowId != null) {
+    if (activeTournamentViewRowId != null && !reportsViewOpen) {
         val backToMain: () -> Unit = { tournamentViewRowId = null }
         androidx.compose.runtime.CompositionLocalProvider(
             com.ai.ui.shared.LocalNavigateToCurrentReport provides backToMain
@@ -352,8 +361,9 @@ internal fun ViewAiReportScreen(
                 reportId = reportId,
                 resultId = activeTournamentViewRowId,
                 onBack = backToMain,
+                // Layered: the Value view block (above) renders on top while
+                // this stays set; Back from it returns to the podium.
                 onOpenValueView = {
-                    tournamentViewRowId = null
                     showValueView = true
                 }
             )
@@ -639,7 +649,7 @@ internal fun ViewAiReportScreen(
         }
         return
     }
-    if (matrixViewOpen) {
+    if (matrixViewOpen && !reportsViewOpen) {
         val backToMain: () -> Unit = { matrixViewOpen = false }
         androidx.compose.runtime.CompositionLocalProvider(
             com.ai.ui.shared.LocalNavigateToCurrentReport provides backToMain
@@ -650,8 +660,8 @@ internal fun ViewAiReportScreen(
                 langTabs = viewLangTabs,
                 selectedLangKey = selectedViewLangKey,
                 onSelectLang = { selectedViewLangKey = it },
+                // Layered: Reports opens on top, Back returns to the matrix.
                 onOpenAgent = { agentId ->
-                    matrixViewOpen = false
                     reportsViewInitialAgentId = agentId
                     reportsViewSeededFromOutside = false
                     reportsViewOpen = true
@@ -702,6 +712,11 @@ internal fun ViewAiReportScreen(
             reportsViewLanguage = null
             reportsViewInitialAgentId = null
             reportsViewSeededFromOutside = false
+            // …and the source views the Reports view was layered over.
+            showValueView = false
+            rerankViewRowId = null
+            tournamentViewRowId = null
+            matrixViewOpen = false
         }
         androidx.compose.runtime.CompositionLocalProvider(
             com.ai.ui.shared.LocalNavigateToCurrentReport provides backToGrid
@@ -739,11 +754,18 @@ internal fun ViewAiReportScreen(
         // this whole route and must not make later tile/rerank opens
         // pop the whole route.
         val seededFromOutside = reportsViewSeededFromOutside
+        // Title tap = "go to the View hub": also close the Value view /
+        // Rerank / Tournament / Answer matrix this view may be layered over.
+        // (Back — ReportsViewScreen's onBack — pops only this layer.)
         val backToMain: () -> Unit = {
             reportsViewOpen = false
             reportsViewLanguage = null
             reportsViewInitialAgentId = null
             reportsViewSeededFromOutside = false
+            showValueView = false
+            rerankViewRowId = null
+            tournamentViewRowId = null
+            matrixViewOpen = false
             if (seededFromOutside) seedBundle.onExitToList?.invoke()
         }
         androidx.compose.runtime.CompositionLocalProvider(

@@ -242,6 +242,11 @@ content tiles (long-press to drag; the order persists across reports):
   its source/translation list lives on the 🌐 Translations screen;
   Judges, Compare-with-meta and Rank-the-translators are reached from
   the **second results** screen.)
+- Views open **on top of** the view you came from: a model's answer
+  opened from the Value view, the Rerank podium or the Answer matrix,
+  and the Value view opened from a Tournament podium. Back returns to
+  that source view (not to the tile grid); tapping the report title
+  still goes straight to the grid.
 
 #### ✏️ Edit a report
 
