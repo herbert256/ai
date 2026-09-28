@@ -29,6 +29,13 @@ object RegenerateBatchStorage {
         }
     }
 
+    /** Size + modification time of [reportId]'s job file ("" when none). */
+    fun fileSignature(context: Context, reportId: String): String {
+        init(context)
+        val f = fileFor(reportId) ?: return ""
+        return if (f.exists()) "${f.length()}@${f.lastModified()}" else ""
+    }
+
     private fun fileFor(reportId: String): File? {
         val root = rootDir ?: return null
         if (reportId.isBlank() || reportId == "." || reportId == ".."

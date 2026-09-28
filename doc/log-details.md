@@ -556,10 +556,10 @@ captured crash report — the message is the `report` string, not a literal.
 
 ### `viewmodel/SecondaryRunManager.kt`
 
-- **L55** `"BrokenScan"` — "debounced refresh failed: ${e.javaClass.simpleName}: ${e.message}"
+- **L54** `"BrokenScan"` — "debounced refresh failed: ${e.javaClass.simpleName}: ${e.message}"
 - **L607** `"SecondaryResume"` — "resume stale runs failed report=$reportId: ${e.javaClass.simpleName}: ${e.message}"
-- **L643** `"BrokenScan"` — "startup finalize failed: ${e.javaClass.simpleName}: ${e.message}"
-- **L651** `"BrokenScan"` — "iteration failed: ${e.javaClass.simpleName}: ${e.message}"
+- **L680** `"BrokenScan"` — "startup finalize failed: ${e.javaClass.simpleName}: ${e.message}"
+- **L689** `"BrokenScan"` — "iteration failed: ${e.javaClass.simpleName}: ${e.message}"
 - **L1546** `"Secondary"` — "skip benched ${provider.id}/$model — marking row ${placeholder.id} errored"
 
 ### `viewmodel/StressTestEngine.kt`
@@ -1008,8 +1008,8 @@ captured crash report — the message is the `report` string, not a literal.
 
 ### `viewmodel/SecondaryRunManager.kt`
 
-- **L670** `"BrokenScan"` — "scanned ${recent.size} report${if (recent.size == 1) "" else "s"} (7d) → ${batches.size} broken batch${if (batches.size == 1) "" else "es"}"
-- **L740** `"BrokenScan"` — "startup: finalized $marked abandoned leftover cell(s)"
+- **L736** `"BrokenScan"` — "scanned ${recent.size} report${if (recent.size == 1) "" else "s"} (7d, $parsed parsed) → ${batches.size} broken batch${if (batches.size == 1) "" else "es"}"
+- **L824** `"BrokenScan"` — "startup: finalized $marked abandoned leftover cell(s)"
 
 ### `viewmodel/TranslationRunManager.kt`
 

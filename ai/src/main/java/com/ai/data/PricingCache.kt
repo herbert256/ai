@@ -89,6 +89,9 @@ object PricingCache {
     private const val KEY_TOGETHER_TIMESTAMP = "together_timestamp"
     private const val CACHE_DURATION_MS = 7L * 24 * 60 * 60 * 1000
 
+    // The tier blobs themselves are parsed by parseTierMap (see
+    // PricingTierAdapters); the app Gson carries the same record adapters
+    // for everything else that (de)serialises them.
     private val gson = createAppGson()
     private val lock = Any()
     private val manualLock = Any()
@@ -437,6 +440,7 @@ object PricingCache {
         ensureLoaded(context)
         preloadCompleted = true
     }
+
 
     /**
      * Get pricing for a model using the layered lookup documented on the
@@ -1926,7 +1930,7 @@ object PricingCache {
         return java.io.File(dir, "$name.json")
     }
 
-    /** Read a tier blob. Look-up order:
+    /** Open a tier blob for a streaming parse. Look-up order:
      *   1. `filesDir/pricing/<key>.json` — the post-Refresh on-disk copy.
      *   2. Bundled `assets/info-providers/<key>.json` — shipped snapshot
      *      so a fresh install has working pricing/capabilities tiers
@@ -1934,23 +1938,22 @@ object PricingCache {
      *      first run. Not written through to filesDir: timestamps stay
      *      unset (the UI still surfaces "never refreshed"), and the
      *      next Refresh overwrites the in-memory state and persists to
-     *      filesDir as usual. */
-    private fun loadBlob(context: Context, prefsKey: String): String? {
+     *      filesDir as usual.
+     *  Callers parse straight from the reader ([parseTierMap]) and close it
+     *  (`use`) — reading the multi-MB blobs into Strings first was a
+     *  measurable part of the startup load. Null when neither exists (fall
+     *  through to DEFAULT_PRICING). */
+    private fun loadBlob(context: Context, prefsKey: String): java.io.Reader? {
         val f = blobFile(context, prefsKey)
-        if (f.exists()) return runCatching { f.readText() }.getOrNull()
-        return loadBundledInfoProviderBlob(context, prefsKey)
+        if (f.exists()) return runCatching { f.bufferedReader(bufferSize = BLOB_READ_BUFFER) }.getOrNull()
+        return try {
+            java.io.BufferedReader(java.io.InputStreamReader(context.assets.open("info-providers/$prefsKey.json"), Charsets.UTF_8), BLOB_READ_BUFFER)
+        } catch (_: java.io.IOException) {
+            null
+        }
     }
 
-    /** Read a bundled tier blob from `assets/info-providers/<key>.json`.
-     *  Used by [loadBlob] when the post-Refresh file doesn't exist —
-     *  gives a fresh install pre-populated pricing / capability tiers
-     *  until the user runs Refresh. */
-    private fun loadBundledInfoProviderBlob(context: Context, prefsKey: String): String? = try {
-        context.assets.open("info-providers/$prefsKey.json")
-            .bufferedReader().use { it.readText() }
-    } catch (_: java.io.IOException) {
-        null  // Asset absent — tier wasn't shipped, fall through to DEFAULT_PRICING.
-    }
+    private const val BLOB_READ_BUFFER = 64 * 1024
 
     /** Atomically write a tier blob. */
     private fun saveBlob(context: Context, prefsKey: String, json: String) {
@@ -2008,18 +2011,17 @@ object PricingCache {
         // falls through to the next tier.
         if (litellmPricing == null) {
             val prefs = getPrefs(context)
-            loadBlob(context, KEY_LITELLM_PRICING)?.let { json ->
-                try { litellmPricing = gson.fromJson(json, mapModelPricingType); litellmTimestamp = prefs.getLong(KEY_LITELLM_TIMESTAMP, 0) }
+            loadBlob(context, KEY_LITELLM_PRICING)?.use { json ->
+                try { litellmPricing = parseTierMap(json, ::readModelPricing); litellmTimestamp = prefs.getLong(KEY_LITELLM_TIMESTAMP, 0) }
                 catch (_: Exception) {}
             }
             if (litellmPricing == null) litellmPricing = emptyMap()
 
         }
         if (litellmMeta == null) {
-            loadBlob(context, KEY_LITELLM_META)?.let { json ->
+            loadBlob(context, KEY_LITELLM_META)?.use { json ->
                 try {
-                    val type = object : TypeToken<Map<String, LiteLLMMeta>>() {}.type
-                    litellmMeta = gson.fromJson(json, type)
+                    litellmMeta = parseTierMap(json, ::readLiteLLMMeta)
                 } catch (_: Exception) {}
             }
             if (litellmMeta == null) litellmMeta = emptyMap()
@@ -2031,13 +2033,12 @@ object PricingCache {
         // disk.
         if (modelsDevPricing == null || modelsDevMeta == null) {
             modelsDevTimestamp = getPrefs(context).getLong(KEY_MODELS_DEV_TIMESTAMP, 0)
-            loadBlob(context, KEY_MODELS_DEV_PRICING)?.let { json ->
-                try { modelsDevPricing = gson.fromJson(json, mapModelPricingType) } catch (_: Exception) {}
+            loadBlob(context, KEY_MODELS_DEV_PRICING)?.use { json ->
+                try { modelsDevPricing = parseTierMap(json, ::readModelPricing) } catch (_: Exception) {}
             }
-            loadBlob(context, KEY_MODELS_DEV_META)?.let { json ->
+            loadBlob(context, KEY_MODELS_DEV_META)?.use { json ->
                 try {
-                    val type = object : TypeToken<Map<String, ModelsDevMeta>>() {}.type
-                    modelsDevMeta = gson.fromJson(json, type)
+                    modelsDevMeta = parseTierMap(json, ::readModelsDevMeta)
                 } catch (_: Exception) {}
             }
             // Memoize a missing tier as "loaded-empty" (Bug 36) so the
@@ -2053,10 +2054,10 @@ object PricingCache {
         // (no bundled asset); empty until the user runs the refresh.
         if (heliconePricing == null || heliconePatterns == null) {
             heliconeTimestamp = getPrefs(context).getLong(KEY_HELICONE_TIMESTAMP, 0)
-            loadBlob(context, KEY_HELICONE_PRICING)?.let { json ->
-                try { heliconePricing = gson.fromJson(json, mapModelPricingType) } catch (_: Exception) {}
+            loadBlob(context, KEY_HELICONE_PRICING)?.use { json ->
+                try { heliconePricing = parseTierMap(json, ::readModelPricing) } catch (_: Exception) {}
             }
-            loadBlob(context, KEY_HELICONE_PATTERNS)?.let { json ->
+            loadBlob(context, KEY_HELICONE_PATTERNS)?.use { json ->
                 try {
                     val type = object : TypeToken<List<HeliconePattern>>() {}.type
                     heliconePatterns = gson.fromJson(json, type)
@@ -2068,21 +2069,20 @@ object PricingCache {
         // llm-prices.com — single combined map.
         if (llmPricesPricing == null) {
             llmPricesTimestamp = getPrefs(context).getLong(KEY_LLMPRICES_TIMESTAMP, 0)
-            loadBlob(context, KEY_LLMPRICES_PRICING)?.let { json ->
-                try { llmPricesPricing = gson.fromJson(json, mapModelPricingType) } catch (_: Exception) {}
+            loadBlob(context, KEY_LLMPRICES_PRICING)?.use { json ->
+                try { llmPricesPricing = parseTierMap(json, ::readModelPricing) } catch (_: Exception) {}
             }
             if (llmPricesPricing == null) llmPricesPricing = emptyMap()
         }
         // Artificial Analysis — pricing + sidecar.
         if (aaPricing == null || aaMeta == null) {
             aaTimestamp = getPrefs(context).getLong(KEY_AA_TIMESTAMP, 0)
-            loadBlob(context, KEY_AA_PRICING)?.let { json ->
-                try { aaPricing = gson.fromJson(json, mapModelPricingType) } catch (_: Exception) {}
+            loadBlob(context, KEY_AA_PRICING)?.use { json ->
+                try { aaPricing = parseTierMap(json, ::readModelPricing) } catch (_: Exception) {}
             }
-            loadBlob(context, KEY_AA_META)?.let { json ->
+            loadBlob(context, KEY_AA_META)?.use { json ->
                 try {
-                    val type = object : TypeToken<Map<String, ArtificialAnalysisMeta>>() {}.type
-                    aaMeta = gson.fromJson(json, type)
+                    aaMeta = parseTierMap(json, ::readArtificialAnalysisMeta)
                 } catch (_: Exception) {}
             }
             if (aaPricing == null) aaPricing = emptyMap()
@@ -2093,13 +2093,12 @@ object PricingCache {
         // first refresh (same as the other curated tiers).
         if (requestyPricing == null || requestyMeta == null) {
             requestyTimestamp = getPrefs(context).getLong(KEY_REQUESTY_TIMESTAMP, 0)
-            loadBlob(context, KEY_REQUESTY_PRICING)?.let { json ->
-                try { requestyPricing = gson.fromJson(json, mapModelPricingType) } catch (_: Exception) {}
+            loadBlob(context, KEY_REQUESTY_PRICING)?.use { json ->
+                try { requestyPricing = parseTierMap(json, ::readModelPricing) } catch (_: Exception) {}
             }
-            loadBlob(context, KEY_REQUESTY_META)?.let { json ->
+            loadBlob(context, KEY_REQUESTY_META)?.use { json ->
                 try {
-                    val type = object : TypeToken<Map<String, RequestyMeta>>() {}.type
-                    requestyMeta = gson.fromJson(json, type)
+                    requestyMeta = parseTierMap(json, ::readRequestyMeta)
                 } catch (_: Exception) {}
             }
             if (requestyPricing == null) requestyPricing = emptyMap()
@@ -2110,10 +2109,10 @@ object PricingCache {
         // user adds their key.
         if (llmStatsPricing == null || llmStatsMeta == null) {
             llmStatsTimestamp = getPrefs(context).getLong(KEY_LLMSTATS_TIMESTAMP, 0)
-            loadBlob(context, KEY_LLMSTATS_PRICING)?.let { json ->
-                try { llmStatsPricing = gson.fromJson(json, mapModelPricingType) } catch (_: Exception) {}
+            loadBlob(context, KEY_LLMSTATS_PRICING)?.use { json ->
+                try { llmStatsPricing = parseTierMap(json, ::readModelPricing) } catch (_: Exception) {}
             }
-            loadBlob(context, KEY_LLMSTATS_META)?.let { json ->
+            loadBlob(context, KEY_LLMSTATS_META)?.use { json ->
                 try {
                     val type = object : TypeToken<Map<String, LlmStatsMeta>>() {}.type
                     llmStatsMeta = gson.fromJson(json, type)
@@ -2127,13 +2126,12 @@ object PricingCache {
         // refresh.
         if (genaiPricesPricing == null || genaiPricesMeta == null) {
             genaiPricesTimestamp = getPrefs(context).getLong(KEY_GENAIPRICES_TIMESTAMP, 0)
-            loadBlob(context, KEY_GENAIPRICES_PRICING)?.let { json ->
-                try { genaiPricesPricing = gson.fromJson(json, mapModelPricingType) } catch (_: Exception) {}
+            loadBlob(context, KEY_GENAIPRICES_PRICING)?.use { json ->
+                try { genaiPricesPricing = parseTierMap(json, ::readModelPricing) } catch (_: Exception) {}
             }
-            loadBlob(context, KEY_GENAIPRICES_META)?.let { json ->
+            loadBlob(context, KEY_GENAIPRICES_META)?.use { json ->
                 try {
-                    val type = object : TypeToken<Map<String, GenaiPricesMeta>>() {}.type
-                    genaiPricesMeta = gson.fromJson(json, type)
+                    genaiPricesMeta = parseTierMap(json, ::readGenaiPricesMeta)
                 } catch (_: Exception) {}
             }
             if (genaiPricesPricing == null) genaiPricesPricing = emptyMap()
@@ -2143,13 +2141,12 @@ object PricingCache {
         // snapshot (the live refresh downloads the whole-repo tar.gz).
         if (trueFoundryPricing == null || trueFoundryMeta == null) {
             trueFoundryTimestamp = getPrefs(context).getLong(KEY_TRUEFOUNDRY_TIMESTAMP, 0)
-            loadBlob(context, KEY_TRUEFOUNDRY_PRICING)?.let { json ->
-                try { trueFoundryPricing = gson.fromJson(json, mapModelPricingType) } catch (_: Exception) {}
+            loadBlob(context, KEY_TRUEFOUNDRY_PRICING)?.use { json ->
+                try { trueFoundryPricing = parseTierMap(json, ::readModelPricing) } catch (_: Exception) {}
             }
-            loadBlob(context, KEY_TRUEFOUNDRY_META)?.let { json ->
+            loadBlob(context, KEY_TRUEFOUNDRY_META)?.use { json ->
                 try {
-                    val type = object : TypeToken<Map<String, TrueFoundryMeta>>() {}.type
-                    trueFoundryMeta = gson.fromJson(json, type)
+                    trueFoundryMeta = parseTierMap(json, ::readTrueFoundryMeta)
                 } catch (_: Exception) {}
             }
             if (trueFoundryPricing == null) trueFoundryPricing = emptyMap()
@@ -2159,10 +2156,9 @@ object PricingCache {
         // ships a snapshot so the capability flags work on a fresh install.
         if (cloudPriceMeta == null) {
             cloudPriceTimestamp = getPrefs(context).getLong(KEY_CLOUDPRICE_TIMESTAMP, 0)
-            loadBlob(context, KEY_CLOUDPRICE_META)?.let { json ->
+            loadBlob(context, KEY_CLOUDPRICE_META)?.use { json ->
                 try {
-                    val type = object : TypeToken<Map<String, CloudPriceMeta>>() {}.type
-                    cloudPriceMeta = gson.fromJson(json, type)
+                    cloudPriceMeta = parseTierMap(json, ::readCloudPriceMeta)
                 } catch (_: Exception) {}
             }
             if (cloudPriceMeta == null) cloudPriceMeta = emptyMap()
@@ -2181,16 +2177,14 @@ object PricingCache {
 
     private fun loadFromPrefs(context: Context) {
         val prefs = getPrefs(context)
-        val json = loadBlob(context, KEY_OPENROUTER_PRICING)
         openRouterTimestamp = prefs.getLong(KEY_OPENROUTER_TIMESTAMP, 0)
-        openRouterPricing = if (json != null) {
-            try { gson.fromJson(json, mapModelPricingType) } catch (_: Exception) { emptyMap() }
-        } else emptyMap()
-        val tj = loadBlob(context, KEY_TOGETHER_PRICING)
+        openRouterPricing = loadBlob(context, KEY_OPENROUTER_PRICING)?.use { json ->
+            try { parseTierMap(json, ::readModelPricing) } catch (_: Exception) { null }
+        } ?: emptyMap()
         togetherTimestamp = prefs.getLong(KEY_TOGETHER_TIMESTAMP, 0)
-        togetherPricing = if (tj != null) {
-            try { gson.fromJson(tj, mapModelPricingType) } catch (_: Exception) { emptyMap() }
-        } else emptyMap()
+        togetherPricing = loadBlob(context, KEY_TOGETHER_PRICING)?.use { tj ->
+            try { parseTierMap(tj, ::readModelPricing) } catch (_: Exception) { null }
+        } ?: emptyMap()
     }
 
     private fun loadManualPricing(context: Context) {

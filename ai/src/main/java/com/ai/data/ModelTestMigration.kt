@@ -6,7 +6,30 @@ import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 
 /** Repairs diagnostic data only. Never copies a user's results or states into defaults. */
 object ModelTestMigration {
+    private const val PREFS = "model_test_migration"
+    private const val KEY_SETTLED = "settled_marker"
+
+    /** Runs [repairNow] only when its inputs changed. The run file is a
+     *  multi-MB JSON and the repair sat on the startup critical path of
+     *  every launch; its result depends only on that file, the blocked
+     *  list and the probe policy, so a pass that changed nothing is
+     *  remembered and skipped until one of them changes. */
     fun repair(context: Context, settings: Settings): Settings {
+        val f = ModelTestRunStore.file(context)
+        if (!f.exists()) return settings
+        val marker = "${ModelProbePolicy.VERSION}:${f.length()}:${f.lastModified()}:${settings.blockedModels.hashCode()}"
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        if (prefs.getString(KEY_SETTLED, null) == marker) return settings
+        val result = repairNow(context, settings)
+        // Only a no-op pass is settled: a changed result is saved by the
+        // caller (new blocked-list hash) and re-checked next launch.
+        if (result == settings && f.exists()) {
+            prefs.edit().putString(KEY_SETTLED, "${ModelProbePolicy.VERSION}:${f.length()}:${f.lastModified()}:${settings.blockedModels.hashCode()}").apply()
+        }
+        return result
+    }
+
+    private fun repairNow(context: Context, settings: Settings): Settings {
         val run = ModelTestRunStore.load(context) ?: return settings
         if (run.policyVersion >= ModelProbePolicy.VERSION) return reconcileBlocks(run, settings)
         val traces = run.runId?.let { ApiTracer.getTraceFilesForRun(it) }.orEmpty()

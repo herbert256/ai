@@ -67,6 +67,15 @@ object SecondaryResultStorage {
         }
     }
 
+    /** Name + size + modification time of every row file for [reportId]
+     *  ("" when none) — a cheap change signal for caches that must not
+     *  re-parse the rows. */
+    fun dirSignature(context: Context, reportId: String): String {
+        init(context)
+        val files = reportDir(reportId)?.listFiles() ?: return ""
+        return files.sortedBy { it.name }.joinToString("|") { "${it.name}:${it.length()}@${it.lastModified()}" }
+    }
+
     private fun reportDir(reportId: String): File? {
         val root = rootDir ?: return null
         // Defence in depth: the import path persists secondaries

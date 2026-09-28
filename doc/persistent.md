@@ -9,10 +9,10 @@ atomic `writeTextAtomic` helper. The backup-eligible slots
 round-trip through `BackupManager` (Settings → Housekeeping → Backup
 & Restore) into a single `.zip` — see [backup-restore.md](backup-restore.md).
 
-## SharedPreferences (11 files)
+## SharedPreferences (12 files)
 
 All under `/data/data/com.ai/shared_prefs/<name>.xml`. **Eight** of
-the eleven are captured in `BackupManager.PREFS_TO_BACKUP`:
+the twelve are captured in `BackupManager.PREFS_TO_BACKUP`:
 
 | Prefs file | Owner | In backup? |
 |---|---|---|
@@ -27,8 +27,9 @@ the eleven are captured in `BackupManager.PREFS_TO_BACKUP`:
 | `provider_field_timestamps` | `ProviderFieldTimestamps` (recomputable) | ❌ |
 | `last_report_tracker` | `LastReportTracker` (device-local pointer) | ❌ |
 | `update_from_cloud` | `UpdateFromCloudScreen` (local APK pointer) | ❌ |
+| `model_test_migration` | `ModelTestMigration` (`settled_marker`: skip the startup repair while its inputs are unchanged; recomputable) | ❌ |
 
-The three excluded files are either recomputable caches or
+The four excluded files are either recomputable caches or
 device-local pointers that don't make sense to graft onto another
 device. `WebViewChromiumPrefs` is also intentionally excluded. (The
 old `translation_modes` prefs file is gone — per-report translation
@@ -355,7 +356,8 @@ Tier blobs for `PricingCache`. One file per (tier, payload):
 | `truefoundry_meta.json` | TrueFoundry capabilities sidecar |
 | `cloudprice_meta.json` | CloudPrice capabilities + context catalog (no pricing — metadata only) |
 
-Reads go through `PricingCache.loadBlob`, which looks up the on-disk
+Reads go through `PricingCache.loadBlob` (a streaming reader, parsed by
+`parseTierMap`), which looks up the on-disk
 `filesDir/pricing/<key>.json` first and falls back to the bundled
 `assets/info-providers/<key>.json` snapshot when the file doesn't
 exist (so a fresh install ships with working pricing / capability

@@ -709,13 +709,39 @@ class SecondaryRunManager(
         val recent = ReportStorage.getReportHeaders(context)
             .filter { it.timestamp >= cutoff || it.id == currentId }
             .sortedByDescending { it.timestamp }
-            .mapNotNull { ReportStorage.getReport(context, it.id) }
         if (recent.isEmpty()) return@withContext emptyList()
-        val batches = recent.flatMap { report -> detectBrokenBatchesForReport(context, report) }
-            .sortedByDescending { it.timestamp }
-        AppLog.d("BrokenScan", "scanned ${recent.size} report${if (recent.size == 1) "" else "s"} (7d) → ${batches.size} broken batch${if (batches.size == 1) "" else "es"}")
+        // A settled report (nothing in flight, no unfinished row) can only
+        // change its verdict through its files or the settings, so its last
+        // result is reused while those are unchanged — the 30 s scan used to
+        // re-parse every recent report and all its rows on every tick.
+        val st = appViewModel.uiState.value
+        if (brokenScanCacheSettings?.first !== st.aiSettings || brokenScanCacheSettings?.second !== st.generalSettings) {
+            brokenScanCache.clear()
+            brokenScanCacheSettings = st.aiSettings to st.generalSettings
+        }
+        brokenScanCache.keys.retainAll(recent.map { it.id }.toSet())
+        var parsed = 0
+        val batches = recent.flatMap { header ->
+            val id = header.id
+            val signature = ReportStorage.fileSignature(context, id) + "#" +
+                SecondaryResultStorage.dirSignature(context, id) + "#" +
+                com.ai.data.RegenerateBatchStorage.fileSignature(context, id)
+            brokenScanCache[id]?.takeIf { it.first == signature }?.let { return@flatMap it.second }
+            val report = ReportStorage.getReport(context, id) ?: return@flatMap emptyList()
+            parsed++
+            val (found, settled) = detectBrokenBatchesForReport(context, report)
+            if (settled) brokenScanCache[id] = signature to found else brokenScanCache.remove(id)
+            found
+        }.sortedByDescending { it.timestamp }
+        AppLog.d("BrokenScan", "scanned ${recent.size} report${if (recent.size == 1) "" else "s"} (7d, $parsed parsed) → ${batches.size} broken batch${if (batches.size == 1) "" else "es"}")
         batches
     }
+
+    /** Per-report Broken-work verdicts of settled reports, keyed by report id
+     *  → (file signature, batches); dropped whenever the settings objects
+     *  change (the info-problem rows depend on them). */
+    private val brokenScanCache = java.util.concurrent.ConcurrentHashMap<String, Pair<String, List<BrokenBatch>>>()
+    @Volatile private var brokenScanCacheSettings: Pair<Any?, Any?>? = null
 
     /** Force one Broken-work scan now. Used after manual recovery actions so
      *  the badge/screen do not keep stale actionable cards until the next
@@ -808,12 +834,20 @@ class SecondaryRunManager(
      *  nothing needs attention. A fan-out pair feeds BOTH its Fan Out batch
      *  (response state) and its Fan Meta batch (title/icon state). The
      *  "MATCH" sentinel is the shared match/cell role
-     *  (TournamentEngine.ROLE_MATCH / [com.ai.data.JUDGE_ROLE_CELL]). */
-    private fun detectBrokenBatchesForReport(context: Context, report: Report): List<BrokenBatch> {
+     *  (TournamentEngine.ROLE_MATCH / [com.ai.data.JUDGE_ROLE_CELL]).
+     *  Also returns whether the report is settled — no live work and no
+     *  unfinished agent / row / regenerate job — so the verdict can only
+     *  change through its files or the settings (the scan's cache key). */
+    private fun detectBrokenBatchesForReport(context: Context, report: Report): Pair<List<BrokenBatch>, Boolean> {
         val reportId = report.id
         // Read-through: the scan walks every recent report, and inserting
         // each into the 3-report row cache evicted the one the user has open.
         val rows = SecondaryResultStorage.listForReportWithoutCaching(context, reportId)
+        val settled = !rvm.hasActiveReportCalls(context, reportId) &&
+            !rvm.regenerateBatchEngine.isActivelyRunning(reportId) &&
+            report.agents.none { it.reportStatus == ReportStatus.PENDING || it.reportStatus == ReportStatus.RUNNING } &&
+            rows.none { it.content.isNullOrBlank() && it.errorMessage == null } &&
+            com.ai.data.RegenerateBatchStorage.get(context, reportId)?.status != com.ai.data.RegenerateJobStatus.RUNNING
         val batches = BrokenWorkPolicy.detectBatches(
             reportId = reportId,
             reportTitle = report.title,
@@ -889,7 +923,7 @@ class SecondaryRunManager(
                 timestamp = report.timestamp,
                 errorMessage = if (infoErrorCount == 1) infoSingleMsg else null))
         }
-        return batches
+        return batches to settled
     }
 
     /** TOCTOU-safe re-read + save pair that flips a stuck placeholder

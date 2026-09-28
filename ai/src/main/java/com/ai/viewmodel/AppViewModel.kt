@@ -686,12 +686,22 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch(Dispatchers.IO + com.ai.data.CrashReporter.coroutineHandler) {
             awaitStartupMaintenanceWindow()
             val preloadStarted = android.os.SystemClock.elapsedRealtime()
+            // Seconds of catalog parsing, interpreted at first on a debuggable
+            // build: run it at background priority so first render and early
+            // taps win the CPU (it used to starve the main thread into input
+            // ANRs on small devices). Blocking call → stays on this thread;
+            // the priority is restored after.
+            val tid = android.os.Process.myTid()
+            val priorityBefore = android.os.Process.getThreadPriority(tid)
             try {
+                android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_BACKGROUND)
                 PricingCache.ensureLoadedBlocking(application)
             } catch (e: Exception) {
                 capabilitySnapshotsReady.value = true
                 _uiState.update { it.copy(pricingReady = true) }
                 throw e
+            } finally {
+                android.os.Process.setThreadPriority(tid, priorityBefore)
             }
             _uiState.update { it.copy(pricingReady = true) }
             AppLog.d("App.start", "Pricing catalogs ready in ${android.os.SystemClock.elapsedRealtime() - preloadStarted}ms (background)")

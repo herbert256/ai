@@ -793,6 +793,15 @@ object ReportStorage {
         return lock.withLock { loadReport(reportId) != null }
     }
 
+    /** Size + modification time of the report file ("" when absent) — a
+     *  cheap change signal for caches that must not re-parse the report. */
+    fun fileSignature(context: Context, reportId: String): String {
+        init(context)
+        if (!isSafeFlatId(reportId)) return ""
+        val f = File(reportsDir ?: return "", "$reportId.json")
+        return if (f.exists()) "${f.length()}@${f.lastModified()}" else ""
+    }
+
     /** Cheap existence guard for write paths that only need to know whether
      *  the parent report file is still present. Unlike [reportExists], this
      *  does not parse or normalize the full report JSON; large secondary

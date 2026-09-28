@@ -81,9 +81,17 @@ private class NullSafeFieldAdapterFactory : TypeAdapterFactory {
     }
 }
 
-private fun baseGsonBuilder(): GsonBuilder = GsonBuilder()
+private fun reflectiveGsonBuilder(): GsonBuilder = GsonBuilder()
     .registerTypeAdapter(AppService::class.java, AppServiceAdapter())
     .registerTypeAdapterFactory(NullSafeFieldAdapterFactory())
+
+// Registered last so they win over the reflective + NullSafe path for the
+// pricing / capability records (see PricingTierAdapters).
+private fun baseGsonBuilder(): GsonBuilder = reflectiveGsonBuilder().registerPricingTierAdapters()
+
+/** The app Gson without the hand-written tier adapters — the reference the
+ *  adapter tests compare the fast path against. */
+internal fun createReflectiveAppGson(): Gson = reflectiveGsonBuilder().create()
 
 private val aiGson: Gson by lazy { baseGsonBuilder().create() }
 private val aiGsonPretty: Gson by lazy { baseGsonBuilder().setPrettyPrinting().create() }

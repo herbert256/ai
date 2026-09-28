@@ -845,4 +845,27 @@ Trace-index warmup then runs, followed by broken-work recovery scans on IO.
 The log records XML wait separately from bootstrap, and `MetadataIndex` reports
 how many source files needed parsing. Do not sum overlapping phase durations.
 
+What keeps that work small (the shipped APK is a debug build, so app code —
+Gson included — starts out interpreted):
+
+- **Catalog parse.** `PricingCache.loadBlob` hands each tier blob to
+  `parseTierMap` (`data/PricingTierAdapters.kt`) as a stream — no multi-MB
+  Strings. On a device it tokenizes with the framework's
+  `android.util.JsonReader`; on the JVM (unit tests) with Gson's. Hand-written
+  record readers replace Gson's reflective adapter; the same readers/writers
+  are registered on the app Gson (`registerPricingTierAdapters`), so every
+  other (de)serialisation of `ModelPricing`, `ModelCapabilities` and the tier
+  metas writes byte-identical JSON. `PricingTierAdaptersTest` checks both the
+  format and every bundled catalog against the reflective Gson. The load runs
+  at background thread priority so first render and early taps win the CPU.
+- **Model-test repair.** `ModelTestMigration.repair` stores a settled marker
+  (probe-policy version, run-file size + mtime, blocked-list hash) in the
+  `model_test_migration` prefs after a no-op pass and skips parsing the run
+  file until one of those changes.
+- **Broken-work scan.** The 30-second scan keeps a per-report result cache
+  keyed on the report file, its secondary-results directory and its
+  regenerate-batch file (size + mtime). A report is cached only when it is
+  settled (nothing running or pending in it), so later ticks log `0 parsed`
+  when nothing changed.
+
 See [the startup audit](startup-audit-2026-09-13.md) for measurements and limits.

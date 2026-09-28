@@ -20,7 +20,7 @@ object ModelTestRunStore {
     private val gson = createAppGson()
     private val lock = java.util.concurrent.locks.ReentrantLock()
 
-    private fun file(context: Context) = File(context.filesDir, FILE)
+    internal fun file(context: Context) = File(context.filesDir, FILE)
 
     /** Overwrite the single persisted run. Returns false on I/O
      *  failure (disk full / permission) — caller can ignore, the
