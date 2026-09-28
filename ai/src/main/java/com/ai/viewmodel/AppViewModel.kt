@@ -2390,6 +2390,15 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         _uiState.update { it.copy(externalIntent = ExternalIntent()) }
     }
 
+    /** Drop an external request no report has claimed yet (abandoned
+     *  before it generated). A claimed one — [ExternalIntent.reportId]
+     *  stamped — holds only that running report's email / next action /
+     *  return (its generation inputs were already dropped at launch), so
+     *  starting another report in the app must leave it alone. */
+    fun clearUnclaimedExternalInstructions() {
+        _uiState.update { if (it.externalIntent.reportId == null) it.copy(externalIntent = ExternalIntent()) else it }
+    }
+
     // ===== Chat Parameters =====
 
     fun setChatParameters(params: ChatParameters) { _uiState.update { it.copy(chatParameters = params) } }

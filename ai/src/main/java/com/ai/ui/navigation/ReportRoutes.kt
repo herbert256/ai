@@ -354,7 +354,9 @@ internal fun NavGraphBuilder.reportRoutes(
             // drop one abandoned before it generated (its system prompt /
             // context would otherwise reach this report's models). External
             // "prefill" requests use AI_NEW_REPORT_WITH_PARAMS, not this route.
-            LaunchedEffect(Unit) { appViewModel.clearExternalInstructions() }
+            // A request already claimed by a running report keeps its email /
+            // next action / return for that report.
+            LaunchedEffect(Unit) { appViewModel.clearUnclaimedExternalInstructions() }
             DropStaleShareStaging(appViewModel)
             NewReportScreen(viewModel = appViewModel, reportViewModel = reportViewModel,
                 onNavigateBack = safePopBack, onNavigateHome = navigateHome,
@@ -372,8 +374,9 @@ internal fun NavGraphBuilder.reportRoutes(
             // only an external prefill (ext) may carry an external request's
             // system prompt / context. Drop one left over from an abandoned
             // request, or it reached every model without its own system prompt.
+            // (A request claimed by a running report is left for that report.)
             if (entry.arguments?.getBoolean("ext") != true) {
-                LaunchedEffect(Unit) { appViewModel.clearExternalInstructions() }
+                LaunchedEffect(Unit) { appViewModel.clearUnclaimedExternalInstructions() }
             }
             if (entry.arguments?.getBoolean("share") != true) DropStaleShareStaging(appViewModel)
             // Navigation Compose already decodes path-segment arguments once
