@@ -349,9 +349,12 @@ step-8 fallback. Together this is what makes OpenRouter's catalog
   (`input_mtok` / `output_mtok` / `cache_read_mtok` /
   `cache_write_mtok`, in **$/M tokens** → divided by 1M) and a
   `context_window` (kept in the sidecar for the token-limit chain).
-  `prices` may be a conditional array (date/tier variants) — we take
-  the unconstrained (base) entry; per-field `TieredPrices` objects
-  degrade to "missing".
+  `prices` may be a conditional array — like genai-prices itself we
+  take the **last** entry whose constraint is active (none, or a
+  `start_date` that has passed — e.g. openai/o3's June 2025 cut to
+  $2/$8), else the first; time-of-day windows (DeepSeek peak hours)
+  are ignored so one static price is stored. Per-field `TieredPrices`
+  objects degrade to "missing".
 - **Key format:** `<provider>/<modelId>` (like models.dev), matched
   via the prefix-bucket scan.
 - **Position:** step 10 in the precedence — a keyless community

@@ -427,12 +427,27 @@ internal fun parseLlmStatsJson(
  *  models.dev. Composite key `<provider>/<modelId>`.
  *
  *  `prices` is usually a flat object but can be a **conditional array**
- *  (date / tier variants); we take the unconstrained entry (else the last)
- *  and read its `prices`. Individual `*_mtok` fields can themselves be a
+ *  (`[{constraint?, prices}]`). Like genai-prices itself, the LAST entry
+ *  whose constraint is active wins: no constraint, or a `start_date` on or
+ *  before [today] (so openai/o3's 2025-06-10 cut to $2/$8 beats the older
+ *  unconstrained $10/$40). Time-of-day windows (`start_time`/`end_time`,
+ *  DeepSeek's peak hours) are ignored so one static price is stored; with
+ *  nothing active the first entry is used. Individual `*_mtok` fields can themselves be a
  *  TieredPrices object instead of a number — `numOrNull()` returns null for
  *  those, so a tiered field degrades to "missing" rather than aborting the
  *  row. Sidecar carries the context window for the token-limit chain. */
-internal fun parseGenaiPricesJson(json: String): Pair<Map<String, PricingCache.ModelPricing>, Map<String, PricingCache.GenaiPricesMeta>> {
+internal fun parseGenaiPricesJson(
+    json: String,
+    today: java.time.LocalDate = java.time.LocalDate.now(java.time.ZoneOffset.UTC)
+): Pair<Map<String, PricingCache.ModelPricing>, Map<String, PricingCache.GenaiPricesMeta>> {
+    fun constraintActive(el: JsonElement?): Boolean {
+        if (el == null || el.isJsonNull) return true
+        if (!el.isJsonObject) return false
+        val start = el.asJsonObject.get("start_date")
+            ?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isString }?.asString ?: return false
+        val date = runCatching { java.time.LocalDate.parse(start.take(10)) }.getOrNull() ?: return false
+        return !today.isBefore(date)
+    }
     @Suppress("DEPRECATION")
     val rootEl = JsonParser().parse(json)
     val empty = emptyMap<String, PricingCache.ModelPricing>() to emptyMap<String, PricingCache.GenaiPricesMeta>()
@@ -453,17 +468,16 @@ internal fun parseGenaiPricesJson(json: String): Pair<Map<String, PricingCache.M
             val m = mEl.asJsonObject
             val id = m.get("id")?.takeIf { it.isJsonPrimitive }?.asString ?: continue
             val composite = "$provId/$id"
-            // prices: flat object, or a conditional array (take the
-            // unconstrained entry, else the last) — then read its `prices`.
+            // prices: flat object, or a conditional array (the last entry
+            // whose constraint is active, else the first) — then read its `prices`.
             val pricesEl = m.get("prices")
             val priceObj: JsonObject? = when {
                 pricesEl == null -> null
                 pricesEl.isJsonObject -> pricesEl.asJsonObject
                 pricesEl.isJsonArray -> {
-                    val arr = pricesEl.asJsonArray
-                    val chosen = arr.lastOrNull { it.isJsonObject && it.asJsonObject.get("constraint")?.isJsonNull != false }
-                        ?: arr.lastOrNull { it.isJsonObject }
-                    chosen?.asJsonObject?.get("prices")?.takeIf { it.isJsonObject }?.asJsonObject
+                    val entries = pricesEl.asJsonArray.filter { it.isJsonObject }.map { it.asJsonObject }
+                    val chosen = entries.lastOrNull { constraintActive(it.get("constraint")) } ?: entries.firstOrNull()
+                    chosen?.get("prices")?.takeIf { it.isJsonObject }?.asJsonObject
                 }
                 else -> null
             }
