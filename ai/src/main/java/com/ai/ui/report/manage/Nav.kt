@@ -804,7 +804,10 @@ fun ReportsScreenNav(
         onClearPromptEditReplay = { rid, aid ->
             reportViewModel.clearPromptEditReplay(rid, aid)
         },
-        onExternalCompletionHandled = viewModel::consumeExternalCompletion,
+        externalCompletion = ExternalCompletionHooks(
+            awaitFollowUp = { rid -> reportViewModel.awaitFollowUpWork(rid) },
+            consume = viewModel::consumeExternalCompletion
+        ),
         onEditModels = { rid -> scope.launch { reportViewModel.prepareEditModels(context, rid) } },
         onUpdateModelList = { rid, edited ->
             scope.launch { reportViewModel.stageModelListForRegenerate(context, rid, edited) }

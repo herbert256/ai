@@ -245,8 +245,13 @@ Models, Agents, Flocks and Swarms can be combined; duplicate selections are merg
   request, so another request arriving meanwhile can't replace them.
 - [`RuntimeState.kt`](../ai/src/main/java/com/ai/ui/report/manage/RuntimeState.kt)
   handles external worker selections and completion actions. When the
-  claiming report completes on screen it runs `<email>`, then `<next>`, and
-  only then — once — finishes the activity for `<return>`.
+  claiming report completes on screen it first waits for the report's
+  automatic follow-up work (`ReportViewModel.awaitFollowUpWork`: the report
+  title / icon / language and per-model title / icon jobs, plus the
+  autostarted Rerank / Moderation / default Meta runs; capped at 10 minutes),
+  so the emailed or shared report carries those results and its real title.
+  It then runs `<email>`, then `<next>`, and only then — once — finishes the
+  activity for `<return>`.
 - [`AndroidManifest.xml`](../ai/src/main/AndroidManifest.xml) registers the
   exported custom action on `MainActivity`.
 

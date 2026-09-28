@@ -468,6 +468,16 @@ internal fun rememberReportRuntimeState(
     )
 }
 
+/** External-request completion hooks of the report screen. [awaitFollowUp]
+ *  suspends until the report's automatic follow-up work is done
+ *  (ReportViewModel.awaitFollowUpWork); [consume] drops the report's claimed
+ *  email / next / return once they run. One object instead of two
+ *  parameters: ReportsScreen sits close to the JVM per-method size limit. */
+class ExternalCompletionHooks(
+    val awaitFollowUp: suspend (String) -> Unit = {},
+    val consume: (String) -> Unit = {}
+)
+
 @Composable
 internal fun HandleExternalReportInstructions(
     context: Context,
@@ -481,7 +491,7 @@ internal fun HandleExternalReportInstructions(
     onModelsChange: (List<ReportModel>) -> Unit,
     onContinueToWorkers: () -> Unit,
     onOpenView: () -> Unit,
-    onExternalCompletionHandled: (String) -> Unit
+    externalCompletion: ExternalCompletionHooks
 ) {
     var externalSelectionApplied by rememberSaveable { mutableStateOf(false) }
     val externalRes = remember(uiState.externalIntent, aiSettings) {
@@ -498,16 +508,23 @@ internal fun HandleExternalReportInstructions(
         }
     }
 
+    val latestUiState by rememberUpdatedState(uiState)
     LaunchedEffect(isComplete, currentReportId) {
         // Only for the report generated for the request (claimed under its id
         // at creation): swiping to some other finished report while it runs
         // must not email / share / close on that report's behalf.
-        val completion = currentReportId?.let { uiState.externalCompletions[it] }
-        if (isComplete && currentReportId != null && completion != null) {
-            // Consumed up front: an effect restarted mid-delay must not open
-            // the choosers twice. Only THIS report's claim — a newer pending
-            // request (another app's, still in model selection) stays.
-            onExternalCompletionHandled(currentReportId)
+        if (isComplete && currentReportId != null && uiState.externalCompletions[currentReportId] != null) {
+            // "Complete" here only means the primary answers are in. The
+            // autostarted Rerank / Moderation / default Meta and the report
+            // title / icon start or finish after that, so the emailed / shared
+            // report used to lack them and carry the "AI Report" subject.
+            externalCompletion.awaitFollowUp(currentReportId)
+            // Re-read the claim after the wait (cleared meanwhile → nothing to
+            // do), then consume it before the first action: an effect
+            // restarted mid-delay must not open the choosers twice. Only THIS
+            // report's claim — a newer pending request stays.
+            val completion = latestUiState.externalCompletions[currentReportId] ?: return@LaunchedEffect
+            externalCompletion.consume(currentReportId)
             var acted = false
             val email = completion.email
             if (email != null && email.isNotBlank()) {

@@ -311,6 +311,47 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
     internal fun reportLogContext() =
         Dispatchers.IO + com.ai.data.CrashReporter.coroutineHandler
 
+    /** Automatic follow-up runs a finished generation starts (autostart
+     *  Rerank / Moderation / default Meta), keyed by reportId — what
+     *  [awaitFollowUpWork] waits for besides the primary job and the
+     *  report's title / icon / language info jobs. */
+    private val followUpJobs = java.util.concurrent.ConcurrentHashMap<String, MutableSet<Job>>()
+
+    private fun trackFollowUp(reportId: String, job: Job?) {
+        job ?: return
+        followUpJobs.computeIfAbsent(reportId) { java.util.concurrent.ConcurrentHashMap.newKeySet() }.add(job)
+        job.invokeOnCompletion { followUpJobs[reportId]?.remove(job) }
+    }
+
+    /** Suspends until [reportId]'s generation and the automatic work it
+     *  triggers are done: the primary calls, the report title / icon /
+     *  language and per-model title / icon info jobs, and the autostarted
+     *  Rerank / Moderation / default Meta runs. An external request's
+     *  email / next / return waits on this so the emailed or shared report
+     *  carries those results and its real title instead of "AI Report".
+     *  Title → icon (and per-model title → icon) hop from one info job to
+     *  the next, so "no info job running" must hold for a quiet spell
+     *  before it counts. Bounded by [timeoutMs]: a stuck worker must not
+     *  keep the caller waiting forever. */
+    internal suspend fun awaitFollowUpWork(reportId: String, timeoutMs: Long = 10 * 60_000L) {
+        kotlinx.coroutines.withTimeoutOrNull(timeoutMs) {
+            generationJobs[reportId]?.join()
+            var quietSince = 0L
+            while (true) {
+                val busy = generationJobs[reportId]?.isActive == true ||
+                    followUpJobs[reportId]?.any { it.isActive } == true ||
+                    appViewModel.runningInfoJobs.value.any { it.startsWith("$reportId|") }
+                val now = System.currentTimeMillis()
+                when {
+                    busy -> quietSince = 0L
+                    quietSince == 0L -> quietSince = now
+                    now - quietSince >= 1_500L -> break
+                }
+                delay(250)
+            }
+        } ?: AppLog.w("Report", "follow-up wait for $reportId timed out after ${timeoutMs / 1000}s; running the external actions anyway")
+    }
+
     // Outer Jobs for "Find alternative icons" fan-outs, keyed by
     // reportId. Cancelling the entry cascades to every per-pair child
     // launch inside startIconFanOut so a deleteReport can stop the
@@ -1097,12 +1138,12 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         // (common: single-model reports) wasted a worker call ranking a lone
         // item and left a junk row. Moderation is fine at 1, so it keeps the
         // <1 gate above.
-        if (successCount >= 2 && !hasKind(SecondaryKind.RERANK)) secondary.runRerank(context, reportId)
+        if (successCount >= 2 && !hasKind(SecondaryKind.RERANK)) trackFollowUp(reportId, secondary.runRerank(context, reportId))
         // Moderation still needs a native moderation model (only Mistral
         // is wired), so gate on one being active to avoid an error row.
         val hasModModel = firstModelOfType(aiSettings, ModelType.MODERATION) != null
         if (!hasModModel) AppLog.i("Report", "auto-moderation skipped: no moderation-capable model")
-        else if (!hasKind(SecondaryKind.MODERATION)) secondary.runModeration(context, reportId)
+        else if (!hasKind(SecondaryKind.MODERATION)) trackFollowUp(reportId, secondary.runModeration(context, reportId))
     }
 
     /** On a normal report completion, auto-create one META secondary per
@@ -1132,7 +1173,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             if (prompt.name.lowercase() in existingMetaNames) continue  // idempotent
             // Meta runs through the Meta worker swarm now; the default
             // item's configured target is no longer needed to dispatch.
-            secondary.runMetaPrompt(context, reportId, prompt)
+            trackFollowUp(reportId, secondary.runMetaPrompt(context, reportId, prompt))
             existingMetaNames += prompt.name.lowercase()  // guard against duplicate rows in one pass
         }
     }
