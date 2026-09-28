@@ -2409,11 +2409,16 @@ object PricingCache {
         } catch (_: Exception) {}
     }
 
-    /** Drop ONE Info-provider pricing tier (by its [CatalogStat.name]) —
-     *  blob file(s), timestamp, and in-memory state — leaving the other
-     *  ten tiers intact. Per-source sibling of [clearInfoProviderTiers],
-     *  wired to the Caches → Pricing tiers screen's 🗑. */
-    fun deleteTier(context: Context, source: String) = synchronized(lock) {
+    /** Reset ONE Info-provider tier (by its [CatalogStat.name]) to the
+     *  snapshot bundled with the app: drops the refreshed blob file(s),
+     *  timestamp and in-memory state, then reloads — [loadBlob] falls back
+     *  to `assets/info-providers/`, so the tier returns to a fresh install's
+     *  data, it is not left empty. The other ten tiers stay intact.
+     *  Per-source sibling of [clearInfoProviderTiers], wired to the
+     *  Caches → Pricing tiers screen's 🗑. Call off the main thread: the
+     *  reload parses the bundled JSON. */
+    fun deleteTier(context: Context, source: String) {
+      val dropped = synchronized(lock) {
         val blobKeys: List<String> = when (source) {
             "LiteLLM" -> listOf(KEY_LITELLM_PRICING, KEY_LITELLM_META)
             "models.dev" -> listOf(KEY_MODELS_DEV_PRICING, KEY_MODELS_DEV_META)
@@ -2428,7 +2433,7 @@ object PricingCache {
             "Helicone" -> listOf(KEY_HELICONE_PRICING, KEY_HELICONE_PATTERNS)
             else -> emptyList()
         }
-        if (blobKeys.isEmpty()) return@synchronized
+        if (blobKeys.isEmpty()) return@synchronized false
         val tsKey = when (source) {
             "LiteLLM" -> KEY_LITELLM_TIMESTAMP
             "models.dev" -> KEY_MODELS_DEV_TIMESTAMP
@@ -2458,15 +2463,25 @@ object PricingCache {
             "CloudPrice" -> { cloudPriceMeta = null; cloudPriceTimestamp = 0 }
             "Helicone" -> { heliconePricing = null; heliconePatterns = null; heliconeTimestamp = 0 }
         }
+        // Main-thread readers use the startup prices instead of waiting on
+        // (or running) the reload below.
+        preloadCompleted = false
+        true
+      }
+      if (dropped) ensureLoaded(context)
     }
 
-    /** Wipe the eleven Info-provider catalog tiers (OpenRouter, LiteLLM,
+    /** Reset the eleven Info-provider catalog tiers (OpenRouter, LiteLLM,
      *  models.dev, Helicone, llm-prices, Artificial Analysis, Requesty,
-     *  llm-stats, genai-prices, TrueFoundry, CloudPrice) plus the
-     *  OpenRouter model-specs cache. Manual cost overrides and the
+     *  llm-stats, genai-prices, TrueFoundry, CloudPrice) to the snapshots
+     *  bundled with the app — the refreshed blobs are dropped and each tier
+     *  reloads from `assets/info-providers/` — and delete the OpenRouter
+     *  model-specs cache (no bundled copy). Manual cost overrides and the
      *  Together-native pricing (harvested from Together's /v1/models
-     *  response) are preserved — neither comes from an Info provider. */
-    fun clearInfoProviderTiers(context: Context) = synchronized(lock) {
+     *  response) are preserved — neither comes from an Info provider.
+     *  Call off the main thread: the reload parses the bundled JSON. */
+    fun clearInfoProviderTiers(context: Context) {
+      synchronized(lock) {
         val tierBlobs = listOf(
             KEY_OPENROUTER_PRICING, KEY_LITELLM_PRICING, KEY_LITELLM_META,
             KEY_MODELS_DEV_PRICING, KEY_MODELS_DEV_META,
@@ -2514,9 +2529,11 @@ object PricingCache {
         cloudPriceMeta = null; cloudPriceTimestamp = 0
 
         supportedParametersCache = null
-        // preloadCompleted intentionally kept true — manual + together
-        // tiers are still loaded; only the eleven Info-provider tiers were
-        // dropped, and they'll lazily repopulate on the next refresh.
+        // Main-thread readers use the startup prices instead of waiting on
+        // (or running) the reload below.
+        preloadCompleted = false
+      }
+      ensureLoaded(context)
     }
 
     /** Wipe every cached pricing tier and manual override — used by

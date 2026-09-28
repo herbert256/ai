@@ -865,13 +865,13 @@ its own help topic.
   stats. Configuration, knowledge bases, and every cache (Info
   providers, model lists, embeddings) stay put. Anything still
   running on a report is stopped first (Reset application does the
-  same); this wipe and the two Clears below run in the background
+  same); this wipe and the Clear / Reset below run in the background
   behind a progress dialog.
-- **Clear Info providers** (the "Info providers" card's Clear) —
-  wipes the cached pricing/capability tiers and their timestamps.
-  Manual cost overrides and any provider's self-reported pricing
-  survive. Pricing lookups fall back to DEFAULT until you Refresh
-  again.
+- **Reset Info providers** (the "Info providers" card's Reset) —
+  drops the refreshed pricing/capability tiers and their timestamps;
+  every tier goes back to the snapshot bundled with the app (a fresh
+  install's catalogs) until you Refresh again. Manual cost overrides
+  and any provider's self-reported pricing survive.
 - **Clear all configuration** (the "Configuration" card's Clear) —
   wipes every provider's API key + models + endpoints,
   agents/flocks/swarms, parameters, prompts, External Services keys,

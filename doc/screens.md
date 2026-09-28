@@ -69,7 +69,7 @@ screens use the generic `TitleBar`.
 | Choose saved prompt | \<external request title\> |
 | Choose system prompt | \<external request title\> |
 | Clear all configuration | Wipe all config; keeps reports & chats |
-| Clear Info providers | Drop cached pricing; refetch on Refresh |
+| Reset Info providers | Back to the bundled catalogs; refetch on Refresh |
 | Clear runtime data | Drop history; keeps config & API keys |
 | Configure API parameters | |
 | Configure API parameters | Current active: \<preset names\> |

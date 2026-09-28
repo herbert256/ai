@@ -666,7 +666,7 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
         title = "Help - Pricing tiers cache",
         cards = listOf(
             HelpCard("Overview", "The ten external pricing catalogs (LiteLLM, models.dev, llm-prices, Artificial Analysis, llm-stats, OpenRouter, Requesty, genai-prices, TrueFoundry, Helicone) the cost layer consults, in lookup-precedence order."),
-            HelpCard("Rows", "One row per source with its model count + last fetch. 👁 shows the summary, 🔄 re-fetches that source (AA / OpenRouter use their API keys), 🗑 clears just that source's file. Manual cost overrides aren't an Info-provider tier and aren't shown here."),
+            HelpCard("Rows", "One row per source with its model count + last fetch. 👁 shows the summary, 🔄 re-fetches that source (AA / OpenRouter use their API keys), 🗑 drops just that source's refreshed file so it falls back to the snapshot bundled with the app (Clear all does that for every source). Either way the model prices / capability flags are rebuilt in the background. Manual cost overrides aren't an Info-provider tier and aren't shown here."),
         )
     ),
     "cache_params" to HelpContent(
@@ -751,13 +751,13 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
         )
     ),
     "reset_info_providers" to HelpContent(
-        title = "Help - Clear Info providers",
+        title = "Help - Reset Info providers",
         cards = listOf(
-            HelpCard("Overview", "Wipes the per-provider pricing tier blobs the layered pricing lookup reads from, plus the OpenRouter model-specs cache. Pricing falls back to DEFAULT_PRICING until Refresh repopulates."),
-            HelpCard("What it wipes", "Per-tier JSON blobs under <filesDir>/pricing/, the timestamps in pricing_cache.xml, and the OpenRouter model-specs cache. Covers all eleven Info providers: OpenRouter, LiteLLM, models.dev, Helicone, llm-prices, Artificial Analysis, llm-stats, Requesty, genai-prices, TrueFoundry, CloudPrice."),
+            HelpCard("Overview", "Drops the refreshed pricing / capability tiers the layered lookup reads from and falls back to the snapshots bundled with this app version — the same catalogs a fresh install starts with — until Refresh fetches current ones. The OpenRouter model-specs cache (no bundled copy) is deleted."),
+            HelpCard("What it resets", "Per-tier JSON blobs under <filesDir>/pricing/ and the timestamps in pricing_cache.xml (tiers show \"never fetched\" afterwards); the bundled assets/info-providers/ snapshots are reloaded in the background and every model's derived price / capability flags rebuilt from them. Covers all eleven Info providers: OpenRouter, LiteLLM, models.dev, Helicone, llm-prices, Artificial Analysis, llm-stats, Requesty, genai-prices, TrueFoundry, CloudPrice."),
             HelpCard("What it keeps", "Manual cost overrides (they sit above the Info tiers in the layered lookup), Together's native self-reported pricing, every provider's models / API key / endpoints, and everything else outside the pricing surface."),
-            HelpCard("When to use", "When a tier shipped a bad price and you want to force a fresh fetch on the next Refresh, or when troubleshooting the layered lookup."),
-            HelpCard("Pitfalls", "Until Refresh re-runs, every model that depends on Info-tier pricing renders as DEFAULT_PRICING — usage / cost numbers will look wrong until you Refresh."),
+            HelpCard("When to use", "When a refreshed tier brought in a bad price and you want the shipped catalogs back, or when troubleshooting the layered lookup."),
+            HelpCard("Pitfalls", "The bundled snapshots are as old as this app build — models released since then fall through to later tiers or DEFAULT_PRICING until you Refresh."),
         )
     ),
     "reset_configuration" to HelpContent(

@@ -528,9 +528,12 @@ an empty map so it does not recreate deleted overrides.
 when ≥2 catalog tiers disagree by >1 % (override + default excluded),
 and `catalogStats` lists the info-provider catalog tiers (incl. the
 capabilities-only CloudPrice) in lookup order with entry counts +
-timestamps for the Monitor hub. `clearInfoProviderTiers` wipes the
-catalog tiers but preserves manual + Together-native pricing;
-`deleteTier` drops one named tier; `clearAll` wipes everything.
+timestamps for the Monitor hub. `clearInfoProviderTiers` resets the
+catalog tiers to their bundled `assets/info-providers/` snapshots (drops
+the refreshed blobs, reloads off the main thread with `preloadCompleted`
+cleared meanwhile) but preserves manual + Together-native pricing;
+`deleteTier` does the same for one named tier; `clearAll` wipes
+everything.
 
 ## Related docs
 

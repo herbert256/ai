@@ -76,7 +76,7 @@ fun ManageDataScreen(
                 subtitle = "The eleven pricing/capability catalogs (OpenRouter, LiteLLM, models.dev, Helicone, llm-prices, Artificial Analysis, Requesty, llm-stats, genai-prices, TrueFoundry, CloudPrice)",
                 refreshLabel = "Refresh",
                 onRefresh = onRefreshInfoProviders,
-                clearLabel = "Clear",
+                clearLabel = "Reset",
                 onClear = onClearInfoProviders
             )
             // Reset-only subjects.

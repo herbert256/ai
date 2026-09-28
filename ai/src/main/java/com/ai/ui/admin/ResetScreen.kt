@@ -110,8 +110,8 @@ fun ResetInfoProvidersScreen(
     if (showConfirm) {
         AlertDialog(
             onDismissRequest = { showConfirm = false },
-            title = { Text("Clear Info providers?") },
-            text = { Text("This permanently deletes every cached tier from the eleven Info providers (OpenRouter, LiteLLM, models.dev, Helicone, llm-prices, Artificial Analysis, Requesty, llm-stats, genai-prices, TrueFoundry, CloudPrice) and the OpenRouter model-specs cache. Manual cost overrides and Together's native pricing are preserved. Until you run Refresh again, pricing lookups will fall back to DEFAULT.") },
+            title = { Text("Reset Info providers?") },
+            text = { Text("Drops every refreshed tier of the eleven Info providers (OpenRouter, LiteLLM, models.dev, Helicone, llm-prices, Artificial Analysis, Requesty, llm-stats, genai-prices, TrueFoundry, CloudPrice) and deletes the OpenRouter model-specs cache. Each tier goes back to the snapshot bundled with this app version — what a fresh install uses — until you run Refresh again. Manual cost overrides and Together's native pricing are preserved.") },
             confirmButton = {
                 OutlinedButton(
                     onClick = {
@@ -121,25 +121,25 @@ fun ResetInfoProvidersScreen(
                             busy = false
                             Toast.makeText(
                                 context,
-                                if (ok) "Info-provider caches cleared" else "Clear Info providers failed — see the app log",
+                                if (ok) "Info providers reset to the bundled snapshot" else "Reset Info providers failed — see the app log",
                                 Toast.LENGTH_SHORT
                             ).show()
                         }
                     },
                     enabled = !busy,
                     colors = AppColors.outlinedButtonColors()
-                ) { Text("Clear", maxLines = 1, softWrap = false) }
+                ) { Text("Reset", maxLines = 1, softWrap = false) }
             },
             dismissButton = { TextButton(onClick = { showConfirm = false }) { Text("Cancel", maxLines = 1, softWrap = false) } }
         )
     }
 
     Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
-        TitleBar(helpTopic = "reset_info_providers", title = "Clear Info providers", subject = "Drop cached pricing; refetch on Refresh", onBackClick = onBack)
+        TitleBar(helpTopic = "reset_info_providers", title = "Reset Info providers", subject = "Back to the bundled catalogs; refetch on Refresh", onBackClick = onBack)
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(
-                "Drops the per-provider pricing tier blobs and prefs entries from the eleven Info providers — OpenRouter, LiteLLM, models.dev, Helicone, llm-prices, Artificial Analysis, Requesty, llm-stats, genai-prices, TrueFoundry, CloudPrice — plus the OpenRouter model-specs cache. Manual cost overrides survive (they sit above the Info tiers in the layered lookup) and Together's native self-reported pricing also survives. Pricing lookups will fall back to DEFAULT_PRICING until Housekeeping → Refresh repopulates the caches.",
+                "Drops the refreshed pricing tier blobs and timestamps of the eleven Info providers — OpenRouter, LiteLLM, models.dev, Helicone, llm-prices, Artificial Analysis, Requesty, llm-stats, genai-prices, TrueFoundry, CloudPrice — and deletes the OpenRouter model-specs cache. Each tier then reloads the snapshot bundled with this app version (a fresh install's catalogs; shown as \"never fetched\") until Housekeeping → Refresh fetches current ones, and the model prices / capability flags are rebuilt from them in the background. Manual cost overrides survive (they sit above the Info tiers in the layered lookup) and Together's native self-reported pricing also survives.",
                 fontSize = 12.sp, color = AppColors.TextTertiary
             )
             OutlinedButton(
@@ -147,7 +147,7 @@ fun ResetInfoProvidersScreen(
                 enabled = !busy,
                 modifier = Modifier.fillMaxWidth(),
                 colors = AppColors.outlinedButtonColors()
-            ) { Text("Clear Info providers", maxLines = 1, softWrap = false) }
+            ) { Text("Reset Info providers", maxLines = 1, softWrap = false) }
         }
     }
 }

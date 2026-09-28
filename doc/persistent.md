@@ -657,13 +657,15 @@ screens:
 - **Clear runtime data** — wipes logs, chats, traces, usage stats,
   AI reports, and prompt history. Narrower than the legacy single
   button: pricing / model-list caches stay put.
-- **Clear Info providers** — wipes every external pricing/capability
+- **Reset Info providers** — drops every refreshed pricing/capability
   tier cache (OpenRouter, LiteLLM, models.dev, Helicone, llm-prices,
   Artificial Analysis, Requesty, llm-stats, genai-prices, TrueFoundry,
   CloudPrice — 11 sources; see [repositories.md](repositories.md))
   and their per-tier timestamps in `pricing_cache`, plus the
   OpenRouter model-specs files (`model_pricing.json` /
-  `model_supported_parameters.json`). Preserves manual +
+  `model_supported_parameters.json`); each tier then reloads its
+  bundled `assets/info-providers/` snapshot (off the main thread) and
+  the derived model snapshots are rebuilt. Preserves manual +
   Together-native pricing. The `huggingface_cache` and
   `cloudprice_model_cache` prefs files (per-model detail lookups) are
   *not* touched by this screen.

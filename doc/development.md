@@ -812,7 +812,8 @@ because the config cache made it go stale.)
 per-model prices (`recomputeAllCapabilities` / `recomputeCapabilities`),
 rebuilt after every catalog refresh — pricing-only tiers included, since
 the snapshot carries each model's resolved price. Single-catalog
-refreshes (Refresh → Info providers, Caches → Pricing tiers 🔄) go
+refreshes and resets (Refresh → Info providers, Caches → Pricing tiers
+🔄 / 🗑 / Clear all, Manage data → Info providers → Reset) go
 through `AppViewModel.recomputeCatalogSnapshots()`, which runs off the
 main thread against the latest settings and persists only the derived
 fields. `withModels` funnels every model list through

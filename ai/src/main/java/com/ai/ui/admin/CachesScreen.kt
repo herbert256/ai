@@ -226,11 +226,12 @@ fun cacheRegistry(
                             else -> null
                         }
                     },
-                    onDelete = { ctx -> PricingCache.deleteTier(ctx, s.name) },
+                    // 🗑 resets the tier to its bundled snapshot (see deleteTier).
+                    onDelete = { ctx -> PricingCache.deleteTier(ctx, s.name); onPricingTierChanged() },
                 )
             }
         },
-        clearAll = { c -> PricingCache.clearInfoProviderTiers(c) },
+        clearAll = { c -> PricingCache.clearInfoProviderTiers(c); onPricingTierChanged() },
     ),
     CacheDescriptor(
         id = "params", icon = "⚙️", title = "Supported params", helpTopic = "cache_params",
@@ -440,7 +441,7 @@ fun CacheEntriesScreen(
         AlertDialog(
             onDismissRequest = { confirmClear = false },
             title = { Text("Clear ${descriptor.title}?") },
-            text = { Text("Deletes every entry in this cache. Regenerable caches re-fetch on next use; the rest are simply gone.") },
+            text = { Text(if (descriptor.id == "pricing") "Resets every pricing tier to the snapshot bundled with this app version (what a fresh install uses) and deletes the OpenRouter supported-params cache; Refresh fetches current catalogs again." else "Deletes every entry in this cache. Regenerable caches re-fetch on next use; the rest are simply gone.") },
             confirmButton = {
                 TextButton(onClick = {
                     confirmClear = false
