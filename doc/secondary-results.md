@@ -273,7 +273,11 @@ resolve.
 For multi-language chat-type Meta batches the agent response bodies
 are pulled from the matching TRANSLATE rows when present (so each
 language's batch sees translated content), with the prompt-side
-`@QUESTION@` likewise translated.
+`@QUESTION@` likewise translated. The same lookup feeds language-scoped
+Rerank / Moderation / Fan-in. A translation row is used only when its
+`translationSourceText` is the item's **current** text (or, one hop, the
+text of a sibling translation that is) — a translation of an answer or
+question regenerated / edited since falls back to the original text.
 
 ## Reference legend (chat-type Meta only)
 

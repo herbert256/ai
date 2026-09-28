@@ -480,9 +480,7 @@ internal fun buildLanguageInputs(
     if (language == null) {
         return report.prompt to buildResultsBlock(report, includeIds)
     }
-    val byTarget = secondaries
-        .filter { it.kind == SecondaryKind.TRANSLATE && it.targetLanguage == language && !it.content.isNullOrBlank() }
-        .associateBy { (it.translateSourceKind ?: "") + ":" + (it.translateSourceTargetId ?: "") }
+    val byTarget = currentTranslationsByTarget(report, secondaries, language)
     val translatedPrompt = byTarget["PROMPT:prompt"]?.content ?: report.prompt
     val sb = StringBuilder()
     val successful = report.agents.filter { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
@@ -516,6 +514,44 @@ internal data class LangCtx(
     val bodiesByAgentId: Map<String, String>
 )
 
+/** [language]'s usable TRANSLATE rows for the question / title / answers,
+ *  keyed `"KIND:targetId"`. A row is picked by source id + language AND
+ *  only when it was translated from the item's CURRENT text: directly
+ *  (its [SecondaryResult.translationSourceText] equals it), or one hop via
+ *  a sibling translation of the same item that was (the View's "translate
+ *  from another language" path). A translation of an answer / question
+ *  that was regenerated or edited since — or one whose source text is
+ *  unknown — is left out, so the caller falls back to the original text
+ *  instead of feeding a language-scoped Rerank / Meta / Moderation a
+ *  translation of outdated content. */
+private fun currentTranslationsByTarget(
+    report: Report,
+    secondaries: List<SecondaryResult>,
+    language: String
+): Map<String, SecondaryResult> {
+    fun keyOf(r: SecondaryResult) = (r.translateSourceKind ?: "") + ":" + (r.translateSourceTargetId ?: "")
+    fun sameText(a: String?, b: String?) = a != null && b != null && a.trim() == b.trim()
+    val translates = secondaries.filter { it.kind == SecondaryKind.TRANSLATE && !it.content.isNullOrBlank() }
+    val siblingsByKey = translates.groupBy(::keyOf)
+    fun currentSource(r: SecondaryResult): String? = when (r.translateSourceKind) {
+        "PROMPT" -> report.prompt
+        "TITLE" -> report.title
+        "AGENT" -> report.agents.firstOrNull { it.agentId == r.translateSourceTargetId }?.responseBody
+        else -> null
+    }
+    return translates
+        .filter { row ->
+            if (row.targetLanguage != language) return@filter false
+            val source = currentSource(row) ?: return@filter false
+            sameText(row.translationSourceText, source) ||
+                siblingsByKey[keyOf(row)].orEmpty().any { sib ->
+                    sib.id != row.id && sameText(sib.translationSourceText, source) &&
+                        sameText(row.translationSourceText, sib.content)
+                }
+        }
+        .associateBy(::keyOf)
+}
+
 /** Build a [LangCtx] for [language]. Returns null when [language]
  *  is null or blank (the "Original / no translation" path — callers
  *  branch on null to keep their original-text behaviour). */
@@ -530,9 +566,7 @@ internal fun lookupLanguageTranslations(
             it.targetLanguage == language &&
             !it.content.isNullOrBlank()
     }
-    val byTarget = translates.associateBy {
-        (it.translateSourceKind ?: "") + ":" + (it.translateSourceTargetId ?: "")
-    }
+    val byTarget = currentTranslationsByTarget(report, secondaries, language)
     val prompt = byTarget["PROMPT:prompt"]?.content ?: report.prompt
     val title = byTarget["TITLE:title"]?.content ?: report.title
     val native = translates.firstNotNullOfOrNull { it.targetLanguageNative }
