@@ -101,11 +101,13 @@ fun AppNavHost(
     val safePopBack: () -> Unit = {
         if (navController.previousBackStackEntry != null) navController.popBackStack()
         // Home bar mode has no home screen: the latest report's Manage screen
-        // is the nav root, so back there must EXIT the app — not fall through
+        // is the nav root, so back there must leave the app — not fall through
         // to the empty new-report (Select models) base the Manage screen shows
-        // once its loaded report is dismissed.
+        // once its loaded report is dismissed. Backgrounded like the hub's
+        // back, never finish(): that destroys the Activity and with it
+        // AppViewModel.viewModelScope, killing every running generation/batch.
         else if (appViewModel.uiState.value.generalSettings.appHomeMode == AppHomeMode.HOME_BAR) {
-            backActivity?.finish()
+            backActivity?.moveTaskToBack(true)
         }
     }
     val navigateHome: () -> Unit = {
