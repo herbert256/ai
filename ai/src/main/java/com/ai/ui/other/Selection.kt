@@ -277,31 +277,33 @@ internal fun ReportSelectModelsScreen(
         val local = localModelsForFilter.map { AppService.LOCAL to it }
         remote + local
     }
-    val providerFiltered = if (providerFilter != null) all.filter { it.first == providerFilter } else all
-    val typeFiltered = if (typeOnly && modelTypeFilter != null) {
-        providerFiltered.filter { (prov, model) ->
-            // LOCAL is not in Settings.providers so getModelType returns
-            // null; but localModelsForFilter was already populated by
-            // modelTypeFilter, so any (LOCAL, model) pair already matches
-            // by construction. Pass it through unconditionally to keep
-            // the local rerank / LLM rows visible with the type filter on.
-            prov.id == AppService.LOCAL.id || aiSettings.getModelType(prov, model) == modelTypeFilter
-        }
-    } else providerFiltered
-    val capFiltered = typeFiltered.filter { (prov, model) ->
-        (!capVision || aiSettings.isVisionCapable(prov, model)) &&
-            (!capWeb || aiSettings.isWebSearchCapable(prov, model)) &&
-            (!capReasoning || aiSettings.isReasoningCapable(prov, model))
-    }
-    val searched = if (search.isBlank()) capFiltered else capFiltered.filter { (prov, model) ->
-        prov.id.lowercase().contains(search.lowercase()) || model.lowercase().contains(search.lowercase())
-    }
-    val sorted = remember(searched) {
-        // Stable alphabetical order \u2014 no jumping when the user taps.
-        searched.sortedWith(
+    // Sort the (4000+ row) catalog once, then filter the sorted list in one
+    // memoised pass keyed by the filter inputs. Filtering and re-sorting the
+    // whole catalog on every recomposition (each search keystroke) kept the
+    // main thread busy long enough to trip input ANRs on slow devices.
+    val allSorted = remember(all) {
+        // Stable alphabetical order — no jumping when the user taps.
+        all.sortedWith(
             compareBy<Pair<AppService, String>> { it.first.id.lowercase() }
                 .thenBy { it.second.lowercase() }
         )
+    }
+    val sorted = remember(allSorted, aiSettings, providerFilter, typeOnly, modelTypeFilter, capVision, capWeb, capReasoning, search) {
+        val query = search.takeIf { it.isNotBlank() }?.lowercase()
+        allSorted.filter { (prov, model) ->
+            (providerFilter == null || prov == providerFilter) &&
+                // LOCAL is not in Settings.providers so getModelType returns
+                // null; but localModelsForFilter was already populated by
+                // modelTypeFilter, so any (LOCAL, model) pair already matches
+                // by construction. Pass it through unconditionally to keep
+                // the local rerank / LLM rows visible with the type filter on.
+                (!(typeOnly && modelTypeFilter != null) || prov.id == AppService.LOCAL.id ||
+                    aiSettings.getModelType(prov, model) == modelTypeFilter) &&
+                (!capVision || aiSettings.isVisionCapable(prov, model)) &&
+                (!capWeb || aiSettings.isWebSearchCapable(prov, model)) &&
+                (!capReasoning || aiSettings.isReasoningCapable(prov, model)) &&
+                (query == null || prov.id.lowercase().contains(query) || model.lowercase().contains(query))
+        }
     }
 
     Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
