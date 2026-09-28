@@ -206,14 +206,17 @@ fun NewReportScreen(
     // next report started anywhere (its chunks prepended to every model).
     var kbsAttachedHere by rememberSaveable { mutableStateOf(emptyList<String>()) }
     var attachError by remember { mutableStateOf<String?>(null) }
-    var useWebSearch by remember { mutableStateOf(false) }
+    // Saveable: the chips must survive Next → Back (plain remember was
+    // dropped when this screen left composition, so a report generated
+    // after going back ran without the chosen reasoning / web search).
+    var useWebSearch by rememberSaveable { mutableStateOf(false) }
     // Per-report metadata kill-switch — skip title/icon/language/per-model
     // calls for THIS report without flipping the global setting.
-    var skipMetadata by remember { mutableStateOf(false) }
+    var skipMetadata by rememberSaveable { mutableStateOf(false) }
     // Per-report reasoning level. "" = none; one of low/medium/high
     // gets OR'd onto every agent's params at dispatch (non-thinking
     // models drop the field).
-    var reasoningEffort by remember { mutableStateOf("") }
+    var reasoningEffort by rememberSaveable { mutableStateOf("") }
     var reasoningMenuExpanded by remember { mutableStateOf(false) }
     // Report-level Parameters / System prompt now live as cards on the
     // "Report - setup" screen (step 3), not as icons here.
