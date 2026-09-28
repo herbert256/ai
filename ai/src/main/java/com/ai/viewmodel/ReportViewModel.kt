@@ -2714,7 +2714,10 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             val taskIds = tasks.map { it.resultId }.toSet()
             updateAgentResults(reportId) { existing -> existing.filterKeys { k -> k !in taskIds } }
             ReportStorage.bumpReportTimestamp(context, reportId)
-            withTracerTags(reportId = reportId, category = "Batch regenerate agents") {
+            // Same "report/prompt" category as the first run: a re-run is
+            // still the model's primary answer, so its usage / ledger row
+            // must land in that bucket, not a one-off label of its own.
+            withTracerTags(reportId = reportId, category = "report/prompt") {
                 // Same captured config as the task build above (presets +
                 // advanced + the report's own web/reasoning flags) — shared
                 // with regenerateReport so both paths replay identically.
@@ -3089,7 +3092,10 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             coroutineContext[Job]!!.invokeOnCompletion {
                 regenerateAgentJobs.remove(agentJobKey, coroutineContext[Job])
             }
-            withTracerTags(reportId = reportId, category = "Report regenerate agent") {
+            // "report/prompt", like the first run and the batch re-run: a
+            // single-model retry is still that model's primary answer, so
+            // AI Usage / Costs must not grow a separate bucket for it.
+            withTracerTags(reportId = reportId, category = "report/prompt") {
             val report = ReportStorage.getReport(context, reportId) ?: return@withTracerTags
             val ra = report.agents.find { it.agentId == agentId } ?: return@withTracerTags
             val provider = AppService.findById(ra.provider) ?: return@withTracerTags
