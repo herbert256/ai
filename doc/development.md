@@ -680,10 +680,9 @@ unit tests verify code correctness, not feature correctness here.
   **8** SharedPreferences files in `PREFS_TO_BACKUP` (`eval_prefs`,
   `provider_registry`, `pricing_cache`, `dual_chat_prefs`,
   `huggingface_cache`, `cloudprice_model_cache`, `model_cooldowns`,
-  `view_screen_prefs`), plus
-  a `cacheDir` mirror minus the in-flight temp prefixes
-  (`ai-restore-`, `reset_keys_`, `ai-backup-` — `reset_keys_` holds
-  plaintext keys and must never be archived). A new prefs file
+  `view_screen_prefs`); `cacheDir` is never archived (it holds
+  transient exports, including earlier backup zips, and the reset
+  flow's plaintext `reset_keys_` temp). A new prefs file
   won't survive a restore unless added to `PREFS_TO_BACKUP`. Restore
   is **validate-then-write**: read the whole zip into memory
   (zip-bomb caps: 256 MB/entry, 1 GB total), commit prefs, *then*

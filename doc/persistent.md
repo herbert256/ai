@@ -610,14 +610,11 @@ deletes one left behind on an older install.)
   `update_from_cloud`), plus `WebViewChromiumPrefs`.
 - The four `FILES_DIR_BACKUP_EXCLUDES` subdirs
   (`local_llms/`, `local_models/`, `native/`, `applog/`).
-- In-flight cacheDir temp files matching `CACHE_TOPLEVEL_SKIP_PREFIXES`
-  (`ai-restore-`, `reset_keys_`, `ai-backup-`) — these would
-  self-contain the in-flight backup, yank the file out from under the
-  in-flight restore, or leak plaintext API keys.
-
-`cacheDir` itself **is** mirrored into the backup zip (`cache/...`) so
-exports / shared-trace handoffs / camera captures round-trip — only
-the in-flight temp prefixes are skipped.
+- All of `cacheDir` — share exports (including earlier backup zips,
+  which used to make every backup contain all previous ones),
+  shared-trace handoffs, camera captures, update downloads, staging,
+  the in-flight restore zip and the reset flow's plaintext key temp.
+  Nothing there is needed after a restore.
 
 See [backup-restore.md](backup-restore.md) for the full backup format
 and restore semantics (`MANIFEST_VERSION = 1`, validate-then-write

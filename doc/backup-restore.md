@@ -62,9 +62,9 @@ ai-backup-YYYYMMDD-HHMMSS.zip
 │   ├── usage-category-stats.json
 │   ├── usage-report-stats.json
 │   └── test_run.json
-└── cache/                             # mirror of cacheDir, minus
-    └── ...                            # CACHE_TOPLEVEL_SKIP_PREFIXES temp files
 ```
+
+`cacheDir` is **not** in the zip (see [Cache](#cache-under-cachedir)).
 
 Files are written **verbatim**. Prefs are encoded as a JSON list
 of `{k, t, v}` objects — `t` is a one-letter type discriminator
@@ -89,10 +89,10 @@ tag isn't one of those six is **logged and skipped**
   contained only the manifest + prefs (the "0 files" bug). The
   fix compares against the parent canonical path so real children
   resolve under it while escaping symlinks don't.
-- **Restore** canonical-path-checks every `files/<rel>` and
-  `cache/<rel>` entry against the corresponding root before
-  staging, dropping (with a `Log.w`) any entry that escapes — a
-  `files/../shared_prefs/...` style attack is rejected.
+- **Restore** canonical-path-checks every `files/<rel>` entry
+  against `filesDir` before staging, dropping (with a `Log.w`) any
+  entry that escapes — a `files/../shared_prefs/...` style attack is
+  rejected. `cache/` entries written by older builds are ignored.
 
 ### Zip-bomb / OOM caps
 
@@ -187,17 +187,17 @@ Notable contents:
 
 ### Cache (under `<cacheDir>`)
 
-The backup also mirrors `cacheDir` (exports, shared-trace
-handoffs, camera captures, bulk-export staging) but **skips**
-top-level temp files whose names match
-`CACHE_TOPLEVEL_SKIP_PREFIXES`:
-
-- `ai-restore-` — the temp zip a restore is reading from.
-- `reset_keys_` — API keys written in plaintext by the reset
-  orchestrator. Archiving these would leak keys, so they're never
-  copied into a backup.
-- `ai-backup-` — defensive; should a backup ever stage a temp
-  file under this prefix, exclude it.
+`cacheDir` is **not** backed up. It only holds transient hand-offs:
+share exports (`exports/`, including every earlier
+`ai-backup-*.zip`), shared traces, camera captures, APK update
+downloads, report/chat export and import staging, the in-flight
+`ai-restore-*.zip`, and the reset flow's plaintext `reset_keys_*`
+temp. Mirroring it made each backup contain all previous backups
+(doubling in size every time). The Backup button also deletes
+earlier `ai-backup-*` files from `cacheDir/exports/`
+(`BackupManager.deleteStaleBackupExports`) before staging a new
+one. Restore ignores any `cache/` entries an older build wrote and
+wipes `cacheDir` (except its own temp zip).
 
 ## What's excluded
 
@@ -275,9 +275,9 @@ memory first, destroy second**:
    set.
 7. **Wipe `cacheDir`** — `clearCacheDirForRestore(preserve =
    {tempZip.name})` deletes everything except the in-flight
-   restore zip.
+   restore zip (nothing in `cacheDir` is restored).
 8. **Apply files** — `applyFilesOnly` writes every staged
-   `files/` and `cache/` entry to disk. Each file is
+   `files/` entry to disk. Each file is
    **fsync'd** (`FileDescriptor.sync()`) before returning, because
    `HousekeepingScreen` kills the process immediately afterward
    and SAF/close doesn't fsync — otherwise a restored file could

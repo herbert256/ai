@@ -54,6 +54,9 @@ fun BackupRestoreScreen(
             val result = withContext(Dispatchers.IO) {
                 runCatching {
                     var summary: BackupManager.BackupSummary? = null
+                    // The previous backup's share staging is superseded by
+                    // this one; drop it so cacheDir doesn't pile up zips.
+                    BackupManager.deleteStaleBackupExports(context)
                     shareExport(
                         context = context,
                         fileName = BackupManager.defaultFileName(),

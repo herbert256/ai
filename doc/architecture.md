@@ -868,8 +868,8 @@ keys, …). The others: `provider_registry`, `pricing_cache`,
 `BackupManager` streams a single `.zip` to a SAF Uri:
 `manifest.json` (version = `MANIFEST_VERSION` = 1), `prefs/<name>.json`
 (8 of the 11 prefs files, type-tagged so `Int` doesn't collapse to
-`Double`), `files/<mirror of filesDir>/…`, and `cache/<mirror of
-cacheDir>/…`. The `filesDir` mirror excludes
+`Double`) and `files/<mirror of filesDir>/…` (`cacheDir` is transient
+and never archived). The `filesDir` mirror excludes
 `FILES_DIR_BACKUP_EXCLUDES = {"local_llms", "local_models", "native",
 "applog"}` — **four** entries (the device-ABI-tied native runtime and
 the app-log dir join the two on-device model dirs). The same four are

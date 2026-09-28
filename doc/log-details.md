@@ -280,8 +280,8 @@ captured crash report — the message is the `report` string, not a literal.
 
 - **L218** `"Backup"` — "Backup skipped $filesSkipped unreadable file(s); see earlier warnings for paths"
 - **L344** `"Backup"` — "Skipping zip entry that escapes filesDir: $name"
-- **L355** `"Backup"` — "Skipping zip entry that escapes cacheDir: $name"
 - **L426** `"Backup"` — "Skipping prefs entry not in allowlist: $prefsName"
+- `"Backup"` — "Could not delete stale backup export ${it.name}"
 - **L574** `"Backup"` — "applyPrefs($name): unknown type tag '$tag' for key '$k' — entry skipped"
 - **L596** `"Backup"` — "Skipping unreadable directory during backup: ${dir.absolutePath}"
 - **L628** `"Backup"` — "Skipping symlink that escapes ${dir.absolutePath}: ${child.absolutePath} → $childCanonical"
@@ -605,7 +605,7 @@ captured crash report — the message is the `report` string, not a literal.
 ### `data/BackupManager.kt`
 
 - **L171** `"Backup"` — "→ backup start"
-- **L220** `"Backup"` — "← backup done in ${System.currentTimeMillis() - t0}ms (filesDir=$filesWritten cacheDir=$cacheWritten skipped=$filesSkipped)"
+- **L220** `"Backup"` — "← backup done in ${System.currentTimeMillis() - t0}ms (filesDir=$filesWritten skipped=$filesSkipped)"
 - **L230** `"Backup"` — "→ restore start"
 - **L291** `"Backup"` — "← restore done in ${System.currentTimeMillis() - t0}ms (prefs=$prefsRestored files=$filesRestored)"
 
@@ -794,7 +794,6 @@ captured crash report — the message is the `report` string, not a literal.
 - **L187** `"Backup"` — "manifest written"
 - **L193** `"Backup"` — "prefs section written (${PREFS_TO_BACKUP.size} files)"
 - **L202** `"Backup"` — "filesDir mirrored — $filesWritten entries, skipped=${summary.skipped}"
-- **L214** `"Backup"` — "cacheDir mirrored — $cacheWritten entries, skipped=${summary.skipped}"
 - **L256** `"Backup"` — "manifest version=$version, staged ${staged.size} entries (${staged.values.sumOf { it.size }} bytes)"
 - **L274** `"Backup"` — "prefs applied: $prefsRestored file(s)"
 - **L282** `"Backup"` — "filesDir wiped (except excludes)"
