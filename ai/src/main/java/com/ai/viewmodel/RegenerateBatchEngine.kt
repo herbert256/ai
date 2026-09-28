@@ -753,8 +753,18 @@ class RegenerateBatchEngine internal constructor(
                 // errored-only retry it's just the failed ones (an unscoped
                 // forceRegenerateAllAgents would re-fire and re-bill every
                 // agent on the report).
+                //
+                // The dispatch runs on its own viewModelScope job (so calls
+                // already in flight finish after Stop scheduling), which a
+                // cancel of this orchestrator never reached — every agent
+                // still queued for its throttle permits went on to start a
+                // billed call. Hand it the orchestrator: once that's
+                // cancelled (Stop scheduling / Delete / a newer Regenerate),
+                // queued agents settle as Stopped instead of dispatching.
+                val orchestrator = kotlinx.coroutines.currentCoroutineContext()[Job]
                 reportViewModel.forceRegenerateAllAgents(
-                    context, reportId, phaseTasks.map { it.rowId }.toSet()
+                    context, reportId, phaseTasks.map { it.rowId }.toSet(),
+                    stopScheduling = { orchestrator?.isCancelled == true }
                 )
             }
             RegeneratePhase.META, RegeneratePhase.FAN_IN -> {

@@ -189,7 +189,10 @@ errors. Metadata errors are recorded without preventing other phases from
 finishing. The existing 30-minute phase timeout remains a safety net.
 
 Stop scheduling cancels the orchestrator. Submitted calls may finish, persist
-results and incur cost. Retry waits for previously scheduled calls to settle,
+results and incur cost; AGENTS-phase models still queued for their throttle
+permits are not dispatched — `forceRegenerateAllAgents` checks the
+orchestrator's cancellation (`stopScheduling`) before and after the permit
+wait and settles those rows as Stopped. Retry waits for previously scheduled calls to settle,
 refreshes completed rows from disk, and requeues only unfinished work. Stale
 background scans remain read-only; they do not silently submit paid calls.
 

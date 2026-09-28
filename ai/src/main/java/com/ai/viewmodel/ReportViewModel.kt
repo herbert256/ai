@@ -2706,8 +2706,13 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
     /** [onlyAgentIds] scopes the re-dispatch to a subset of the report's
      *  agents (the batch engine passes its phase task rows — the full set
      *  on a normal Regenerate, just the errored ones on "Retry failed").
-     *  Null = every agent, the historical behavior. */
-    fun forceRegenerateAllAgents(context: Context, reportId: String, onlyAgentIds: Set<String>? = null) {
+     *  Null = every agent, the historical behavior. [stopScheduling] true →
+     *  an agent not yet dispatched (still waiting for its permits) settles
+     *  as Stopped instead of calling — the batch's "Stop scheduling". */
+    fun forceRegenerateAllAgents(
+        context: Context, reportId: String, onlyAgentIds: Set<String>? = null,
+        stopScheduling: () -> Boolean = { false }
+    ) {
         appViewModel.viewModelScope.launch(reportLogContext()) {
             trackRegenerateJob(reportId, coroutineContext[Job]!!)
             val report = ReportStorage.getReport(context, reportId) ?: return@launch
@@ -2752,11 +2757,23 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 coroutineScope {
                     window.map { task ->
                         async {
+                            // Batch stopped before this agent was dispatched:
+                            // settle its reset (PENDING) row as Stopped — the
+                            // Regenerate dialog's Retry failed picks it up.
+                            if (stopScheduling()) {
+                                ReportStorage.markAgentStopped(context, reportId, task.resultId)
+                                return@async
+                            }
                             // Canonical order global → report → per-host (host
                             // gate INSIDE global) to avoid the global↔host
                             // deadlock vs the metadata/interceptor path.
                                     val permitHold = acquireThrottledPermits(ApiCallCaps.report, providerHost(task.runtimeAgent.provider))
                                     try {
+                                        // The permit wait can be long — re-check.
+                                        if (stopScheduling()) {
+                                            ReportStorage.markAgentStopped(context, reportId, task.resultId)
+                                            return@async
+                                        }
                                         withContext(ProviderThrottle.permitPreAcquired.asContextElement(true)) {
                                             executeReportTask(
                                                 context, reportId, report.prompt, overrideParams, task,
