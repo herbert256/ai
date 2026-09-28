@@ -16,7 +16,7 @@ Each cell scores the saved original/translation pair from 0 to 100 and records t
 
 Open the medal action on a translation run, review the proposed judge-call count, and choose **Review translations**. The result screen lists models alphabetically with item counts and mean received scores. Open a model, then a passage, to inspect individual judges and explanations. The Workers view groups scoring work by judge. Retry failed cells to keep completed scores; Delete removes the review run.
 
-Each cell is a billable API call under the report's request and spend limits. Completion, retry and hydration are owned by `TranslatorRankEngine`, using the shared `SecondaryBatchEngine` lifecycle and saved `SecondaryResult` rows. Current translation text and saved original text are used for fresh runs; replay retains the run's captured input versions.
+Each cell is a billable API call under the report's request and spend limits. Completion, retry and hydration are owned by `TranslatorRankEngine`, using the shared `SecondaryBatchEngine` lifecycle and saved `SecondaryResult` rows. Current translation text and saved original text are used for fresh runs. The run saves each scored translation's text as its inputs (the form the historical check compares), so a review reads as current until one of those translations, the answers or the question changes. Retry replays only cells whose translation is unchanged; if one was re-translated or deleted, the retry is refused with a message before any cell is cleared — start a new review instead.
 
 ## Relationship to Value
 

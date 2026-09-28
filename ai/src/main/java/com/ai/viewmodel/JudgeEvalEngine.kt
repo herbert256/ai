@@ -90,7 +90,7 @@ class JudgeEvalEngine internal constructor(
     override fun canRedispatch(context: Context, run: JudgeEvalRunState) =
         run.prompt.text.isNotBlank()   // synthetic prompt — can't re-run; audit bug 17
     // redispatchRows replays the run's saved answers + question.
-    override fun savedInputsProblem(rows: List<SecondaryResult>) =
+    override fun savedInputsProblem(context: Context, rows: List<SecondaryResult>) =
         if (com.ai.data.ReportEvidenceStore.sources(rows.first()) == null)
             com.ai.data.ReportEvidenceStore.SOURCE_UNAVAILABLE_MESSAGE else null
     override val requeueBuildLabel = "Re-queuing judges"

@@ -105,11 +105,15 @@ class TranslatorRankEngine internal constructor(
         // not the configured swarm — otherwise every pinned judge misses
         // the lookup and falls back to a bare provider/model worker.
         val effPrompt = run.prompt.withBatchWorkers(report)
-        val manifest = com.ai.data.ReportEvidenceStore.run(run.reportId, run.runId)
-        val frozen = com.ai.data.ReportEvidenceStore.sources(run.reportId, manifest?.sourceSnapshotId)?.secondaryBodies
-        val items = if (!frozen.isNullOrEmpty()) frozen.mapValues { (id, body) ->
-            com.ai.data.createAppGson().fromJson(body, ScorableItem::class.java).copy(translationRowId = id)
-        } else scorableItems(context, report, run.sourceTranslationRunId).associateBy { it.translationRowId }
+        // The run's saved inputs are the translated texts it scored (keyed by
+        // translation row). Replay only items whose translation is still that
+        // exact text — then the row's source text is the one the run scored
+        // against too; a re-translated item would pair a new text with the
+        // old scores (savedInputsProblem refuses such a rerun up front).
+        val frozen = frozenTranslations(run.reportId, run.runId)
+        val items = scorableItems(context, report, run.sourceTranslationRunId)
+            .filter { frozen == null || frozen.isEmpty() || frozen[it.translationRowId] == it.translatedText }
+            .associateBy { it.translationRowId }
         val judgesByKey = resolveJudges(aiSettings, effPrompt).associateBy { it.key }
         val cellsById = run.cells.values.associateBy { it.id }
         val pending = rows.mapNotNull { row ->
@@ -123,6 +127,29 @@ class TranslatorRankEngine internal constructor(
         withTracerTags(reportId = run.reportId, category = "transrank/rank", runId = run.runId) {
             dispatchCells(context, runKey, effPrompt, pending)
         }
+    }
+
+    /** The translated texts run [runId] scored, keyed by translation row id —
+     *  its saved inputs' secondary bodies. Null when no record exists. */
+    private fun frozenTranslations(reportId: String, runId: String): Map<String, String>? =
+        com.ai.data.ReportEvidenceStore.sources(
+            reportId, com.ai.data.ReportEvidenceStore.run(reportId, runId)?.sourceSnapshotId
+        )?.secondaryBodies
+
+    /** A rerun can only replay cells whose translation is unchanged since the
+     *  run scored it (see redispatchRows) — refuse up front, before any row
+     *  is cleared, when one was re-translated or deleted. No saved record at
+     *  all keeps the old behaviour: re-score the current translations. */
+    override fun savedInputsProblem(context: Context, rows: List<SecondaryResult>): String? {
+        val first = rows.first()
+        val runId = first.tournamentJudgeRunId ?: return null
+        val frozen = frozenTranslations(first.reportId, runId)
+        if (frozen == null || frozen.isEmpty()) return null
+        val changed = rows.mapNotNull { it.compareToResultId }.distinct().any { id ->
+            SecondaryResultStorage.get(context, first.reportId, id)?.content != frozen[id]
+        }
+        return if (changed) "A translation this ranking scored has changed or was deleted since. Rank the translators again to score the current translations."
+            else null
     }
 
     // Run/cell coroutines + resume-scan dedup now live in the shared BatchEngine
@@ -291,9 +318,14 @@ class TranslatorRankEngine internal constructor(
             }
             ReportStorage.bumpReportTimestamp(context, reportId)
             AuditLog.append(reportId, "Start Rank-the-translators ($langName) — $cellCount cells × ${judges.size} judges")
+            // Saved reference inputs = each scored translation row's CONTENT —
+            // the form ReportEvidenceStore.isStale compares against the live
+            // row. The JSON-encoded items saved before never matched, so every
+            // translation review read as "historical" and never reached Value
+            // view.
             com.ai.data.ReportEvidenceStore.saveRun(context, report, runId,
                 prompt.copy(workers = judges.map { it.worker }).freezeWorkers(aiSettings, appViewModel.uiState.value.generalSettings),
-                secondaryBodies = items.associate { it.translationRowId to com.ai.data.createAppGson().toJson(it) })
+                secondaryBodies = items.associate { it.translationRowId to it.translatedText })
             val scopeEncoded = SecondaryScope.AllReports.encode()
 
             val aggregate = SecondaryResult(

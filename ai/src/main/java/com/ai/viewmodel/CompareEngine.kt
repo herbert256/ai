@@ -75,7 +75,7 @@ class CompareEngine internal constructor(
         run.comparePrompt.text.isNotBlank()   // synthetic prompt — can't re-run; audit bug 15
     /** redispatchRows replays the run's saved answers + question AND the
      *  saved body of every meta item a cell scores against. */
-    override fun savedInputsProblem(rows: List<SecondaryResult>): String? {
+    override fun savedInputsProblem(context: Context, rows: List<SecondaryResult>): String? {
         val snapshot = com.ai.data.ReportEvidenceStore.sources(rows.first())
             ?: return com.ai.data.ReportEvidenceStore.SOURCE_UNAVAILABLE_MESSAGE
         val bodies = snapshot.secondaryBodies.orEmpty()

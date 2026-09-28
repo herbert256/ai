@@ -152,7 +152,7 @@ abstract class SecondaryBatchEngine<RunKey : Any, ItemState : BatchItem<String>,
      *  predates the store, or whose evidence file is gone), and by then the
      *  rows were already blanked and their spend banked. Default null — an
      *  engine whose redispatch needs the saved inputs opts in. */
-    protected open fun savedInputsProblem(rows: List<SecondaryResult>): String? = null
+    protected open fun savedInputsProblem(context: Context, rows: List<SecondaryResult>): String? = null
 
     // ===== Promoted flows (byte-identical across the four engines) =====
 
@@ -523,7 +523,7 @@ abstract class SecondaryBatchEngine<RunKey : Any, ItemState : BatchItem<String>,
         // here, then redispatchRows threw: the rows stayed empty for good
         // (and the uncaught throw killed the app). Refuse up front instead;
         // the caller's catch shows the message.
-        if (targets.isNotEmpty()) savedInputsProblem(targets.map { it.second })?.let { problem ->
+        if (targets.isNotEmpty()) savedInputsProblem(context, targets.map { it.second })?.let { problem ->
             buildKey?.let { appViewModel.finishBuild(it) }
             throw java.io.IOException(problem)
         }
