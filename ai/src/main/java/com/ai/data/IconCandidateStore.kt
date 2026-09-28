@@ -43,7 +43,11 @@ object IconCandidateStore {
             // Soft cap so the file can't grow unboundedly across many
             // reports — oldest insertion order is dropped first.
             while (all.size > 200) all.remove(all.keys.first())
-            file(context).writeText(gson.toJson(all))
+            // Atomic: a kill mid-write used to truncate the file, and the
+            // unparseable result silently dropped every stored candidate.
+            if (!file(context).writeTextAtomic(gson.toJson(all))) {
+                AppLog.w("IconCandidateStore", "Could not save icon candidates for $key")
+            }
         }
     }
 
