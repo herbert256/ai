@@ -216,18 +216,24 @@ internal fun buildJsonTraceZipBytes(context: android.content.Context, report: Re
     return baos.toByteArray()
 }
 
-internal fun shareReportAsJson(context: android.content.Context, reportId: String, action: ReportExportAction = ReportExportAction.SHARE) {
-    val report = ReportStorage.getReport(context, reportId) ?: run { Toast.makeText(context, "Report not found", Toast.LENGTH_SHORT).show(); return }
+/** The share / email / browser helpers below are called from the UI
+ *  (Export screen, the external-request LaunchedEffect): the report
+ *  read, HTML / zip build and file write run on IO; Toasts and
+ *  startActivity stay on the caller's Main thread. */
+internal suspend fun shareReportAsJson(context: android.content.Context, reportId: String, action: ReportExportAction = ReportExportAction.SHARE) {
+    val report = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { ReportStorage.getReport(context, reportId) }
+        ?: run { Toast.makeText(context, "Report not found", Toast.LENGTH_SHORT).show(); return }
     try {
-        val bytes = buildJsonTraceZipBytes(context, report)
-        if (bytes == null) {
+        val outFile = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            val bytes = buildJsonTraceZipBytes(context, report) ?: return@withContext null
+            val safeTitle = report.title.ifBlank { "Untitled" }.replace(Regex("[^A-Za-z0-9._-]+"), "_").take(60)
+            File(File(context.cacheDir, "ai_analysis").also { it.mkdirs() },
+                "ai_report_${safeTitle}_traces_${timestamp()}.zip").also { it.writeBytes(bytes) }
+        }
+        if (outFile == null) {
             Toast.makeText(context, "No traces for this report", Toast.LENGTH_SHORT).show()
             return
         }
-        val safeTitle = report.title.ifBlank { "Untitled" }.replace(Regex("[^A-Za-z0-9._-]+"), "_").take(60)
-        val outFile = File(File(context.cacheDir, "ai_analysis").also { it.mkdirs() },
-            "ai_report_${safeTitle}_traces_${timestamp()}.zip")
-        outFile.writeBytes(bytes)
 
         val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", outFile)
         val intent = when (action) {
@@ -245,14 +251,22 @@ internal fun shareReportAsJson(context: android.content.Context, reportId: Strin
         val chooser = if (action == ReportExportAction.SHARE)
             Intent.createChooser(intent, "Share AI Report traces (zip)") else intent
         context.startActivity(chooser)
+    } catch (e: kotlinx.coroutines.CancellationException) { throw e
     } catch (e: Exception) { Toast.makeText(context, "Error sharing: ${e.message}", Toast.LENGTH_SHORT).show() }
 }
 
-internal fun shareReportAsHtml(context: android.content.Context, reportId: String) {
-    val report = ReportStorage.getReport(context, reportId) ?: run { Toast.makeText(context, "Report not found", Toast.LENGTH_SHORT).show(); return }
+/** Build the Complete HTML (no trace dump) for [report] and write it to
+ *  the cache — on IO. */
+private suspend fun writeReportHtmlToCache(context: android.content.Context, report: Report, filename: String): File =
+    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+        writeToCache(context, filename, convertReportToHtml(context, report, getAppVersion(context)))
+    }
+
+internal suspend fun shareReportAsHtml(context: android.content.Context, reportId: String) {
+    val report = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { ReportStorage.getReport(context, reportId) }
+        ?: run { Toast.makeText(context, "Report not found", Toast.LENGTH_SHORT).show(); return }
     try {
-        val html = convertReportToHtml(context, report, getAppVersion(context))
-        val file = writeToCache(context, "ai_report_${timestamp()}.html", html)
+        val file = writeReportHtmlToCache(context, report, "ai_report_${timestamp()}.html")
         val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
         val intent = Intent(Intent.ACTION_SEND).apply {
             type = "text/html"; putExtra(Intent.EXTRA_SUBJECT, "AI Report - ${report.title}")
@@ -260,14 +274,15 @@ internal fun shareReportAsHtml(context: android.content.Context, reportId: Strin
             putExtra(Intent.EXTRA_STREAM, uri); addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
         context.startActivity(Intent.createChooser(intent, "Share AI Report (HTML)"))
+    } catch (e: kotlinx.coroutines.CancellationException) { throw e
     } catch (e: Exception) { Toast.makeText(context, "Error sharing: ${e.message}", Toast.LENGTH_SHORT).show() }
 }
 
-internal fun emailReportAsHtml(context: android.content.Context, reportId: String, emailAddress: String): Boolean {
-    val report = ReportStorage.getReport(context, reportId) ?: return false
+internal suspend fun emailReportAsHtml(context: android.content.Context, reportId: String, emailAddress: String): Boolean {
+    val report = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { ReportStorage.getReport(context, reportId) }
+        ?: return false
     return try {
-        val html = convertReportToHtml(context, report, getAppVersion(context))
-        val file = writeToCache(context, "ai_report_${timestamp()}.html", html)
+        val file = writeReportHtmlToCache(context, report, "ai_report_${timestamp()}.html")
         val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
         val intent = Intent(Intent.ACTION_SEND).apply {
             type = "message/rfc822"
@@ -278,17 +293,19 @@ internal fun emailReportAsHtml(context: android.content.Context, reportId: Strin
         }
         context.startActivity(Intent.createChooser(intent, "Email AI Report"))
         true
+    } catch (e: kotlinx.coroutines.CancellationException) { throw e
     } catch (e: Exception) { Toast.makeText(context, "Error emailing: ${e.message}", Toast.LENGTH_SHORT).show(); false }
 }
 
-internal fun openReportInChrome(context: android.content.Context, reportId: String) {
-    val report = ReportStorage.getReport(context, reportId) ?: run { Toast.makeText(context, "Report not found", Toast.LENGTH_SHORT).show(); return }
+internal suspend fun openReportInChrome(context: android.content.Context, reportId: String) {
+    val report = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { ReportStorage.getReport(context, reportId) }
+        ?: run { Toast.makeText(context, "Report not found", Toast.LENGTH_SHORT).show(); return }
     try {
-        val html = convertReportToHtml(context, report, getAppVersion(context))
-        val file = writeToCache(context, "ai_${timestamp()}.html", html)
+        val file = writeReportHtmlToCache(context, report, "ai_${timestamp()}.html")
         val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
         val intent = Intent(Intent.ACTION_VIEW).apply { setDataAndType(uri, "text/html"); addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION) }
         context.startActivity(intent)
+    } catch (e: kotlinx.coroutines.CancellationException) { throw e
     } catch (e: Exception) { Toast.makeText(context, "Error opening: ${e.message}", Toast.LENGTH_SHORT).show() }
 }
 
@@ -297,8 +314,9 @@ internal fun openReportInChrome(context: android.content.Context, reportId: Stri
 internal fun convertReportToHtml(context: android.content.Context, report: Report, appVersion: String): String {
     // Legacy external-intent path used by share / email / browser
     // actions. Match the Export screen's HTML format — no inline
-    // JSON trace dump. Use the JSON export format for that.
-    return renderHtmlReport(buildHtmlReportData(context, report), appVersion, includeJsonView = false)
+    // JSON trace dump (so the traces aren't even loaded). Use the JSON
+    // export format for that.
+    return renderHtmlReport(buildHtmlReportData(context, report, includeTraces = false), appVersion, includeJsonView = false)
 }
 
 /** Complete HTML renderer from a pre-built [HtmlReportData].
@@ -321,8 +339,15 @@ internal fun convertReportToHtmlFromData(
  *  the agent list with cost/anchor data, the secondary results, and the
  *  redacted captured-trace bundle. Shared between the Medium HTML
  *  renderer and the DOCX / ODT / PDF Medium renderers so they all show
- *  the same content. */
-internal fun buildHtmlReportData(context: android.content.Context, report: Report): HtmlReportData {
+ *  the same content.
+ *
+ *  [includeTraces] = false skips reading + redacting every API trace file
+ *  (the heaviest part) for formats that never render them — HTML / PDF
+ *  without the JSON view, DOCX, ODT, the in-app preview. Only Zipped
+ *  HTML and the bulk bundle (which contains it) consume `traces`. */
+internal fun buildHtmlReportData(
+    context: android.content.Context, report: Report, includeTraces: Boolean = true
+): HtmlReportData {
     // The bracketed [N] in the rerank prompt is built from the
     // SUCCESS-only ordered subset (see buildResultsBlock). Reuse the same
     // ordering here so the anchorIndex on each card matches the rank ids
@@ -404,10 +429,10 @@ internal fun buildHtmlReportData(context: android.content.Context, report: Repor
     // running translations), and the original report's API calls keep
     // their old id.
     val traceFmt = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US)
-    val ownTraces = ApiTracer.getTraceFilesForReport(report.id)
+    val ownTraces = if (!includeTraces) emptyList() else ApiTracer.getTraceFilesForReport(report.id)
         .mapNotNull { ApiTracer.readTraceFile(it.filename) }
         .map { it to "this" }
-    val sourceTraces = report.sourceReportId
+    val sourceTraces = if (!includeTraces) emptyList() else report.sourceReportId
         ?.let { ApiTracer.getTraceFilesForReport(it) }
         ?.mapNotNull { ApiTracer.readTraceFile(it.filename) }
         ?.map { it to "source" }

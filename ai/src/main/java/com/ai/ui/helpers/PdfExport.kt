@@ -141,7 +141,12 @@ suspend fun shareReportAsExport(
      *  subdirs. */
     language: ExportLanguage = ExportLanguage.All
 ): Boolean {
-    val report = ReportStorage.getReport(context, reportId) ?: return false
+    // Called from the Export screen's UI scope. Everything heavy — the
+    // report / secondaries parse, markdown → HTML, the DOCX / ODT / zip
+    // bytes, the file writes — runs on IO (here and inside the share
+    // helpers); only the PDF WebView render and startActivity use Main.
+    // It all used to run on Main and froze the screen on big reports.
+    val report = withContext(Dispatchers.IO) { ReportStorage.getReport(context, reportId) } ?: return false
 
     if (format == ReportExportFormat.JSON) {
         onProgress(0, 1)
@@ -161,8 +166,11 @@ suspend fun shareReportAsExport(
     }
 
     // Resolve the per-language slice once for HTML / PDF / DOCX / ODT.
-    val base = buildHtmlReportData(context, report)
-    val data = language.resolveSlice(base)
+    // None of them render API traces (no JSON view) — don't read and
+    // redact every trace file for nothing.
+    val data = withContext(Dispatchers.IO) {
+        language.resolveSlice(buildHtmlReportData(context, report, includeTraces = false))
+    }
 
     if (format == ReportExportFormat.DOCX || format == ReportExportFormat.ODT) {
         onProgress(0, 1)
@@ -175,9 +183,12 @@ suspend fun shareReportAsExport(
     // HTML / PDF formats: skip the in-HTML JSON trace dump. Users
     // who want the trace JSON pick the JSON format instead; Zipped
     // HTML keeps its own per-language JSON view via ZippedHtmlExport.
-    val html = when (detail) {
-        ReportExportDetail.SHORT -> buildShortHtmlFromData(data)
-        ReportExportDetail.COMPLETE -> convertReportToHtmlFromData(data, getAppVersion(context), includeJsonView = false)
+    val html = withContext(Dispatchers.IO) {
+        val h = when (detail) {
+            ReportExportDetail.SHORT -> buildShortHtmlFromData(data)
+            ReportExportDetail.COMPLETE -> convertReportToHtmlFromData(data, getAppVersion(context), includeJsonView = false)
+        }
+        if (format == ReportExportFormat.PDF) makeStaticForPdf(h) else h
     }
     onProgress(1, 1)
 
@@ -189,7 +200,8 @@ suspend fun shareReportAsExport(
         // Complete PDF gets a JS-injected TOC page at the top with real
         // page numbers; Short skips it.
         ReportExportFormat.PDF -> {
-            dispatchPdf(context, makeStaticForPdf(html), "$baseName.pdf", report.title, action,
+            // `html` already went through makeStaticForPdf above.
+            dispatchPdf(context, html, "$baseName.pdf", report.title, action,
                 withTocPage = detail == ReportExportDetail.COMPLETE)
             true
         }
@@ -277,7 +289,7 @@ internal fun makeStaticForPdf(html: String): String {
  *  for HTML/PDF SHORT exports; DOCX/ODT have their own block-based
  *  equivalent in WordOdtExport. */
 internal fun buildShortHtml(context: Context, report: Report): String =
-    buildShortHtmlFromData(buildHtmlReportData(context, report))
+    buildShortHtmlFromData(buildHtmlReportData(context, report, includeTraces = false))
 
 /** Renders the Short HTML from a pre-built [HtmlReportData].
  *  Per-language exports feed in a `buildLanguageViews(base)` slice
@@ -370,9 +382,8 @@ internal fun buildShortHtmlFromData(data: HtmlReportData): String {
 private fun exportsDir(context: Context): File =
     File(context.cacheDir, "exports").also { it.mkdirs() }
 
-private fun dispatchHtml(context: Context, html: String, fileName: String, reportTitle: String, action: ReportExportAction) {
-    val file = File(exportsDir(context), fileName)
-    file.writeText(html)
+private suspend fun dispatchHtml(context: Context, html: String, fileName: String, reportTitle: String, action: ReportExportAction) {
+    val file = withContext(Dispatchers.IO) { File(exportsDir(context), fileName).also { it.writeText(html) } }
     val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
     when (action) {
         ReportExportAction.SHARE -> {

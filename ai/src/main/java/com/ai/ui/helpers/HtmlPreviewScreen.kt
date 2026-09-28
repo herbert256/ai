@@ -66,7 +66,7 @@ fun HtmlPreviewScreen(
                 // still produces a multi-language file via its own
                 // share path — only the in-app preview is single-lang.
                 val effectiveLanguage = if (language == ExportLanguage.All) ExportLanguage.Original else language
-                val data = effectiveLanguage.resolveSlice(buildHtmlReportData(context, report))
+                val data = effectiveLanguage.resolveSlice(buildHtmlReportData(context, report, includeTraces = false))
                 val raw = when (detail) {
                     ReportExportDetail.COMPLETE -> convertReportToHtmlFromData(data, getAppVersionForPreview(context), includeJsonView = false)
                     ReportExportDetail.SHORT -> buildShortHtmlFromData(data)

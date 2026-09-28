@@ -1080,16 +1080,22 @@ private fun renderRerankContentLocal(content: String, maxAnchor: Int, agentsByAn
 
 // ===== Dispatcher =====
 
-internal fun shareReportAsZippedHtml(
+internal suspend fun shareReportAsZippedHtml(
     context: Context, reportId: String, action: ReportExportAction,
     language: ExportLanguage = ExportLanguage.All
 ) {
-    val report = ReportStorage.getReport(context, reportId) ?: return
-    val safeTitle = report.title.ifBlank { "Untitled" }.replace(Regex("[^A-Za-z0-9._-]+"), "_").take(60)
-    val ts = SimpleDateFormat("yyMMdd-HHmm", Locale.US).format(Date())
-    val dir = File(context.cacheDir, "exports").also { it.mkdirs() }
-    val outFile = File(dir, "ai_report_${safeTitle}_zipped_html${language.fileTag()}_$ts.zip")
-    outFile.writeBytes(buildZippedHtmlBytes(context, report, language))
+    // The whole bundle (every trace read + redacted, every section
+    // rendered, zipped in memory) is built on IO; only startActivity
+    // below runs on the caller's Main thread.
+    val (report, outFile) = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+        val report = ReportStorage.getReport(context, reportId) ?: return@withContext null
+        val safeTitle = report.title.ifBlank { "Untitled" }.replace(Regex("[^A-Za-z0-9._-]+"), "_").take(60)
+        val ts = SimpleDateFormat("yyMMdd-HHmm", Locale.US).format(Date())
+        val dir = File(context.cacheDir, "exports").also { it.mkdirs() }
+        val outFile = File(dir, "ai_report_${safeTitle}_zipped_html${language.fileTag()}_$ts.zip")
+        outFile.writeBytes(buildZippedHtmlBytes(context, report, language))
+        report to outFile
+    } ?: return
 
     val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", outFile)
     val intent = when (action) {

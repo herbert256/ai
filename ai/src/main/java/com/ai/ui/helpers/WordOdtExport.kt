@@ -688,7 +688,7 @@ private fun ZipOutputStream.writeEntry(name: String, body: String) {
 
 // ===== Dispatchers =====
 
-internal fun shareReportAsDocxOrOdt(
+internal suspend fun shareReportAsDocxOrOdt(
     context: Context, reportId: String,
     format: ReportExportFormat, detail: ReportExportDetail, action: ReportExportAction,
     /** Pre-built per-language data slice from
@@ -700,25 +700,31 @@ internal fun shareReportAsDocxOrOdt(
      *  exports don't collide on `ai_report_<title>_<ts>.docx`. */
     language: com.ai.ui.helpers.ExportLanguage = com.ai.ui.helpers.ExportLanguage.All
 ): Boolean {
-    val report = com.ai.data.ReportStorage.getReport(context, reportId) ?: return false
-    val safeTitle = report.title.ifBlank { "Untitled" }.replace(Regex("[^A-Za-z0-9._-]+"), "_").take(60)
-    val ts = SimpleDateFormat("yyMMdd-HHmm", Locale.US).format(Date())
-    val dir = File(context.cacheDir, "exports").also { it.mkdirs() }
-    val isShort = detail == ReportExportDetail.SHORT
-    val effectiveData = data ?: com.ai.ui.helpers.buildHtmlReportData(context, report)
-    val (bytes, ext, mime, formatLabel) = when (format) {
-        ReportExportFormat.DOCX -> Quad(buildDocxBytesFromData(effectiveData, isShort), "docx",
-            "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "MS Word")
-        ReportExportFormat.ODT -> Quad(buildOdtBytesFromData(effectiveData, isShort), "odt",
-            "application/vnd.oasis.opendocument.text", "OpenDocument")
-        else -> return false
-    }
-    // Filename mirrors the HTML / PDF dispatchers (PdfExport.kt):
-    // detail tag + optional language tag prevent collisions when the
-    // user exports several variants in quick succession.
-    val detailTag = detail.name.lowercase()
-    val file = File(dir, "ai_report_${safeTitle}_${detailTag}${language.fileTag()}_$ts.$ext")
-    file.writeBytes(bytes)
+    if (format != ReportExportFormat.DOCX && format != ReportExportFormat.ODT) return false
+    val mime = if (format == ReportExportFormat.DOCX)
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    else "application/vnd.oasis.opendocument.text"
+    val formatLabel = if (format == ReportExportFormat.DOCX) "MS Word" else "OpenDocument"
+    // Document build + file write on IO; startActivity below stays on the
+    // caller's Main thread. DOCX / ODT never render API traces — skip them.
+    val (report, file) = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+        val report = com.ai.data.ReportStorage.getReport(context, reportId) ?: return@withContext null
+        val safeTitle = report.title.ifBlank { "Untitled" }.replace(Regex("[^A-Za-z0-9._-]+"), "_").take(60)
+        val ts = SimpleDateFormat("yyMMdd-HHmm", Locale.US).format(Date())
+        val dir = File(context.cacheDir, "exports").also { it.mkdirs() }
+        val isShort = detail == ReportExportDetail.SHORT
+        val effectiveData = data ?: com.ai.ui.helpers.buildHtmlReportData(context, report, includeTraces = false)
+        val bytes = if (format == ReportExportFormat.DOCX) buildDocxBytesFromData(effectiveData, isShort)
+            else buildOdtBytesFromData(effectiveData, isShort)
+        val ext = if (format == ReportExportFormat.DOCX) "docx" else "odt"
+        // Filename mirrors the HTML / PDF dispatchers (PdfExport.kt):
+        // detail tag + optional language tag prevent collisions when the
+        // user exports several variants in quick succession.
+        val detailTag = detail.name.lowercase()
+        val file = File(dir, "ai_report_${safeTitle}_${detailTag}${language.fileTag()}_$ts.$ext")
+        file.writeBytes(bytes)
+        report to file
+    } ?: return false
     val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
     when (action) {
         ReportExportAction.SHARE -> {
@@ -740,5 +746,3 @@ internal fun shareReportAsDocxOrOdt(
     }
     return true
 }
-
-private data class Quad<A, B, C, D>(val a: A, val b: B, val c: C, val d: D)
