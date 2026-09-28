@@ -45,7 +45,9 @@ a free-text `systemPrompt`, and an `InternalPrompt` references a preset by stabl
 The external-intent value is read in `MainActivity.handleIntent` as
 `intent.getStringExtra("system")` and stored on `ExternalIntent.systemPrompt`;
 `UiState.externalSystemPrompt` surfaces it for the chains below. (It is a plain
-string extra, not an XML block.)
+string extra, not an XML block.) It is only applied after the user saw it: a
+request carrying it always passes the **External request** confirmation, even
+a bare prompt that would otherwise just pre-fill New Report.
 
 It belongs to **one** report. `generateGenericReports` consumes the request's
 generation inputs (system prompt, context values, open / close HTML, model

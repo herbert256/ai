@@ -115,13 +115,23 @@ fun AppNavHost(
     // ACTION_NEW_REPORT is exported, so any installed app can fire it.
     // Bare-prompt intents (no `<instructions>` block) merely pre-fill
     // the new-report editor — the user still picks models and taps
-    // Generate manually, so no API credits move without consent.
+    // Generate manually, so no API credits move without consent. One
+    // carrying a `system` extra is confirmed first all the same: New
+    // Report never shows that system prompt, yet every model gets it.
     // Anything with instructions, however, can auto-generate, drive
     // model selection, email/share/browser the result, and finish()
     // the activity. That class of intent must pass through an explicit
     // confirmation screen before any of those side effects run.
     val pendingExternalReport = remember {
         mutableStateOf<com.ai.ui.share.PendingExternalReport?>(null)
+    }
+    // Bare prompt — pre-fill the editor, no side effects. [system] is only
+    // ever a `system` extra the user accepted on the confirmation screen.
+    val openExternalPrefill: (String, String, String?) -> Unit = { title, prompt, system ->
+        appViewModel.setExternalInstructions(closeHtml = null, email = null, systemPrompt = system)
+        navController.navigate(NavRoutes.aiNewReportWithParams(title, prompt, external = true)) {
+            popUpTo(NavRoutes.AI) { inclusive = false }
+        }
     }
     LaunchedEffect(externalPrompt) {
         if (externalPrompt != null) {
@@ -133,16 +143,9 @@ fun AppNavHost(
                     systemPrompt = externalSystem
                 )
             ) {
-                // Bare prompt — pre-fill the editor, no side effects.
-                is com.ai.ui.share.ExternalReportCommand.Prefill -> {
-                    appViewModel.setExternalInstructions(
-                        closeHtml = null, email = null,
-                        systemPrompt = cmd.systemPrompt)
-                    navController.navigate(NavRoutes.aiNewReportWithParams(cmd.title, cmd.prompt, external = true)) {
-                        popUpTo(NavRoutes.AI) { inclusive = false }
-                    }
-                }
-                // Instruction-bearing — stage the confirmation overlay.
+                is com.ai.ui.share.ExternalReportCommand.Prefill -> openExternalPrefill(cmd.title, cmd.prompt, null)
+                // Instruction-bearing (or carrying a `system` extra) — stage
+                // the confirmation overlay.
                 is com.ai.ui.share.ExternalReportCommand.Confirm ->
                     pendingExternalReport.value = com.ai.ui.share.resolveExternalParameters(cmd.staged, appViewModel.uiState.value.aiSettings)
             }
@@ -168,7 +171,12 @@ fun AppNavHost(
         com.ai.ui.share.ExternalIntentConfirmScreen(
             intent = staged,
             onCancel = { pendingExternalReport.value = null },
-            onConfirm = {
+            onConfirm = onConfirm@{
+                if (staged.prefillOnly) {
+                    openExternalPrefill(staged.title ?: "", staged.aiPrompt, staged.systemPrompt)
+                    pendingExternalReport.value = null
+                    return@onConfirm
+                }
                 appViewModel.setExternalInstructions(
                     closeHtml = staged.closeHtml,
                     email = staged.email,

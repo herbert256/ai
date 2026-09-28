@@ -42,7 +42,12 @@ data class PendingExternalReport(
     val literalSystemPrompt: String? = null,
     val parametersReference: String? = null,
     val selectedParameters: com.ai.model.Parameters? = null,
-    val resolutionErrors: List<String> = emptyList()
+    val resolutionErrors: List<String> = emptyList(),
+    /** A bare prompt (no instructions) that carries a `system` extra. It is
+     *  confirmed only so the user sees that system prompt; Continue opens the
+     *  usual New Report prefill (edit, pick models, Generate) — no selection,
+     *  presentation or completion actions. */
+    val prefillOnly: Boolean = false
 ) {
     val hasModelSelection: Boolean get() = modelReferences.isNotEmpty() ||
         agentNames.isNotEmpty() || flockNames.isNotEmpty() || swarmNames.isNotEmpty()
@@ -123,14 +128,16 @@ private fun SourceCard(intent: PendingExternalReport) {
             val prompt = intent.aiPrompt
             val preview = if (prompt.length > previewLimit)
                 prompt.take(previewLimit) + "…" else prompt
-            Text(preview.ifBlank { "Use the selected workers' default prompts." }, fontSize = 12.sp, color = AppColors.TextSecondary)
+            Text(preview.ifBlank {
+                if (intent.prefillOnly) "No prompt — you write it on New Report." else "Use the selected workers' default prompts."
+            }, fontSize = 12.sp, color = AppColors.TextSecondary)
             intent.selectedParameters?.let {
                 Text("Parameters: ${it.name}", fontSize = 11.sp, color = AppColors.TextTertiary)
             }
             if (!intent.systemPrompt.isNullOrBlank()) {
                 Spacer(modifier = Modifier.height(2.dp))
                 val system = intent.context.expandPrompt(intent.systemPrompt)
-                Text("System prompt: ${system.take(120)}${if (system.length > 120) "…" else ""}",
+                Text("System prompt: ${system.take(previewLimit)}${if (system.length > previewLimit) "…" else ""}",
                     fontSize = 11.sp, color = AppColors.TextTertiary)
             }
         }
@@ -143,14 +150,17 @@ private fun ActionCard(intent: PendingExternalReport) {
         Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text("Will do", fontSize = 11.sp, color = AppColors.TextTertiary, fontWeight = FontWeight.SemiBold)
             val headline = when {
+                intent.prefillOnly -> "Open New Report with this prompt"
                 intent.hasModelSelection -> "Open Report - setup"
                 else -> "Open agent/model selection for a report"
             }
             Text(headline, fontSize = 13.sp, color = AppColors.TextPrimary)
-
             val agents = (intent.modelReferences + intent.agentNames + intent.flockNames + intent.swarmNames)
                 .filter { it.isNotBlank() }
-            if (agents.isNotEmpty()) {
+            if (intent.prefillOnly) {
+                Text("The system prompt goes to every model without one of its own. You can still edit the prompt and pick the models; nothing runs until you generate.",
+                    fontSize = 11.sp, color = AppColors.TextTertiary)
+            } else if (agents.isNotEmpty()) {
                 Text("Targets:", fontSize = 11.sp, color = AppColors.TextTertiary)
                 agents.forEach { Text("• $it", fontSize = 12.sp, color = AppColors.TextSecondary) }
             } else if (!intent.hasModelSelection) {

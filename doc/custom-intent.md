@@ -218,7 +218,10 @@ Models, Agents, Flocks and Swarms can be combined; duplicate selections are merg
   the intent has an `instructions` extra.
 - [`ExternalAppCommandParser.kt`](../ai/src/main/java/com/ai/ui/share/ExternalAppCommandParser.kt)
   separates paired data/presentation blocks from control tags and builds
-  `PendingExternalReport`.
+  `PendingExternalReport`. A bare prompt with a non-blank `system` extra is
+  not a silent prefill: it becomes a `prefillOnly` confirmation, so the user
+  sees the system prompt (New Report never shows it, yet it reaches every
+  model without its own). Continue then opens the same New Report prefill.
 - [`ExternalReportContext.kt`](../ai/src/main/java/com/ai/ui/share/ExternalReportContext.kt)
   resolves parameter presets, decodes values and expands literal text.
 - [`ExternalIntentConfirmScreen.kt`](../ai/src/main/java/com/ai/ui/share/ExternalIntentConfirmScreen.kt)

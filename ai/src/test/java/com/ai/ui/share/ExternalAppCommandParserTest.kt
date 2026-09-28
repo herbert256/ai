@@ -37,6 +37,25 @@ class ExternalAppCommandParserTest {
     }
 
     @Test
+    fun barePrompt_withSystemExtra_confirmsAsPrefillOnly() {
+        // The `system` extra is never shown on New Report, so it must be
+        // confirmed first — as a plain prefill, no side effects.
+        val staged = confirm(ExternalAppCommandParser.parse("  Hello  ", null, "T", "be terse"))
+        assertThat(staged.prefillOnly).isTrue()
+        assertThat(staged.aiPrompt).isEqualTo("  Hello  ")
+        assertThat(staged.systemPrompt).isEqualTo("be terse")
+        assertThat(staged.title).isEqualTo("T")
+        assertThat(staged.needsStoredPrompt).isFalse()
+        assertThat(staged.hasModelSelection).isFalse()
+    }
+
+    @Test
+    fun barePrompt_blankSystemExtra_stillPrefills() {
+        assertThat(ExternalAppCommandParser.parse("Hello", null, null, "  "))
+            .isEqualTo(ExternalReportCommand.Prefill("", "Hello"))
+    }
+
+    @Test
     fun marker_splitsPromptFromInstructions_andConfirms() {
         val cmd = ExternalAppCommandParser.parse(
             prompt = "Write a poem\n-- end prompt --\n<type>poem</type>",

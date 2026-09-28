@@ -8,10 +8,12 @@ import java.util.Locale
  * which path applies.
  */
 sealed interface ExternalReportCommand {
-    /** Bare prompt — no `<instructions>` block and no `-- end prompt --`
-     *  marker. Only pre-fills the new-report editor; the user still picks
-     *  models and taps Generate, so no API credits move without consent. */
-    data class Prefill(val title: String, val prompt: String, val systemPrompt: String? = null) : ExternalReportCommand
+    /** Bare prompt — no `<instructions>` block, no `-- end prompt --`
+     *  marker and no `system` extra. Only pre-fills the new-report editor;
+     *  the user still picks models and taps Generate, so no API credits move
+     *  without consent. A bare prompt WITH a `system` extra is a
+     *  [PendingExternalReport.prefillOnly] [Confirm] instead. */
+    data class Prefill(val title: String, val prompt: String) : ExternalReportCommand
 
     /** Instruction-bearing — must pass through [ExternalIntentConfirmScreen]
      *  before any auto-generate / email / share / finish side effect runs. */
@@ -48,7 +50,19 @@ object ExternalAppCommandParser {
                 val parts = prompt.split(MARKER, limit = 2)
                 aiPrompt = parts[0].trim(); instr = parts.getOrElse(1) { "" }
             }
-            else -> return ExternalReportCommand.Prefill(title ?: "", prompt, systemPrompt)
+            // A `system` extra reaches every model without a system prompt of
+            // its own and is saved on the report, but New Report never shows
+            // it — so the user sees and accepts it on the confirmation screen
+            // first. Continue then opens the same New Report prefill.
+            systemPrompt.isNullOrBlank() -> return ExternalReportCommand.Prefill(title ?: "", prompt)
+            else -> return ExternalReportCommand.Confirm(
+                PendingExternalReport(
+                    title = title, systemPrompt = systemPrompt, aiPrompt = prompt,
+                    openHtml = null, closeHtml = null, email = null, nextAction = null,
+                    hasReturn = false, agentNames = emptyList(), flockNames = emptyList(),
+                    swarmNames = emptyList(), prefillOnly = true
+                )
+            )
         }
 
         // Read top-level entries before decoding. Markup inside a value must
