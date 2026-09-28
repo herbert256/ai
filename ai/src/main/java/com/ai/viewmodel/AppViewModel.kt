@@ -2415,17 +2415,27 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         )) }
     }
 
+    /** Leaving the report screen: drop the pending external request and the
+     *  post-completion actions claimed by the report on screen (they'd
+     *  otherwise fire whenever that report is next opened). */
     fun clearExternalInstructions() {
-        _uiState.update { it.copy(externalIntent = ExternalIntent()) }
+        _uiState.update { it.copy(
+            externalIntent = ExternalIntent(),
+            externalCompletions = it.currentReportId?.let { rid -> it.externalCompletions - rid } ?: it.externalCompletions
+        ) }
     }
 
     /** Drop an external request no report has claimed yet (abandoned
-     *  before it generated). A claimed one — [ExternalIntent.reportId]
-     *  stamped — holds only that running report's email / next action /
-     *  return (its generation inputs were already dropped at launch), so
-     *  starting another report in the app must leave it alone. */
+     *  before it generated). Claimed actions live apart, per report, in
+     *  [UiState.externalCompletions], so starting another report in the
+     *  app leaves a running report's email / next action / return alone. */
     fun clearUnclaimedExternalInstructions() {
-        _uiState.update { if (it.externalIntent.reportId == null) it.copy(externalIntent = ExternalIntent()) else it }
+        _uiState.update { it.copy(externalIntent = ExternalIntent()) }
+    }
+
+    /** [reportId]'s external post-completion actions ran (or are running). */
+    fun consumeExternalCompletion(reportId: String) {
+        _uiState.update { it.copy(externalCompletions = it.externalCompletions - reportId) }
     }
 
     // ===== Chat Parameters =====

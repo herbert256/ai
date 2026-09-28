@@ -630,6 +630,11 @@ data class UiState(
      *  ON_RESUME refresh. */
     val iconRefreshTick: Int = 0,
     val externalIntent: ExternalIntent = ExternalIntent(),
+    /** Post-completion actions (email / next / return) of external requests,
+     *  by the report generated for each. Kept apart from [externalIntent]
+     *  (the pending request) so a second request arriving while a report
+     *  runs can't replace that report's actions. */
+    val externalCompletions: Map<String, ExternalCompletion> = emptyMap(),
     // Number of Rerank/Summarize/Compare batches currently running.
     // Each runSecondary() launch increments this on entry and decrements
     // on completion; multiple batches can be in flight at once. The
@@ -645,9 +650,6 @@ data class UiState(
     // and reset operations trivial, and shrinks the top-level UiState surface.
     val externalSystemPrompt: String? get() = externalIntent.systemPrompt
     val externalCloseHtml: String? get() = externalIntent.closeHtml
-    val externalEmail: String? get() = externalIntent.email
-    val externalNextAction: String? get() = externalIntent.nextAction
-    val externalReturn: Boolean get() = externalIntent.returnAfterNext
     val externalModelReferences: List<String> get() = externalIntent.modelReferences
     val externalOpenHtml: String? get() = externalIntent.openHtml
     val externalAgentNames: List<String> get() = externalIntent.agentNames
@@ -670,11 +672,16 @@ data class ExternalIntent(
     /** The request's `title` extra. A report generated with exactly this
      *  (non-blank) title keeps it: the AI short/long title calls are skipped
      *  for it (the icon still runs). */
-    val title: String? = null,
-    /** The report generated for this request, stamped when it's created.
-     *  Its email / next action / return fire only when THAT report
-     *  completes — not whichever finished report happens to be on screen. */
-    val reportId: String? = null
+    val title: String? = null
+)
+
+/** An external request's post-completion actions, claimed by the report
+ *  generated for it ([UiState.externalCompletions]). They fire only when
+ *  THAT report completes — not whichever finished report is on screen. */
+data class ExternalCompletion(
+    val email: String? = null,
+    val nextAction: String? = null,
+    val returnAfterNext: Boolean = false
 )
 
 // ===== Refresh-all state (lives on AppViewModel so the run survives

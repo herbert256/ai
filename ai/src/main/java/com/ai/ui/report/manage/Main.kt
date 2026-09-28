@@ -194,7 +194,8 @@ fun ReportsScreen(
     onNavigateToAppLog: (filename: String, search: String) -> Unit = { _, _ -> },
     onNavigateToTraceListFiltered: (String, String) -> Unit = { _, _ -> },
     onNavigateToTraceRunList: (String) -> Unit = {},
-    onClearExternalInstructions: () -> Unit = {},
+    /** A report's external post-completion actions (email / next / return) ran. */
+    onExternalCompletionHandled: (String) -> Unit = {},
     onEditModels: (String) -> Unit = {},
     onUpdateModelList: (String, List<ReportModel>) -> Unit = { _, _ -> },
     onMarkParametersChanged: () -> Unit = {},
@@ -791,7 +792,7 @@ fun ReportsScreen(
             viewerLockedLanguage = null
             showViewer = true
         },
-        onClearExternalInstructions = onClearExternalInstructions
+        onExternalCompletionHandled = onExternalCompletionHandled
     )
 
     // ── Build-stage popup. Sits ABOVE every other overlay so it wins:

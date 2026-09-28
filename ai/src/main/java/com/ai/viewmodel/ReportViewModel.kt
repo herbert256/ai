@@ -577,8 +577,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             val externalPostCompletion = ExternalIntent(
                 email = externalIntentAtLaunch.email,
                 nextAction = externalIntentAtLaunch.nextAction,
-                returnAfterNext = externalIntentAtLaunch.returnAfterNext,
-                reportId = externalIntentAtLaunch.reportId
+                returnAfterNext = externalIntentAtLaunch.returnAfterNext
             )
             appViewModel.updateUiState { it.copy(
                 reportImageBase64 = null, reportImageMime = null,
@@ -726,13 +725,18 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             generationJobs[reportId] = thisJob
             uncommittedGenerations.remove(thisJob)
             // An external request's post-completion actions belong to this
-            // report — stamp it, if the request is still the one this run
-            // started with and hasn't been claimed by another report.
+            // report: claim them under its id, apart from the pending request
+            // — a second request arriving while this one runs used to replace
+            // them. Captured at launch, so they're claimed even if that other
+            // request already took the pending slot; the slot is only emptied
+            // while it still holds exactly these (unclaimed) actions.
             val ext = externalPostCompletion
-            if (ext.reportId == null && (ext.email != null || ext.nextAction != null || ext.returnAfterNext)) {
-                appViewModel.updateUiState { s ->
-                    if (s.externalIntent == ext) s.copy(externalIntent = ext.copy(reportId = reportId)) else s
-                }
+            if (ext.email != null || ext.nextAction != null || ext.returnAfterNext) {
+                appViewModel.updateUiState { s -> s.copy(
+                    externalCompletions = s.externalCompletions +
+                        (reportId to ExternalCompletion(ext.email, ext.nextAction, ext.returnAfterNext)),
+                    externalIntent = if (s.externalIntent == ext) ExternalIntent() else s.externalIntent
+                ) }
             }
             val reportStartMs = System.currentTimeMillis()
             AppLog.i("Report", "→ start \"${title.ifBlank { "AI Report" }}\" (id=$reportId, ${reportTasks.size} agent(s))")

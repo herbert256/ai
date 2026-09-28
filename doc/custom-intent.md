@@ -240,8 +240,13 @@ Models, Agents, Flocks and Swarms can be combined; duplicate selections are merg
   report's title: when the report is generated with exactly that title, the
   AI short/long title calls are skipped even in AI title mode (the report
   icon is still generated). Get info → regenerate can still retitle it.
+  When the report is created, the request's email / next / return are claimed
+  under its id in `UiState.externalCompletions`, apart from the pending
+  request, so another request arriving meanwhile can't replace them.
 - [`RuntimeState.kt`](../ai/src/main/java/com/ai/ui/report/manage/RuntimeState.kt)
-  handles external worker selections and completion actions.
+  handles external worker selections and completion actions. When the
+  claiming report completes on screen it runs `<email>`, then `<next>`, and
+  only then — once — finishes the activity for `<return>`.
 - [`AndroidManifest.xml`](../ai/src/main/AndroidManifest.xml) registers the
   exported custom action on `MainActivity`.
 

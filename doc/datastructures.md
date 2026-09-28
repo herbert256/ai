@@ -1162,7 +1162,9 @@ Notable subset:
   `Report.icon` key their disk-reload effect on this so a
   mid-flight resolution recomposes immediately rather than waiting
   for the next ON_RESUME refresh
-- `externalIntent: ExternalIntent`
+- `externalIntent: ExternalIntent` — the pending (unclaimed) external request
+- `externalCompletions: Map<String, ExternalCompletion>` — post-completion
+  actions claimed by the report generated for each request, by report id
 - Chat: `chatParameters: ChatParameters`,
   `dualChatConfig: DualChatConfig?`
 
@@ -1177,10 +1179,23 @@ directly on `AppViewModel`) cover the other in-flight sets.
 Bundle of the fields a launching intent (`com.ai.ACTION_NEW_REPORT`
 or similar) can stuff into UiState.
 
-| systemPrompt, closeHtml, reportType, email, nextAction, openHtml | `String?` |
-| returnAfterNext, select | `Boolean` |
-| agentNames, flockNames, swarmNames | `List<String>` |
+| systemPrompt, closeHtml, email, nextAction, openHtml, title | `String?` |
+| returnAfterNext | `Boolean` |
+| modelReferences, agentNames, flockNames, swarmNames | `List<String>` |
 | context | `ExternalReportContext` |
+
+Generation consumes it: the inputs belong to that one report, and when the
+report is created its email / next action / return move into
+`UiState.externalCompletions[reportId]` and the pending slot empties. A
+second request therefore can't replace a running report's actions.
+
+### `ExternalCompletion`
+Post-completion actions claimed by one report
+(`UiState.externalCompletions`). They fire — and are consumed — when that
+report completes on screen; leaving its screen drops them.
+
+| email, nextAction | `String?` |
+| returnAfterNext | `Boolean` |
 
 ### `PromptHistoryEntry`
 | timestamp | `Long` |

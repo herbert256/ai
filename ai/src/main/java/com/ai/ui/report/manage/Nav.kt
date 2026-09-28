@@ -789,7 +789,7 @@ fun ReportsScreenNav(
         onClearPromptEditReplay = { rid, aid ->
             reportViewModel.clearPromptEditReplay(rid, aid)
         },
-        onClearExternalInstructions = viewModel::clearExternalInstructions,
+        onExternalCompletionHandled = viewModel::consumeExternalCompletion,
         onEditModels = { rid -> scope.launch { reportViewModel.prepareEditModels(context, rid) } },
         onUpdateModelList = { rid, edited ->
             scope.launch { reportViewModel.stageModelListForRegenerate(context, rid, edited) }

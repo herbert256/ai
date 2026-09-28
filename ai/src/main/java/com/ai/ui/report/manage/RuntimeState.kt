@@ -481,7 +481,7 @@ internal fun HandleExternalReportInstructions(
     onModelsChange: (List<ReportModel>) -> Unit,
     onContinueToWorkers: () -> Unit,
     onOpenView: () -> Unit,
-    onClearExternalInstructions: () -> Unit
+    onExternalCompletionHandled: (String) -> Unit
 ) {
     var externalSelectionApplied by rememberSaveable { mutableStateOf(false) }
     val externalRes = remember(uiState.externalIntent, aiSettings) {
@@ -499,17 +499,22 @@ internal fun HandleExternalReportInstructions(
     }
 
     LaunchedEffect(isComplete, currentReportId) {
-        // Only for the report generated for the request (stamped at its
-        // creation): swiping to some other finished report while it runs
+        // Only for the report generated for the request (claimed under its id
+        // at creation): swiping to some other finished report while it runs
         // must not email / share / close on that report's behalf.
-        if (isComplete && currentReportId != null && uiState.externalIntent.reportId == currentReportId) {
+        val completion = currentReportId?.let { uiState.externalCompletions[it] }
+        if (isComplete && currentReportId != null && completion != null) {
+            // Consumed up front: an effect restarted mid-delay must not open
+            // the choosers twice. Only THIS report's claim — a newer pending
+            // request (another app's, still in model selection) stays.
+            onExternalCompletionHandled(currentReportId)
             var acted = false
-            val email = uiState.externalEmail
+            val email = completion.email
             if (email != null && email.isNotBlank()) {
                 emailReportAsHtml(context, currentReportId, email)
                 acted = true
             }
-            val next = uiState.externalNextAction
+            val next = completion.nextAction
             if (next != null) {
                 delay(500)
                 when (next.lowercase()) {
@@ -525,20 +530,9 @@ internal fun HandleExternalReportInstructions(
             // <return>: finish ONCE, after every action was handed off. It used
             // to finish right after opening the <email> chooser, so a <next>
             // was cancelled with the effect or fired from a finishing activity.
-            if (uiState.externalReturn && acted) {
+            if (completion.returnAfterNext && acted) {
                 delay(1000)
                 activity?.finish()
-            }
-            if (
-                uiState.externalEmail != null ||
-                uiState.externalNextAction != null ||
-                uiState.externalReturn ||
-                uiState.externalModelReferences.isNotEmpty() ||
-                uiState.externalAgentNames.isNotEmpty() ||
-                uiState.externalFlockNames.isNotEmpty() ||
-                uiState.externalSwarmNames.isNotEmpty()
-            ) {
-                onClearExternalInstructions()
             }
         }
     }
