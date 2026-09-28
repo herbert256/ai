@@ -1042,6 +1042,7 @@ private fun AppLogEntryScreen(
     // thread (the index can hold thousands of traces). See
     // findTraceForLogEntry for the matching rules.
     val matchingTrace by produceState<String?>(null, entry.header) {
+        value = null  // don't show the previous entry's trace while looking up
         value = withContext(Dispatchers.IO) { findTraceForLogEntry(parts) }
     }
 
