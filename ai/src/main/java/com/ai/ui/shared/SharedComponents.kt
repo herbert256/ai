@@ -571,6 +571,11 @@ class AgentChatBridge(
     val estimateTokens: (String) -> Int,
     /** Record one turn's tokens into the global AI Usage ledger. */
     val recordUsage: suspend (service: com.ai.data.AppService, model: String, usage: com.ai.data.TokenUsage) -> Unit,
+    /** A reply was applied as a report model's answer (reportId, agentId):
+     *  refresh what was derived from the old text — its translations and
+     *  per-model title / icon (ReportViewModel.onAgentAnswerReplaced).
+     *  Blocking storage I/O: call off the main thread. */
+    val onAgentAnswerApplied: (context: android.content.Context, reportId: String, agentId: String) -> Unit = { _, _, _ -> },
 )
 val LocalAgentChat = compositionLocalOf<AgentChatBridge?> { null }
 

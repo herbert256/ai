@@ -837,7 +837,7 @@ class IconGenerationManager(
                             .firstOrNull { it.isNotBlank() }.orEmpty().take(325)
                         if (generated.isBlank()) {
                             if (storeTitle) ReportStorage.updateReportAgentModelTitleError(
-                                context, reportId, ra.agentId, "empty title"
+                                context, reportId, ra.agentId, "empty title", forResponse = agentResponse
                             )
                         } else {
                             generatedTitle = generated
@@ -864,7 +864,11 @@ class IconGenerationManager(
                                     inputCost = inC, outputCost = outC,
                                     traceFile = traceSink.get(),
                                     promptUsed = "model_title",
-                                    durationMs = durationMs
+                                    durationMs = durationMs,
+                                    // Not tied to an attempt otherwise: a slow
+                                    // job for an answer since re-run / replaced
+                                    // overwrote the new answer's title.
+                                    forResponse = agentResponse
                                 )
                             } else if (inT > 0 || outT > 0 || inC > 0.0 || outC > 0.0) {
                                 ReportStorage.bumpReportAgentIconCost(
@@ -881,7 +885,8 @@ class IconGenerationManager(
                     else -> if (storeTitle) ReportStorage.updateReportAgentModelTitleError(
                         context, reportId, ra.agentId,
                         if (outcome is WorkerOutcome.AllRateLimited) "model-title: all workers rate-limited"
-                        else "model-title: no worker produced a title"
+                        else "model-title: no worker produced a title",
+                        forResponse = agentResponse
                     )
                 }
                 appViewModel.updateUiState {
@@ -920,7 +925,10 @@ class IconGenerationManager(
         // Reset this agent's icon fields + iconCalls so a re-fire
         // (regenerate) replaces rather than accumulates — matches the
         // 3-tier chain's clearReportAgentIconState at its own start.
-        ReportStorage.clearReportAgentIconState(context, reportId, ra.agentId)
+        // Only while the agent still carries the answer [ra] was read
+        // with: a job for a replaced answer stops here instead of wiping
+        // (and then overwriting) the new answer's icon.
+        if (!ReportStorage.clearReportAgentIconState(context, reportId, ra.agentId, forResponse = ra.responseBody)) return false
         return withTracerTags(reportId = reportId, category = "model/icons") {
             val started = System.currentTimeMillis()
             val request = buildMetadataRequest(prompt.text, MetadataTask.ANSWER_ICON, "@TITLE@" to title)
@@ -962,7 +970,8 @@ class IconGenerationManager(
                     ReportStorage.setReportAgentIconAndTier(
                         context, reportId, ra.agentId, emoji,
                         winningTier = null, promptUsed = "report_title_icon",
-                        traceFile = traceSink.get()
+                        traceFile = traceSink.get(),
+                        forResponse = ra.responseBody
                     )
                     appViewModel.updateUiState { it.copy(iconRefreshTick = it.iconRefreshTick + 1) }
                     true

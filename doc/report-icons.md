@@ -282,8 +282,14 @@ doesn't cancel it.
 The per-model icon is **derived from the model title**, not from
 a response-based chain. `IconGenerationManager.runPerModelEnrichment`
 fires after an agent's primary call settles to `SUCCESS` (on both
-fresh generation and regenerate), gated by the two per-model
-toggles:
+fresh generation and regenerate) and after an applied alternative
+answer (sweep / replay / refine-chat Apply —
+`ReportViewModel.onAgentAnswerReplaced`, which first clears the old
+title + icon), gated by the two per-model toggles. Every title / icon
+write carries `forResponse` = the answer text it was derived from and
+is skipped once the agent's answer has changed, so a slow job for a
+replaced answer can't overwrite the new answer's title or icon (the
+billed spend is still recorded):
 
 - **title + icon on** → `runModelTitleForAgent(storeTitle = true,
   thenIconFromTitle = true)` generates and stores the model title

@@ -243,6 +243,10 @@ class AgentModelSwitchManager internal constructor(
                 } else {
                     reportViewModel.removeAgentInternal(context, reportId, agentId)
                 }
+            } else {
+                // Same row, new answer: its translations translate the
+                // replaced one (the remove cascade above covers the other case).
+                withContext(Dispatchers.IO) { reportViewModel.dropAgentTranslations(context, reportId, agentId) }
             }
             withContext(Dispatchers.IO) { ReportStorage.bumpReportTimestamp(context, reportId) }
             AuditLog.append(reportId, "Switched report model ${oldAgent.provider}/${oldAgent.model} → ${selection.provider.id}/${selection.model}")

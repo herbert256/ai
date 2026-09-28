@@ -1350,14 +1350,14 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         val candidate = temperatureSweep.get(key)?.candidates
             ?.getOrNull(candidateIndex) as? TemperatureSweepCandidate.Success ?: return
         appViewModel.viewModelScope.launch(Dispatchers.IO + com.ai.data.CrashReporter.coroutineHandler) {
-            ReportStorage.applyAgentChatResponse(
+            if (ReportStorage.applyAgentChatResponse(
                 context = context,
                 reportId = reportId,
                 agentId = agentId,
                 body = candidate.response,
                 changeSource = RESPONSE_CHANGE_SOURCE_TEMPERATURE,
                 changeValue = formatSweepTemperature(candidate.temperature)
-            )
+            )) onAgentAnswerReplaced(context, reportId, agentId)
             temperatureSweep.drop(key)
         }
     }
@@ -1539,14 +1539,14 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         val candidate = reasoningEffortSweep.get(key)?.candidates
             ?.getOrNull(candidateIndex) as? ReasoningEffortCandidate.Success ?: return
         appViewModel.viewModelScope.launch(Dispatchers.IO + com.ai.data.CrashReporter.coroutineHandler) {
-            ReportStorage.applyAgentChatResponse(
+            if (ReportStorage.applyAgentChatResponse(
                 context = context,
                 reportId = reportId,
                 agentId = agentId,
                 body = candidate.response,
                 changeSource = RESPONSE_CHANGE_SOURCE_REASONING_EFFORT,
                 changeValue = formatSweepReasoningEffort(candidate.effort)
-            )
+            )) onAgentAnswerReplaced(context, reportId, agentId)
             reasoningEffortSweep.drop(key)
         }
     }
@@ -1724,13 +1724,13 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         val key = WebSearchReplayState.key(reportId, agentId)
         val result = webSearchReplay.get(key)?.result as? WebSearchReplayResult.Success ?: return
         appViewModel.viewModelScope.launch(Dispatchers.IO + com.ai.data.CrashReporter.coroutineHandler) {
-            ReportStorage.applyAgentChatResponse(
+            if (ReportStorage.applyAgentChatResponse(
                 context = context,
                 reportId = reportId,
                 agentId = agentId,
                 body = result.response,
                 changeSource = RESPONSE_CHANGE_SOURCE_WEB_SEARCH
-            )
+            )) onAgentAnswerReplaced(context, reportId, agentId)
             webSearchReplay.drop(key)
         }
     }
@@ -1900,13 +1900,13 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         val key = PromptEditReplayState.key(reportId, agentId)
         val result = promptEditReplay.get(key)?.result as? PromptEditReplayResult.Success ?: return
         appViewModel.viewModelScope.launch(Dispatchers.IO + com.ai.data.CrashReporter.coroutineHandler) {
-            ReportStorage.applyAgentChatResponse(
+            if (ReportStorage.applyAgentChatResponse(
                 context = context,
                 reportId = reportId,
                 agentId = agentId,
                 body = result.response,
                 changeSource = RESPONSE_CHANGE_SOURCE_EDIT
-            )
+            )) onAgentAnswerReplaced(context, reportId, agentId)
             promptEditReplay.drop(key)
         }
     }
@@ -3172,6 +3172,9 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             // PENDING and clear cost / trace before dispatch so the row
             // reflects exactly this fresh attempt.
             ReportStorage.resetAgentToPending(context, reportId, agentId)
+            // Its translations translate the answer just discarded (the
+            // View tabs and exports kept showing them next to the new one).
+            dropAgentTranslations(context, reportId, agentId)
             // Rebuild the request from the model's CURRENT capabilities
             // rather than blindly replaying the original report's flags.
             // The user may have toggled vision / web-search / reasoning
@@ -3239,24 +3242,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             // on the hourglass forever (a SUCCESS agent with no title/icon
             // reads as RUNNING, but nothing was ever launched). Gated by the
             // same two toggles that decide whether those rows exist at all.
-            val gen = appViewModel.uiState.value.generalSettings
-            val iconOn = gen.perModelIconOn()
-            val titleOn = gen.perModelTitleOn()
-            if (iconOn || titleOn) {
-                val freshRa = ReportStorage.getReport(context, reportId)
-                    ?.agents?.firstOrNull { it.agentId == agentId }
-                if (freshRa?.reportStatus == ReportStatus.SUCCESS && !freshRa.responseBody.isNullOrBlank()) {
-                    // Wipe the now-stale per-model enrichment (icon + any
-                    // prior title error) so the new response's title/icon
-                    // regenerate cleanly and a previous ❌ is retried.
-                    if (iconOn) ReportStorage.clearReportAgentIconState(context, reportId, agentId)
-                    if (titleOn) ReportStorage.clearReportAgentModelTitleError(context, reportId, agentId)
-                    iconGen.runPerModelEnrichment(
-                        context, reportId, freshRa, report.prompt, aiSettings, iconOn, titleOn
-                    )
-                    appViewModel.updateUiState { it.copy(iconRefreshTick = it.iconRefreshTick + 1) }
-                }
-            }
+            refreshPerModelEnrichment(context, reportId, agentId)
             }
         }
     }
@@ -3281,6 +3267,65 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 removeAgentInternal(context, reportId, agentId)
             }
         }
+    }
+
+    /** Delete every TRANSLATE row whose translateSourceKind is "AGENT" or
+     *  "AGENT_TITLE" (the agent's answer / its model title) for [agentId],
+     *  matching the META cascade in deleteSecondaryResult. Their cost rolls
+     *  into costsFromDeletedItems so the cost view keeps the real API
+     *  spend. Used when the agent is removed, and when its answer is
+     *  replaced ([onAgentAnswerReplaced] / [regenerateAgent]) — the rows
+     *  translate the OLD answer and title, which the View tabs and exports
+     *  kept showing next to the new text. A translation run's "Redo every
+     *  entry" re-creates them from the new answer. Blocking storage I/O. */
+    internal fun dropAgentTranslations(context: Context, reportId: String, agentId: String) {
+        val orphans = SecondaryResultStorage
+            .listForReport(context, reportId, SecondaryKind.TRANSLATE)
+            .filter {
+                (it.translateSourceKind == "AGENT" || it.translateSourceKind == "AGENT_TITLE") &&
+                    it.translateSourceTargetId == agentId
+            }
+        if (orphans.isEmpty()) return
+        var costDelta = 0.0
+        orphans.forEach { tr ->
+            costDelta += (tr.inputCost ?: 0.0) + (tr.outputCost ?: 0.0)
+            SecondaryResultStorage.delete(context, reportId, tr.id)
+        }
+        ReportStorage.removeIconCallsForSecondaryIds(context, reportId, orphans.map { it.id }.toSet())
+        if (costDelta > 0.0) ReportStorage.bumpCostsFromDeletedItems(context, reportId, costDelta)
+    }
+
+    /** Re-derive [agentId]'s per-model title / icon from its CURRENT answer
+     *  (gated by the two per-model toggles), after a re-run or an applied
+     *  alternative replaced it. Initial generation does this in its own
+     *  dispatch loop; these paths bypass it. Blocking storage I/O. */
+    private fun refreshPerModelEnrichment(context: Context, reportId: String, agentId: String) {
+        val gen = appViewModel.uiState.value.generalSettings
+        val iconOn = gen.perModelIconOn()
+        val titleOn = gen.perModelTitleOn()
+        if (!iconOn && !titleOn) return
+        val report = ReportStorage.getReport(context, reportId) ?: return
+        val freshRa = report.agents.firstOrNull { it.agentId == agentId } ?: return
+        if (freshRa.reportStatus != ReportStatus.SUCCESS || freshRa.responseBody.isNullOrBlank()) return
+        // Wipe the now-stale per-model enrichment (icon + any prior title
+        // error) so the new response's title/icon regenerate cleanly and a
+        // previous ❌ is retried.
+        if (iconOn) ReportStorage.clearReportAgentIconState(context, reportId, agentId)
+        if (titleOn) ReportStorage.clearReportAgentModelTitleError(context, reportId, agentId)
+        iconGen.runPerModelEnrichment(
+            context, reportId, freshRa, report.prompt, appViewModel.uiState.value.aiSettings, iconOn, titleOn
+        )
+        appViewModel.updateUiState { it.copy(iconRefreshTick = it.iconRefreshTick + 1) }
+    }
+
+    /** An agent's answer was replaced in place — an applied temperature /
+     *  reasoning / web-search / prompt-edit alternative or a refine-chat
+     *  reply. Everything derived from the old text is stale: drop its
+     *  translations and re-derive its per-model title / icon (the Apply
+     *  paths never did either). Blocking storage I/O. */
+    internal fun onAgentAnswerReplaced(context: Context, reportId: String, agentId: String) {
+        dropAgentTranslations(context, reportId, agentId)
+        refreshPerModelEnrichment(context, reportId, agentId)
     }
 
     /** Remove ONE agent from a report (storage + in-memory results flow + the
@@ -3312,30 +3357,11 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             // double-tap on "Remove model" would otherwise decrement the
             // total twice for one agent.
             val actuallyRemoved = ReportStorage.removeAgent(context, reportId, agentId)
-            // Cascade: every TRANSLATE row whose translateSourceKind =
-            // "AGENT" or "AGENT_TITLE" (its answer / its model title) and
-            // translateSourceTargetId == this agent's id is now an orphan.
-            // Drop them so the on-disk state matches the META cascade in
-            // deleteSecondaryResult — a left-over title row was later
-            // blanked by a full Regenerate and never re-run (its source is
-            // gone), hanging the TRANSLATIONS phase. Their cost rolls into
-            // costsFromDeletedItems so the cost view continues to reflect
-            // the real API spend.
-            val orphans = SecondaryResultStorage
-                .listForReport(context, reportId, SecondaryKind.TRANSLATE)
-                .filter {
-                    (it.translateSourceKind == "AGENT" || it.translateSourceKind == "AGENT_TITLE") &&
-                        it.translateSourceTargetId == agentId
-                }
-            if (orphans.isNotEmpty()) {
-                var costDelta = 0.0
-                orphans.forEach { tr ->
-                    costDelta += (tr.inputCost ?: 0.0) + (tr.outputCost ?: 0.0)
-                    SecondaryResultStorage.delete(context, reportId, tr.id)
-                }
-                ReportStorage.removeIconCallsForSecondaryIds(context, reportId, orphans.map { it.id }.toSet())
-                if (costDelta > 0.0) ReportStorage.bumpCostsFromDeletedItems(context, reportId, costDelta)
-            }
+            // Cascade: the agent's answer / model-title translations are
+            // now orphans — see dropAgentTranslations. A left-over title
+            // row was later blanked by a full Regenerate and never re-run
+            // (its source is gone), hanging the TRANSLATIONS phase.
+            dropAgentTranslations(context, reportId, agentId)
             ReportStorage.bumpReportTimestamp(context, reportId)
             updateAgentResults(reportId) { it - agentId }
             if (actuallyRemoved) {

@@ -572,6 +572,7 @@ fun ReportModelScreen(
             add(com.ai.data.ChatMessage(role = "user", content = report.prompt, imageBase64 = report.imageBase64, imageMime = report.imageMime))
             agent.responseBody?.takeIf { it.isNotBlank() }?.let { add(com.ai.data.ChatMessage(role = "assistant", content = it)) }
         }
+        val agentChatBridge = com.ai.ui.shared.LocalAgentChat.current
         AgentChatScreen(
             titleBarSubject = com.ai.ui.shared.modelLabel(provider.id, agent.model, separator = " — "),
             service = provider,
@@ -582,13 +583,15 @@ fun ReportModelScreen(
             aiSettings = aiSettings,
             onSaveMessages = { ReportStorage.saveAgentChatMessages(context, reportId, currentAgentId, it) },
             onApply = {
-                ReportStorage.applyAgentChatResponse(
+                // Runs on IO (AgentChatScreen). A changed answer also drops its
+                // stale translations and re-derives its per-model title / icon.
+                if (ReportStorage.applyAgentChatResponse(
                     context = context,
                     reportId = reportId,
                     agentId = currentAgentId,
                     body = it,
                     changeSource = RESPONSE_CHANGE_SOURCE_CHAT
-                )
+                )) agentChatBridge?.onAgentAnswerApplied?.invoke(context, reportId, currentAgentId)
             },
             onBack = { showAgentChat = false }
         )

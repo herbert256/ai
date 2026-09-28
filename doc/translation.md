@@ -126,6 +126,16 @@ short-title kinds, `TranslationKind.isTitle`), plus `PROMPT`,
 persisted `translateSourceKind` string is the on-disk projection of
 that enum (`AGENT_RESPONSE` ↔ `"AGENT"`).
 
+An agent's `AGENT` and `AGENT_TITLE` rows are deleted
+(`ReportViewModel.dropAgentTranslations`, spend rolled into
+`costsFromDeletedItems`) when the model is removed **and** when its
+answer is replaced — a single-model re-run, an applied temperature /
+reasoning / web-search / prompt-edit alternative, a refine-chat
+Apply, or a same-row model switch — since they translate the old
+text. The run's 🔄 **Redo every entry** re-creates them from the new
+answer. A full Regenerate batch keeps them: its TRANSLATIONS phase
+re-translates every row (and skips rows whose source is gone).
+
 ### Prompts
 
 Two `InternalPrompt` rows in the **`workers`** category drive the

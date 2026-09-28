@@ -70,7 +70,7 @@ fun AppNavHost(
     // Bridge for the in-report "refine this answer" chat (🗣️ on Model
     // response / Fan-out response). Lets those deep Manage screens reach
     // the chat engine without threading a view-model through every layer.
-    val agentChatBridge = remember(appViewModel, chatViewModel) {
+    val agentChatBridge = remember(appViewModel, chatViewModel, reportViewModel) {
         com.ai.ui.shared.AgentChatBridge(
             send = { service, model, agentIdForKey, messages, params, onUsage ->
                 val settings = appViewModel.uiState.value.aiSettings
@@ -90,7 +90,8 @@ fun AppNavHost(
             estimateTokens = { com.ai.viewmodel.AppViewModel.estimateTokens(it) },
             recordUsage = { service, model, usage ->
                 chatViewModel.recordChatStatistics(service, model, usage, "Chat")
-            }
+            },
+            onAgentAnswerApplied = { ctx, rid, aid -> reportViewModel.onAgentAnswerReplaced(ctx, rid, aid) }
         )
     }
 

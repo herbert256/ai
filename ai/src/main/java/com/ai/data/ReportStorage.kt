@@ -497,7 +497,9 @@ object ReportStorage {
 
     /** Overwrite an agent's [ReportAgent.responseBody] with a chosen
      *  replacement. Leaves cost/tokens untouched — trial-call spend is
-     *  tracked in global AI Usage, not the report. */
+     *  tracked in global AI Usage, not the report. Returns true when the
+     *  answer text actually changed (the caller then refreshes what was
+     *  derived from it — see ReportViewModel.onAgentAnswerReplaced). */
     fun applyAgentChatResponse(
         context: Context,
         reportId: String,
@@ -510,7 +512,8 @@ object ReportStorage {
         return lock.withLock {
             val report = loadReport(reportId) ?: return@withLock false
             val agent = report.agents.firstOrNull { it.agentId == agentId } ?: return@withLock false
-            if (agent.responseBody != body) archiveAnswer(report, agent)
+            val changed = agent.responseBody != body
+            if (changed) archiveAnswer(report, agent)
             agent.responseBody = body
             agent.finishReason = null
             agent.currentAttemptCost = null
@@ -523,6 +526,15 @@ object ReportStorage {
             agent.rawUsageJson = null
             agent.responseChangeSource = changeSource?.takeIf { it.isNotBlank() }
             agent.responseChangeValue = changeValue?.takeIf { it.isNotBlank() }
+            // The per-model title + icon were derived from the replaced
+            // answer — clear them like a re-run's reset does (their spend
+            // stays); the caller re-runs the enrichment for the new text.
+            if (changed) {
+                agent.modelTitle = null
+                agent.modelTitleErrorMessage = null
+                agent.icon = null
+                agent.iconErrorMessage = null
+            }
             saveReport(report.copy(timestamp = System.currentTimeMillis()))
             AuditLog.append(reportId, buildString {
                 append("Selected a new response for model ${agent.provider}/${agent.model}")
@@ -531,7 +543,7 @@ object ReportStorage {
                     changeValue?.takeIf { it.isNotBlank() }?.let { append(" with value $it") }
                 }
             })
-            true
+            changed
         }
     }
 
@@ -1714,7 +1726,12 @@ object ReportStorage {
          *  tier 1, "report_2" for tier 2, "report_3" for tier 3.
          *  Surfaces on the Icon lookup screen. */
         promptUsed: String? = null,
-        traceFile: String? = null
+        traceFile: String? = null,
+        /** The answer text this icon was derived from. Non-null → written
+         *  only while the agent still carries exactly that answer: a slow
+         *  job for a replaced answer (re-run / applied alternative) must
+         *  not land on the new one. */
+        forResponse: String? = null
     ): Boolean {
         init(context)
         return lock.withLock {
@@ -1722,6 +1739,7 @@ object ReportStorage {
             val idx = report.agents.indexOfFirst { it.agentId == agentId }
             if (idx < 0) return@withLock false
             val prev = report.agents[idx]
+            if (forResponse != null && prev.responseBody != forResponse) return@withLock false
             val updated = prev.copy(
                 icon = icon, iconErrorMessage = null,
                 iconWinningTier = winningTier,
@@ -1747,7 +1765,11 @@ object ReportStorage {
         inputCost: Double, outputCost: Double,
         traceFile: String? = null,
         promptUsed: String? = null,
-        durationMs: Long? = null
+        durationMs: Long? = null,
+        /** The answer text this title was derived from — see
+         *  [setReportAgentIconAndTier]. On a mismatch only the (billed)
+         *  spend is recorded; the title fields stay. Returns false then. */
+        forResponse: String? = null
     ): Boolean {
         init(context)
         return lock.withLock {
@@ -1755,36 +1777,41 @@ object ReportStorage {
             val idx = report.agents.indexOfFirst { it.agentId == agentId }
             if (idx < 0) return@withLock false
             val prev = report.agents[idx]
+            val current = forResponse == null || prev.responseBody == forResponse
             val updated = prev.copy(
-                modelTitle = title, modelTitleErrorMessage = null,
-                modelTitleModel = model ?: prev.modelTitleModel,
+                modelTitle = if (current) title else prev.modelTitle,
+                modelTitleErrorMessage = if (current) null else prev.modelTitleErrorMessage,
+                modelTitleModel = if (current) (model ?: prev.modelTitleModel) else prev.modelTitleModel,
                 modelTitleInputTokens = prev.modelTitleInputTokens + inputTokens,
                 modelTitleOutputTokens = prev.modelTitleOutputTokens + outputTokens,
                 modelTitleInputCost = prev.modelTitleInputCost + inputCost,
                 modelTitleOutputCost = prev.modelTitleOutputCost + outputCost,
-                modelTitleTraceFile = traceFile ?: prev.modelTitleTraceFile,
-                modelTitleDurationMs = durationMs ?: prev.modelTitleDurationMs,
-                modelTitlePromptUsed = promptUsed ?: prev.modelTitlePromptUsed
+                modelTitleTraceFile = if (current) (traceFile ?: prev.modelTitleTraceFile) else prev.modelTitleTraceFile,
+                modelTitleDurationMs = if (current) (durationMs ?: prev.modelTitleDurationMs) else prev.modelTitleDurationMs,
+                modelTitlePromptUsed = if (current) (promptUsed ?: prev.modelTitlePromptUsed) else prev.modelTitlePromptUsed
             )
             val newAgents = report.agents.toMutableList().also { it[idx] = updated }
             val newReport = report.copy(agents = newAgents, timestamp = System.currentTimeMillis())
             newReport.totalCost = computeReportTotalCost(newReport)
             saveReport(newReport)
-            AuditLog.append(reportId, "Title '$title' found for report model ${prev.provider}/${prev.model}")
-            true
+            if (current) AuditLog.append(reportId, "Title '$title' found for report model ${prev.provider}/${prev.model}")
+            current
         }
     }
 
     /** Record a per-agent model-title generation failure so the row can
-     *  surface it (and we don't retry on every recomposition). */
+     *  surface it (and we don't retry on every recomposition).
+     *  [forResponse]: see [setReportAgentIconAndTier]. */
     fun updateReportAgentModelTitleError(
-        context: Context, reportId: String, agentId: String, error: String
+        context: Context, reportId: String, agentId: String, error: String,
+        forResponse: String? = null
     ): Boolean {
         init(context)
         return lock.withLock {
             val report = loadReport(reportId) ?: return@withLock false
             val idx = report.agents.indexOfFirst { it.agentId == agentId }
             if (idx < 0) return@withLock false
+            if (forResponse != null && report.agents[idx].responseBody != forResponse) return@withLock false
             val updated = report.agents[idx].copy(modelTitleErrorMessage = error)
             val newAgents = report.agents.toMutableList().also { it[idx] = updated }
             saveReport(report.copy(agents = newAgents, timestamp = System.currentTimeMillis()))
@@ -2819,12 +2846,18 @@ object ReportStorage {
      *  per-agent icon driver so a re-fire (regenerate) starts the
      *  agent's chain on a clean slate without disturbing other
      *  agents' icons. */
-    fun clearReportAgentIconState(context: Context, reportId: String, agentId: String): Boolean {
+    fun clearReportAgentIconState(
+        context: Context, reportId: String, agentId: String,
+        /** See [setReportAgentIconAndTier]: a job for a replaced answer
+         *  must not wipe the new answer's icon either. */
+        forResponse: String? = null
+    ): Boolean {
         init(context)
         return lock.withLock {
             val report = loadReport(reportId) ?: return@withLock false
             val idx = report.agents.indexOfFirst { it.agentId == agentId }
             if (idx < 0) return@withLock false
+            if (forResponse != null && report.agents[idx].responseBody != forResponse) return@withLock false
             val cleared = report.agents[idx].copy(
                 icon = null, iconErrorMessage = null,
                 iconInputTokens = 0, iconOutputTokens = 0,
@@ -3116,6 +3149,11 @@ object ReportStorage {
             agent.iconInputCost = 0.0
             agent.iconOutputCost = 0.0
             agent.iconTraceFile = null
+            // The per-model title described the discarded answer too (its
+            // spend stays on the modelTitle cost fields); the re-run's
+            // enrichment writes a fresh one.
+            agent.modelTitle = null
+            agent.modelTitleErrorMessage = null
             report.totalCost = computeReportTotalCost(report)
             report.completedAt = null
             saveReport(report)
