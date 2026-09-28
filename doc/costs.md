@@ -493,7 +493,9 @@ charges retain precedence, and recorded historical call costs do not change.
 
 `data/ManualPriceDefaults.kt` contains the three requested initial overrides
 (Groq GPT-OSS 20B: 0.075/0.30, Groq GPT-OSS 120B: 0.15/0.60,
-OpenAI GPT-5.4 mini: 0.75/4.50 USD per million input/output tokens). The
+OpenAI GPT-5.4 mini: 0.75/4.50 USD per million input/output tokens), each
+with its provider's cached-input rate (0.0375 / 0.075 / 0.075) — unlike a
+form-entered override, a seed is the full official rate card. The
 source links and verification date are alongside the seed. Only an absent
 `manual_pricing` key is seeded. Existing stores, including an explicitly
 empty map or deleted entries, remain unchanged. Runtime-data clear writes
