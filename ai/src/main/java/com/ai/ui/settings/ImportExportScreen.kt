@@ -122,41 +122,74 @@ private fun applyWorkers(root: JsonObject, working: Settings): WorkerImportResul
     // install, so an id-only merge duplicated them on every cross-install
     // import. On a name-only match the incoming row replaces the existing
     // one but KEEPS its id, so flocks listing that agent still resolve.
-    // Returns the merged list plus old→new ids of existing rows dropped as
-    // same-named duplicates of an id-matched incoming row.
+    // An id match whose incoming name now belongs to a DIFFERENT local row
+    // keeps the local name — that other row is left alone, never dropped.
+    // [adopt] builds the stored row from (incoming, matched local, name).
     fun <T> upsert(existing: List<T>, incoming: List<T>, idOf: (T) -> String, nameOf: (T) -> String,
-                   withId: (T, String) -> T): Pair<List<T>, Map<String, String>> {
+                   adopt: (T, T, String) -> T): List<T> {
         fun norm(s: String?) = s?.trim()?.lowercase(java.util.Locale.ROOT).orEmpty()
         val out = existing.toMutableList()
-        val remap = mutableMapOf<String, String>()
         for (inc in incoming) {
             val incId = idOf(inc)
             val incName = norm(nameOf(inc))
             fun sameName(t: T) = incName.isNotEmpty() && norm(nameOf(t)) == incName
             val byId = out.indexOfFirst { idOf(it) == incId }
             if (byId >= 0) {
-                out[byId] = inc
-                out.filter { idOf(it) != incId && sameName(it) }.forEach { remap[idOf(it)] = incId }
-                out.removeAll { idOf(it) != incId && sameName(it) }
+                val local = out[byId]
+                val nameTaken = out.any { idOf(it) != incId && sameName(it) }
+                out[byId] = adopt(inc, local, if (nameTaken) nameOf(local) else nameOf(inc))
             } else {
                 val byName = out.indexOfFirst { sameName(it) }
-                if (byName >= 0) out[byName] = withId(inc, idOf(out[byName])) else out.add(inc)
+                if (byName >= 0) out[byName] = adopt(inc, out[byName], nameOf(inc)) else out.add(inc)
             }
         }
-        return out to remap
+        return out
     }
+    // A replaced row keeps its local parameters / system prompt / default
+    // prompt / endpoint references when the incoming ids (another
+    // install's) resolve neither here nor in this file — the full bundle
+    // applies those sections after the workers.
+    fun bundleIds(arr: com.google.gson.JsonElement?): Set<String> = (arr as? JsonArray)
+        ?.mapNotNull { (it as? JsonObject)?.get("id")?.takeIf { v -> v.isJsonPrimitive }?.asString }
+        ?.toSet().orEmpty()
+    val paramIds = working.parameters.mapTo(HashSet()) { it.id } + bundleIds(root.get("parameters"))
+    val sysIds = working.systemPrompts.mapTo(HashSet()) { it.id } + bundleIds(root.get("systemPrompts"))
+    val defIds = working.defaultPrompts.mapTo(HashSet()) { it.id } + bundleIds(root.get("defaultPrompts"))
+    fun endpointKnown(provider: AppService, id: String) = working.getEndpointById(provider, id) != null ||
+        id in bundleIds((root.get("endpoints") as? JsonObject)?.get(provider.id))
+    // Nullable: Gson leaves a list field missing from the file null.
+    fun keepIds(inc: List<String>?, local: List<String>?): List<String> =
+        if (inc.orEmpty().all { it in paramIds }) inc.orEmpty() else local.orEmpty()
+    fun keepId(inc: String?, local: String?, known: Set<String>) = if (inc == null || inc in known) inc else local
     // Agents first, so flocks (which travel by member NAME) can re-link
     // against the just-imported agents as well as the existing ones.
     val incomingAgents = readList("agents", Agent::class.java)
-    val (mergedAgents, agentRemap) = upsert(working.agents, incomingAgents, { it.id }, { it.name }) { a, id -> a.copy(id = id) }
-    // Existing flocks that listed a dropped same-named agent now list its replacement.
-    val existingFlocks = if (agentRemap.isEmpty()) working.flocks
-        else working.flocks.map { f -> f.copy(agentIds = f.agentIds.map { agentRemap[it] ?: it }.distinct()) }
+    val mergedAgents = upsert(working.agents, incomingAgents, { it.id }, { it.name }) { a, local, name ->
+        a.copy(
+            id = local.id, name = name,
+            endpointId = when {
+                a.endpointId == null || endpointKnown(a.provider, a.endpointId) -> a.endpointId
+                local.provider == a.provider -> local.endpointId
+                else -> null
+            },
+            paramsIds = keepIds(a.paramsIds, local.paramsIds),
+            systemPromptId = keepId(a.systemPromptId, local.systemPromptId, sysIds),
+            defaultPromptId = keepId(a.defaultPromptId, local.defaultPromptId, defIds)
+        )
+    }
     val incomingFlocks = parseFlocks(root.getAsJsonArray("flocks"), mergedAgents)
     val incomingSwarms = readList("swarms", Swarm::class.java)
 
-    val mergedFlocks = upsert(existingFlocks, incomingFlocks, { it.id }, { it.name }) { f, id -> f.copy(id = id) }.first
-    val mergedSwarms = upsert(working.swarms, incomingSwarms, { it.id }, { it.name }) { s, id -> s.copy(id = id) }.first
+    val mergedFlocks = upsert(working.flocks, incomingFlocks, { it.id }, { it.name }) { f, local, name ->
+        f.copy(id = local.id, name = name, paramsIds = keepIds(f.paramsIds, local.paramsIds),
+            systemPromptId = keepId(f.systemPromptId, local.systemPromptId, sysIds),
+            defaultPromptId = keepId(f.defaultPromptId, local.defaultPromptId, defIds))
+    }
+    val mergedSwarms = upsert(working.swarms, incomingSwarms, { it.id }, { it.name }) { sw, local, name ->
+        sw.copy(id = local.id, name = name, paramsIds = keepIds(sw.paramsIds, local.paramsIds),
+            systemPromptId = keepId(sw.systemPromptId, local.systemPromptId, sysIds),
+            defaultPromptId = keepId(sw.defaultPromptId, local.defaultPromptId, defIds))
+    }
     val updated = working.copy(agents = mergedAgents, flocks = mergedFlocks, swarms = mergedSwarms)
     return WorkerImportResult(updated, incomingAgents.size, incomingFlocks.size, incomingSwarms.size)
 }
