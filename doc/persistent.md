@@ -685,6 +685,11 @@ age cleanup and reset still apply. Files remain under `trace/`, so existing
 trace lists, readers, export and backup include them. The detail screen
 labels absent evidence instead of opening a missing file.
 
+Traces imported with a report bundle (`trace/import_<reportId>_<uuid>.json`)
+keep their original call timestamp for display, but the retention cap
+orders them by import time (file write time), so importing an old report
+into a full trace directory doesn't have its traces pruned immediately.
+
 `test_run.json` now records distinct `INACCESSIBLE` and `UNSUPPORTED`
 outcomes, a diagnostic `policyVersion`, and `previousErrorMessage` where
 needed to reconcile an unchanged automatic block after migration/retry.

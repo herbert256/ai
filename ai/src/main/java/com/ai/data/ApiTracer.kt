@@ -45,6 +45,10 @@ object ApiTracer {
     private data class ModelTestRetention(val runId: String, val legacyFilenames: Set<String> = emptySet())
     @Volatile private var modelTestRetention: ModelTestRetention? = null
     private fun testTracePrefix(runId: String) = "test_${runId.replace(Regex("[^A-Za-z0-9-]"), "_")}_"
+    /** Filename prefix of traces imported with a report bundle
+     *  (`import_<reportId>_<uuid>.json`). Retention orders these by their
+     *  import time, not the call's original timestamp — see [saveTrace]. */
+    internal const val IMPORTED_TRACE_PREFIX = "import_"
     private const val TRACE_VERSION_DEBOUNCE_MS = 750L
     private var traceDir: File? = null
     private val gson = createAppGson(prettyPrint = true)
@@ -292,8 +296,14 @@ object ApiTracer {
                 AppLog.e("ApiTracer", "Cache update failed for $resolvedFilename — invalidating cache: ${e.message}")
                 cachedTraceFiles = null
             }
+            // An imported trace keeps its original (often weeks-old) call
+            // timestamp for display, but retention must treat it as new:
+            // at the 2000-file / 50 MB cap the oldest go first, so ordering
+            // by call time let the next saved trace — often the import's
+            // own next one — delete it at once, leaving dead 🐞 links.
+            val retentionTimestamp = if (importExisting) System.currentTimeMillis() else normalizedTrace.timestamp
             cachedPruneCandidates?.set(resolvedFilename, TracePruneCandidate(
-                File(dir, resolvedFilename), normalizedTrace.timestamp, File(dir, resolvedFilename).length().coerceAtLeast(0L)))
+                File(dir, resolvedFilename), retentionTimestamp, File(dir, resolvedFilename).length().coerceAtLeast(0L)))
             val pruned = pruneTraceDirLocked(dir, protectedFilename = resolvedFilename)
             if (pruned > 0) AppLog.i("ApiTracer", "Pruned $pruned old trace file(s)")
             bumpTraceVersionDebounced()
@@ -401,7 +411,10 @@ object ApiTracer {
             val cachedByName = cachedTraceFiles?.associateBy { it.filename }.orEmpty()
             val scanned = dir.listFiles { file -> file.extension == "json" }
                 ?.map { file ->
-                    val timestamp = cachedByName[file.name]?.timestamp ?: runCatching {
+                    // Imported traces age from their import (file write)
+                    // time — see the retentionTimestamp note in saveTrace.
+                    val timestamp = if (file.name.startsWith(IMPORTED_TRACE_PREFIX)) file.lastModified()
+                    else cachedByName[file.name]?.timestamp ?: runCatching {
                         filenameTimestamp.find(file.name)?.groupValues?.get(1)?.let {
                             Instant.from(dateFormat.parse(it)).toEpochMilli()
                         }

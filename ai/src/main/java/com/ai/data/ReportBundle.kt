@@ -394,7 +394,7 @@ internal fun readReportZip(
             // Contain a single malformed trace so it skips instead of aborting
             // the whole import. See audit data bug 6.
             val parsed = gson.fromJson(ReportExportRedaction.json(bytes.readText()), ApiTrace::class.java)
-            val newName = "import_${newReportId}_${UUID.randomUUID()}.json"
+            val newName = "${ApiTracer.IMPORTED_TRACE_PREFIX}${newReportId}_${UUID.randomUUID()}.json"
             ApiTracer.init(context)
             require(ApiTracer.saveTrace(parsed.copy(reportId = newReportId, runId = remapRunId(parsed.runId)), filename = newName, importExisting = true) != null) { "Could not persist imported trace" }
             // Zip entry is "traces/<originalFilename>"; the basename is
@@ -642,7 +642,7 @@ private fun rollbackReportImport(context: Context, id: String) {
     java.io.File(context.filesDir, "secondary/$id").deleteRecursively()
     java.io.File(context.filesDir, "report_evidence/$id").deleteRecursively()
     ApiTracer.init(context)
-    java.io.File(context.filesDir, "trace").listFiles().orEmpty().filter { it.name.startsWith("import_${id}_") }.forEach { ApiTracer.deleteTrace(it.name) }
+    java.io.File(context.filesDir, "trace").listFiles().orEmpty().filter { it.name.startsWith("${ApiTracer.IMPORTED_TRACE_PREFIX}${id}_") }.forEach { ApiTracer.deleteTrace(it.name) }
     java.io.File(context.cacheDir, "report-import-$id").deleteRecursively()
 }
 
