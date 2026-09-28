@@ -15,6 +15,7 @@
     "deepseek/deepseek-v3.2"
   ],
   "id": "VercelAIGateway",
+  "litellmPrefix": "vercel_ai_gateway",
   "mergeHardcodedModels": true,
   "modelListFormat": "object",
   "seedFieldName": "seed",

@@ -6,6 +6,7 @@
   "defaultModelSource": "API",
   "extractApiCost": false,
   "id": "Fireworks",
+  "litellmPrefix": "fireworks_ai",
   "maxCallsPerProviderPerMinute": 12,
   "maxConcurrentCallsPerProvider": 2,
   "modelListFormat": "object",

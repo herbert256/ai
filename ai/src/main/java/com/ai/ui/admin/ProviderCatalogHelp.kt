@@ -150,7 +150,7 @@ internal val providerCatalogHelp: Map<String, HelpContent> = mapOf(
             HelpCard("Setup", "Create a key in the Vercel dashboard → AI Gateway → API keys (the 🛠️ admin icon opens it). Works with any OpenAI client by just changing the base URL; auth is `Authorization: Bearer`."),
             HelpCard("Endpoints", "Base `ai-gateway.vercel.sh/`, OpenAI-compatible: chat `v1/chat/completions`, model list `v1/models` (standard `{\"data\":[{\"id\":…}]}`)."),
             HelpCard("Models", "Default `arcee-ai/trinity-mini`. Ids are `creator/model` slash-prefixed; note Anthropic ids here use **dots** (`anthropic/claude-opus-4.8`, `anthropic/claude-sonnet-4.6`), unlike the dash form some other gateways use. `defaultModelSource=API` drives the live picker; `mergeHardcodedModels=true` keeps a small OpenAI/Claude/Gemini/DeepSeek fallback (incl. `openai/gpt-4.1-nano`)."),
-            HelpCard("Pitfalls", "Slash-prefixed id mandatory. No `openRouterName`/`litellmPrefix` — pricing falls through to the OpenRouter cross-provider catalog (the ids match) or DEFAULT. Refresh the list if a default id looks stale."),
+            HelpCard("Pitfalls", "Slash-prefixed id mandatory. `litellmPrefix=vercel_ai_gateway` prices models from LiteLLM's own Vercel rows; anything else falls through to the OpenRouter cross-provider catalog (the ids match) or DEFAULT. No `openRouterName`. Refresh the list if a default id looks stale."),
         )
     ),
     "provider_glama" to HelpContent(
@@ -220,7 +220,7 @@ internal val providerCatalogHelp: Map<String, HelpContent> = mapOf(
             HelpCard("Setup", "console.gmicloud.ai → create an Inference-Engine API key (the 🛠️ admin icon opens the console). The key is a JWT; send it as `Authorization: Bearer`. **Add credit** — an unfunded account lists models fine but generation returns HTTP 402 \"Insufficient balance\"."),
             HelpCard("Endpoints", "Base `api.gmi-serving.com/` (note: the *serving* host, not `gmicloud.ai`), chat `v1/chat/completions`, models `v1/models` (standard OpenAI object shape with `pricing`/`context_length`)."),
             HelpCard("Models", "Default `XiaomiMiMo/MiMo-V2.5-Pro` (Xiaomi's MiMo). Slash-prefixed HF-style ids; GLM ships as `-FP8` quantized (`zai-org/GLM-5.2-FP8`, no plain `GLM-5.2`). `defaultModelSource=API`; `mergeHardcodedModels=true` DeepSeek/GLM/Qwen/Kimi/GPT fallback (incl. `deepseek-ai/DeepSeek-V3.2`)."),
-            HelpCard("Pitfalls", "Generation needs a funded account (402 otherwise). No `litellmPrefix`/`openRouterName` — pricing falls through to the OpenRouter cross-provider catalog or DEFAULT. Id is `GMI-Cloud` (dash, not slash — a slash would break the Model Info route)."),
+            HelpCard("Pitfalls", "Generation needs a funded account (402 otherwise). `litellmPrefix=gmi` prices models from LiteLLM's own GMI rows; no `openRouterName` — anything else falls through to the OpenRouter cross-provider catalog or DEFAULT. Id is `GMI-Cloud` (dash, not slash — a slash would break the Model Info route)."),
         )
     ),
     "provider_siliconflow" to HelpContent(
@@ -239,7 +239,7 @@ internal val providerCatalogHelp: Map<String, HelpContent> = mapOf(
             HelpCard("Overview", "Zhipu AI (智谱清言) — Chinese AI company spun out of Tsinghua University, founded 2019. Authors of the GLM (General Language Model) family, including GLM-4, GLM-4.5, GLM-4.7, plus the CodeGeeX coding family and CharGLM persona models. The Z.AI API is the international rebrand of the BigModel platform."),
             HelpCard("Setup", "open.bigmodel.cn/usercenter/apikeys (the underlying console) → mint a key. Free credits on signup; phone / WeChat verification typical. The Z.AI rebrand provides a friendlier latency profile for non-CN users."),
             HelpCard("Models", "7 hardcoded fallback models: `glm-4.7-flash`, `glm-4.7`, `glm-4.5-flash`, `glm-4.5`, `glm-4-plus`, `glm-4-long`, `glm-4-flash`. Default in the app is `glm-4.5-air`. `modelFilter=glm|codegeex|charglm`. Live list at `models` (NOT `v1/models`); `defaultModelSource=API`."),
-            HelpCard("Pricing & quirks", "`chat` path is `chat/completions` (not `v1/chat/completions`); `modelsPath=models`. Base URL has the `api/paas/v4/` segment prefixing the standard OpenAI shape. `openRouterName=z-ai`. OpenAI-compatible at the wire level."),
+            HelpCard("Pricing & quirks", "`chat` path is `chat/completions` (not `v1/chat/completions`); `modelsPath=models`. Base URL has the `api/paas/v4/` segment prefixing the standard OpenAI shape. `openRouterName=z-ai`, `litellmPrefix=zai` (LiteLLM and models.dev both key Z.AI as `zai/…`). OpenAI-compatible at the wire level."),
             HelpCard("Pitfalls", "The flagship `glm-4.7` is gated to higher-tier accounts on first signup; smaller flash variants are unrestricted. CodeGeeX has its own API endpoint variant (`api/coding/paas/v4/`) configurable via Endpoints. CharGLM persona models accept a `system_role` extension some other providers don't."),
         )
     ),
@@ -269,7 +269,7 @@ internal val providerCatalogHelp: Map<String, HelpContent> = mapOf(
             HelpCard("Overview", "Fireworks AI — open-weight model serving founded by ex-Meta PyTorch engineers, 2022. Hosts Llama, Mixtral, DeepSeek, Qwen, plus their own fine-tunes. Strong performance + competitive pricing on open-weight chat models."),
             HelpCard("Setup", "app.fireworks.ai → API keys. Free credits on signup; pay-as-you-go after. Phone verification on new accounts."),
             HelpCard("Models", "Default model in the app is `accounts/fireworks/models/deepseek-v4-pro`. No hardcoded fallback list — model ids are prefixed `accounts/fireworks/models/<id>` — the full path is the model id sent in the request body. Live list at `/v1/models`."),
-            HelpCard("Pricing & quirks", "OpenAI-compatible chat at `inference/` base URL. The model-id naming convention (`accounts/<owner>/models/<id>`) lets users-with-an-account host their own fine-tunes alongside the official catalog. No special dispatch quirks beyond the long ids."),
+            HelpCard("Pricing & quirks", "OpenAI-compatible chat at `inference/` base URL. The model-id naming convention (`accounts/<owner>/models/<id>`) lets users-with-an-account host their own fine-tunes alongside the official catalog. No special dispatch quirks beyond the long ids. `litellmPrefix=fireworks_ai` (LiteLLM keys are `fireworks_ai/accounts/fireworks/models/<id>`)."),
             HelpCard("Pitfalls", "The `accounts/fireworks/models/` prefix surprises new users — copy the full id from the catalog. Catalog rotates quickly; expect ids to drift between Llama 3.1 → 3.2 → 3.3 → 4. Some hosted models are FP8 / FP4 quantized — pricing is per-token but quality may differ from the upstream."),
         )
     ),
@@ -309,7 +309,7 @@ internal val providerCatalogHelp: Map<String, HelpContent> = mapOf(
             HelpCard("Overview", "NVIDIA Inference Microservices (NIM) — NVIDIA's API platform for hosted open-weight models. Hosts NVIDIA's own Nemotron family plus a 3rd-party catalog (Llama, Mistral, DeepSeek, Qwen). Free tier of 1000 credits / month for personal projects."),
             HelpCard("Setup", "build.nvidia.com → sign in with NVIDIA Developer account → mint API key. The free tier for personal accounts gives a generous credit allowance; enterprise accounts get paid scaling."),
             HelpCard("Models", "Default: `nvidia/nemotron-3-super-120b-a12b`. Catalog is large — every NVIDIA-hosted model carries a slash-prefixed id (`nvidia/<model>`, `meta/<model>`, `mistralai/<model>`). `defaultModelSource=API` so picker reads the live list. NB: many listed NIM models 404 with \"not found for account\" until you enable them on build.nvidia.com — the live list isn't a guarantee a given id will run."),
-            HelpCard("Pricing & quirks", "OpenAI-compatible at the wire level. The `integrate.api.nvidia.com/` base URL routes to the NIM platform; the actual model serving runs on NVIDIA's GPU infrastructure. No `openRouterName` / `litellmPrefix` — pricing tiers fall through to OpenRouter cross-provider fallback."),
+            HelpCard("Pricing & quirks", "OpenAI-compatible at the wire level. The `integrate.api.nvidia.com/` base URL routes to the NIM platform; the actual model serving runs on NVIDIA's GPU infrastructure. `litellmPrefix=nvidia_nim` (LiteLLM only lists NIM's rerankers; models.dev's `nvidia/…` rows match the provider id). No `openRouterName` — anything else falls through to the OpenRouter cross-provider fallback."),
             HelpCard("Pitfalls", "The slash-prefixed id (`nvidia/<model>`) is mandatory. Some preview models in the catalog require an enterprise license. The free credit allowance resets monthly; heavy fan-out can deplete it."),
         )
     ),
@@ -349,7 +349,7 @@ internal val providerCatalogHelp: Map<String, HelpContent> = mapOf(
             HelpCard("Overview", "Novita.ai — open-weight serverless inference, founded 2023. Hosts Llama, Mistral, Qwen, DeepSeek and Z.AI's GLM (incl. self-hosted GLM-5.2 as `zai-org/glm-5.2`); competitive per-token pricing on common open-weight models. Headquartered in Singapore."),
             HelpCard("Setup", "novita.ai/settings/key-management → mint a key, then add credit (pay-as-you-go) — generation 403s with NOT_ENOUGH_BALANCE on an unfunded account even though the key lists models fine."),
             HelpCard("Models", "Default: `inclusionai/ling-2.6-flash` (InclusionAI's Ling model). `chat` path is `chat/completions`; `modelsPath=models`. `defaultModelSource=API` so picker auto-refreshes."),
-            HelpCard("Pricing & quirks", "Base URL is `api.novita.ai/v3/openai/` — the `/v3/openai/` segment is the OpenAI-compatible gateway. Slash-prefixed ids. No `litellmPrefix` / `openRouterName` — pricing falls through."),
+            HelpCard("Pricing & quirks", "Base URL is `api.novita.ai/v3/openai/` — the `/v3/openai/` segment is the OpenAI-compatible gateway. Slash-prefixed ids. `litellmPrefix=novita` prices models from LiteLLM's own Novita rows (models.dev's `novita-ai/…` rows match the provider id); no `openRouterName` — anything else falls through."),
             HelpCard("Pitfalls", "Path quirks similar to DeepInfra — `chat/completions` / `models` (no `v1/` prefix on those parts). The `/v3/openai/` segment is stable but worth noting if you hand-edit URLs."),
         )
     ),
@@ -359,7 +359,7 @@ internal val providerCatalogHelp: Map<String, HelpContent> = mapOf(
             HelpCard("Overview", "Nebius AI Studio — inference platform from Nebius (the AI-cloud arm of the former Yandex international assets). Headquartered in Amsterdam; runs a large GPU fleet across European data centers. Hosts Llama, DeepSeek, Qwen, Mistral, NousResearch, and Z.AI's open-weight GLM (incl. self-hosted GLM-5.2 / 5.1 as `zai-org/GLM-5.2`)."),
             HelpCard("Setup", "studio.nebius.com/settings/api-keys → mint a key. Free credits on signup; pay-as-you-go after. Strong European data residency story for users with that preference."),
             HelpCard("Models", "Default: `NousResearch/Hermes-4-70B`, run on Nebius's own GPUs. Slash-prefixed ids matching HF Hub paths. `defaultModelSource=API` so picker auto-refreshes."),
-            HelpCard("Pricing & quirks", "OpenAI-compatible. Base URL is `api.studio.nebius.com/`. Pricing competitive on the popular open-weight chat models. No `litellmPrefix` / `openRouterName` — pricing falls through."),
+            HelpCard("Pricing & quirks", "OpenAI-compatible. Base URL is `api.studio.nebius.com/`. Pricing competitive on the popular open-weight chat models. `litellmPrefix=nebius` (LiteLLM and models.dev both key Nebius as `nebius/…`); no `openRouterName` — anything else falls through."),
             HelpCard("Pitfalls", "Newer entrant — model catalog occasionally rotates as they add capacity for new ids. The Yandex history is irrelevant to data flow today (Nebius is a separate Netherlands-incorporated entity), but worth noting if procurement asks."),
         )
     ),

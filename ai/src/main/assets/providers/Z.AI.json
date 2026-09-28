@@ -28,6 +28,7 @@
     }
   ],
   "id": "Z.AI",
+  "litellmPrefix": "zai",
   "modelFilter": "glm|codegeex|charglm",
   "modelListFormat": "object",
   "modelsPath": "models",

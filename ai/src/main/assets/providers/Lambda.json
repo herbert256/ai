@@ -6,6 +6,7 @@
   "defaultModelSource": "API",
   "extractApiCost": false,
   "id": "Lambda",
+  "litellmPrefix": "lambda_ai",
   "modelListFormat": "object",
   "seedFieldName": "seed",
   "supportsCitations": false,

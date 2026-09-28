@@ -6,6 +6,7 @@
   "defaultModelSource": "API",
   "extractApiCost": false,
   "id": "Novita.ai",
+  "litellmPrefix": "novita",
   "modelListFormat": "object",
   "modelsPath": "models",
   "seedFieldName": "seed",

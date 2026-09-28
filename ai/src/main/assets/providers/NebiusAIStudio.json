@@ -6,6 +6,7 @@
   "defaultModelSource": "API",
   "extractApiCost": false,
   "id": "NebiusAIStudio",
+  "litellmPrefix": "nebius",
   "modelListFormat": "object",
   "seedFieldName": "seed",
   "supportsCitations": false,

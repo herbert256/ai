@@ -6,6 +6,7 @@
   "defaultModelSource": "API",
   "extractApiCost": false,
   "id": "NVIDIA",
+  "litellmPrefix": "nvidia_nim",
   "modelListFormat": "object",
   "seedFieldName": "seed",
   "supportsCitations": false,

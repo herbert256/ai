@@ -772,7 +772,7 @@ object PricingCache {
 
     /** Bucket-rank a [target]-matching scan over [map] and return the
      *  highest-priority value, where buckets are: (0) bare key, (1)
-     *  declared prefix, (2) provider.id.lowercase()/, (3) any other
+     *  declared prefix, (2) normalised provider id/, (3) any other
      *  prefix, (4) bare model name. (0–3) prevent picking
      *  azure/bedrock/vertex variants when the provider's own catalog row
      *  exists. (4) is the last resort: when the queried id carries an
@@ -790,11 +790,11 @@ object PricingCache {
         val target = normalizeModelId(model)
         val declaredPrefix = if (useLitellmPrefix) provider.litellmPrefix else provider.openRouterName
         val targetDeclared = declaredPrefix?.let { "${normalizeModelId(it)}/$target" }
-        val targetId = "${provider.id.lowercase()}/$target"
+        val targetId = "${normalizeModelId(provider.id)}/$target"
         // A provider stamping its own name as a dash-prefix (Parasail's
         // `parasail-…`) is stripped too — only the provider's OWN id, so it
         // can't over-strip an unrelated model name.
-        val selfPrefix = "${provider.id.lowercase()}-"
+        val selfPrefix = "${normalizeModelId(provider.id)}-"
         val bareTarget = bareModelKey(target, selfPrefix)
         // Bare matching is a deliberately loose fallback — only arm it when
         // the id actually had a prefix/suffix to strip and the remainder is
@@ -1129,7 +1129,7 @@ object PricingCache {
         meta[model]?.let { return it }
         val target = normalizeModelId(model)
         val declared = provider.litellmPrefix?.takeIf { it.isNotBlank() }?.let { "${normalizeModelId(it)}/$target" }
-        val byId = "${provider.id.lowercase()}/$target"
+        val byId = "${normalizeModelId(provider.id)}/$target"
         for ((k, v) in meta) {
             val nk = normalizeModelId(k)
             if (nk == target || (declared != null && nk == declared) || nk == byId) return v
@@ -1168,7 +1168,7 @@ object PricingCache {
         if (pricing.containsKey(model)) return model
         val target = normalizeModelId(model)
         val targetDeclared = provider.litellmPrefix?.let { "${normalizeModelId(it)}/$target" }
-        val targetId = "${provider.id.lowercase()}/$target"
+        val targetId = "${normalizeModelId(provider.id)}/$target"
         val buckets = arrayOfNulls<String>(4)
         for (key in pricing.keys) {
             val k = normalizeModelId(key)
@@ -1188,7 +1188,7 @@ object PricingCache {
         if (meta.containsKey(model)) return model
         val target = normalizeModelId(model)
         val targetDeclared = provider.litellmPrefix?.let { "${normalizeModelId(it)}/$target" }
-        val targetId = "${provider.id.lowercase()}/$target"
+        val targetId = "${normalizeModelId(provider.id)}/$target"
         val buckets = arrayOfNulls<String>(4)
         for (key in meta.keys) {
             val k = normalizeModelId(key)
