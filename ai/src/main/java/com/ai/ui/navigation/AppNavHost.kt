@@ -45,8 +45,10 @@ fun AppNavHost(
     modifier: Modifier = Modifier,
     navController: NavHostController = rememberNavController(),
     appViewModel: AppViewModel = viewModel(),
-    reportViewModel: ReportViewModel = remember { ReportViewModel(appViewModel) },
-    chatViewModel: ChatViewModel = remember { ChatViewModel(appViewModel) },
+    // Held by AppViewModel so an Activity recreation reuses the same
+    // instances (and their job maps / engines) — see AppViewModel.reportViewModel.
+    reportViewModel: ReportViewModel = appViewModel.reportViewModel,
+    chatViewModel: ChatViewModel = appViewModel.chatViewModel,
     externalTitle: String? = null,
     externalSystem: String? = null,
     externalPrompt: String? = null,

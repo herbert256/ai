@@ -32,8 +32,14 @@ config changes and screen navigation.
 ### Report generation runtime
 
 Owned by `ReportViewModel` (a plain wrapper over `AppViewModel`, not an
-androidx VM). Primary generation already has a formal shape — this is the
-"`COD-R03` is satisfied" state:
+androidx VM). The single instance is held by `AppViewModel.reportViewModel`
+(likewise `AppViewModel.chatViewModel`), never `remember`ed in a
+composable: an Activity recreation (rotation, dark-mode / locale change)
+must reuse the same job maps and engines, because the jobs themselves keep
+running on `AppViewModel.viewModelScope`. A fresh instance would lose Stop,
+make the broken-work scan flag the live rows interrupted and leave Delete
+unable to cancel them. Primary generation already has a formal shape —
+this is the "`COD-R03` is satisfied" state:
 
 | State | Field | Notes |
 |---|---|---|

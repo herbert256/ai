@@ -652,10 +652,9 @@ class SecondaryRunManager(
      *  retry), but nothing automatic dispatches or terminalizes any more.
      *
      *  Lifecycle: one loop at a time. The Job is stored on
-     *  [AppViewModel.backgroundResumeSweepJob] so a re-creation of
-     *  ReportViewModel (Activity config change tearing down the `remember{}`
-     *  ReportViewModel inside AppNavHost) cancels the prior loop before
-     *  starting the fresh one. */
+     *  [AppViewModel.backgroundResumeSweepJob] so an Activity recreation
+     *  (AppNavHost's LaunchedEffect firing again) cancels the prior loop —
+     *  which holds the old Activity context — before starting the fresh one. */
     fun startBackgroundBrokenScan(context: Context) {
         appViewModel.backgroundResumeSweepJob?.cancel()
         appViewModel.backgroundResumeSweepJob = appViewModel.viewModelScope.launch(
@@ -665,13 +664,12 @@ class SecondaryRunManager(
             // One-time pass first: a hard-killed batch leaves blank placeholder
             // cells whose run is no longer active. Mark them interrupted up front
             // so the very first scan flags them, instead of waiting out the
-            // stale-placeholder grace. ONLY on a genuine process cold start —
-            // on a mere Activity recreation (rotation) the batch coroutines
-            // survive on the app-scoped viewModelScope while the recreated
-            // ReportViewModel's engine registries are empty, so liveStateFor
-            // would see no in-flight work and this zero-grace pass would stamp
-            // a healthy live run's queued cells "Interrupted". The normal
-            // 60s-graced scan below still catches truly stuck rows.
+            // stale-placeholder grace. ONLY on a genuine cold start (a fresh
+            // AppViewModel): on a mere Activity recreation (rotation) the batch
+            // coroutines survive on the app-scoped viewModelScope and are
+            // tracked by the same AppViewModel-owned engines, so there is
+            // nothing abandoned to finalize. The normal 60s-graced scan below
+            // still catches truly stuck rows.
             if (!appViewModel.abandonedLeftoversFinalized) {
                 appViewModel.abandonedLeftoversFinalized = true
                 try {

@@ -5,7 +5,8 @@
 A single-Activity Android app written in Kotlin + Jetpack Compose, MVVM
 on top of `StateFlow`. There is one real Android `ViewModel`
 (`AppViewModel`); `ReportViewModel` and `ChatViewModel` are plain classes
-that wrap it. Networking goes through Retrofit + OkHttp with a stack of
+that wrap it, and `AppViewModel` holds their single instances
+(`reportViewModel` / `chatViewModel`) so they survive Activity recreation. Networking goes through Retrofit + OkHttp with a stack of
 custom interceptors (tracing, per-host throttle, 429 / 529 retry,
 per-call read timeout). Persistence is split between `SharedPreferences`
 (user-curated config, catalog timestamps, small maps) and JSON files
@@ -395,7 +396,9 @@ promote one onto the main list.
   `ChatScreens.kt`), not by this class.
 
 - **`ReportViewModel`** (`class ReportViewModel(private val
-  appViewModel: AppViewModel)`) — also a plain wrapper. Report
+  appViewModel: AppViewModel)`) — also a plain wrapper, whose one
+  instance lives on `AppViewModel.reportViewModel` (never a composable
+  `remember`, so rotation keeps its job maps and engines). Report
   generation, the secondary-result flows (the eight `SecondaryKind`s:
   RERANK / META / MODERATION / TRANSLATE / TOURNAMENT / JUDGES /
   COMPARE / TRANSRANK), the multi-language fan-out for chat-type META

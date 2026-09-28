@@ -85,15 +85,25 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
      *  re-fires the effect. */
     @Volatile var backgroundResumeSweepJob: Job? = null
 
-    /** True once the zero-grace startup finalize has run in THIS process.
-     *  AppViewModel survives Activity config changes (it's `viewModel()`-
+    /** The report / chat runtimes (job maps, batch engines, replay tracks).
+     *  Owned HERE rather than `remember`ed in AppNavHost: the manifest has
+     *  no configChanges, so a rotation / dark-mode / locale change rebuilt
+     *  them with empty job maps while the old jobs kept running on
+     *  [viewModelScope] — Stop vanished, the broken-work scan flagged the
+     *  live rows interrupted (and its Restart double-dispatched), and
+     *  Delete could no longer cancel them. Lazy so construction happens
+     *  after this class is fully initialised. */
+    val reportViewModel: ReportViewModel by lazy { ReportViewModel(this) }
+    val chatViewModel: ChatViewModel by lazy { ChatViewModel(this) }
+
+    /** True once the zero-grace startup finalize has run for this
+     *  AppViewModel. It survives Activity config changes (it's `viewModel()`-
      *  scoped) but not process death — so a false value means a genuine
      *  cold start (batch coroutines on viewModelScope are gone, blank
      *  placeholders are truly abandoned), while true means a mere Activity
-     *  recreation where a live batch's coroutines survive but the recreated
-     *  ReportViewModel's engine registries are empty. Skipping the
-     *  zero-grace pass on recreation stops it stamping a healthy live run's
-     *  queued cells "Interrupted". */
+     *  recreation where a live batch's coroutines — and the [reportViewModel]
+     *  engines tracking them — survive. The zero-grace pass only belongs to
+     *  the cold start. */
     @Volatile var abandonedLeftoversFinalized = false
 
     /** Reports with interrupted work the background scan has detected but
