@@ -29,10 +29,10 @@ class SettingsPreferencesUsageStatsTest {
         val file = File(tmp.root, "usage-stats.json")
 
         prefs.updateUsageStats(service, "model", inputTokens = 1, outputTokens = 2)
-        val firstWrite = file.readText()
         prefs.updateUsageStats(service, "model", inputTokens = 3, outputTokens = 4)
 
-        assertThat(file.readText()).isEqualTo(firstWrite)
+        // Debounced: updates stay in memory until the scheduled (or an explicit) flush.
+        assertThat(file.exists()).isFalse()
 
         prefs.flushUsageStats()
 

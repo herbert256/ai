@@ -14,7 +14,11 @@ import org.junit.Test
 
 class ReportViewModelHelpersTest {
     @Test
-    fun reportToModelsRestoresAgentRowsAndFallsBackForOrphans() {
+    fun reportToModelsKeepsEachRowsPersistedIdentity() {
+        // The report's saved rows are the source of truth (replay fidelity):
+        // an agent row keeps the model and name it ran with even when the
+        // agent was edited or deleted since; swarm rows become plain models;
+        // rows of an unknown provider are dropped.
         val settings = Settings(
             providers = mapOf(AppService.LOCAL to ProviderConfig(apiKey = "local-key")),
             agents = listOf(
@@ -40,14 +44,14 @@ class ReportViewModelHelpersTest {
         val models = reportToModels(report, settings)
 
         assertThat(models.map { it.model })
-            .containsExactly("configured-agent-model", "swarm-model", "orphan-model")
+            .containsExactly("persisted-agent-model", "swarm-model", "orphan-model")
             .inOrder()
         assertThat(models[0].sourceType).isEqualTo("agent")
-        assertThat(models[0].sourceName).isEqualTo("Local Agent")
+        assertThat(models[0].sourceName).isEqualTo("agent-1")
         assertThat(models[0].agentId).isEqualTo("agent-1")
-        assertThat(models[0].paramsIds).containsExactly("agent-params")
         assertThat(models[1].sourceType).isEqualTo("model")
-        assertThat(models[2].sourceType).isEqualTo("model")
+        assertThat(models[2].sourceType).isEqualTo("agent")
+        assertThat(models[2].agentId).isEqualTo("deleted-agent")
     }
 
     @Test

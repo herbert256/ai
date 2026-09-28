@@ -120,8 +120,11 @@ class ApiDispatchGoldenTest {
 
     // ---- harness (mirrors ApiMockWebServerTest) ----
 
+    // Declares a Responses pattern like the real OpenAI provider: Responses
+    // routing only applies to providers that expose that endpoint.
     private fun openAiService() = AppService(
         id = "MockOpenAIGolden", baseUrl = server.url("/").toString(), adminUrl = "", defaultModel = "mock-chat",
+        responsesApiPatterns = listOf(ModelPattern(prefix = "gpt-5")),
     )
 
     private fun anthropicService() = AppService(

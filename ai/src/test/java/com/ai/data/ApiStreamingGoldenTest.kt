@@ -42,6 +42,9 @@ class ApiStreamingGoldenTest {
 
         val reasoningOnly = OpenAiContentExtractor()
         reasoningOnly.extract(null, """{"choices":[{"delta":{"reasoning":"only thoughts"}}]}""")
+        // Only a stream that finished normally may fall back to its reasoning.
+        assertThat(reasoningOnly.reasoningFallback()).isNull()
+        reasoningOnly.extract(null, """{"choices":[{"delta":{},"finish_reason":"stop"}]}""")
         assertThat(reasoningOnly.reasoningFallback()).isEqualTo("only thoughts")
     }
 

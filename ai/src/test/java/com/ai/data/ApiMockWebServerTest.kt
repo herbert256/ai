@@ -293,11 +293,14 @@ class ApiMockWebServerTest {
         assertThat(generationConfig["presencePenalty"].asFloat).isEqualTo(0.4f)
     }
 
+    // Declares a Responses pattern like the real OpenAI provider: Responses
+    // routing only applies to providers that expose that endpoint.
     private fun openAiService(): AppService = AppService(
         id = "MockOpenAI",
         baseUrl = server.url("/").toString(),
         adminUrl = "",
-        defaultModel = "mock-chat"
+        defaultModel = "mock-chat",
+        responsesApiPatterns = listOf(ModelPattern(prefix = "gpt-5"))
     )
 
     private fun anthropicService(): AppService = AppService(
