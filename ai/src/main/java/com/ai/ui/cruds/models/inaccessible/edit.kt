@@ -44,6 +44,11 @@ internal fun InaccessibleModelForm(
     var reason by remember(resetTick) { mutableStateOf(initial?.reason ?: "Manually added") }
     var showPicker by remember { mutableStateOf(false) }
 
+    val hasModel = providerId.isNotBlank() && model.isNotBlank()
+    val current = if (hasModel) InaccessibleModel(providerId, model, reason.trim().ifBlank { "Manually added" }) else null
+    // Taken above the picker return — see rememberFormBaseline.
+    val baseline = com.ai.ui.shared.rememberFormBaseline(current)
+
     if (showPicker) {
         com.ai.ui.other.ReportSelectModelsScreen(
             aiSettings = aiSettings,
@@ -55,12 +60,12 @@ internal fun InaccessibleModelForm(
         return
     }
 
-    val hasModel = providerId.isNotBlank() && model.isNotBlank()
     CrudFormScaffold(
         title = if (isAdd) "Add inaccessible model" else "Edit inaccessible model",
         subject = "Mark one model as unreachable",
         isAdd = isAdd,
-        current = if (hasModel) InaccessibleModel(providerId, model, reason.trim().ifBlank { "Manually added" }) else null,
+        current = current,
+        baseline = baseline,
         onSave = { onSaved(InaccessibleModel(providerId, model, reason.trim().ifBlank { "Manually added" })) },
         onBack = onBack,
         helpTopic = "crud_inaccessible_models",

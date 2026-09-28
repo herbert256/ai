@@ -83,6 +83,13 @@ fun FlockEditScreen(
         filteredAgents.sortedWith(compareByDescending<Agent> { it.id in selectedKnownAgentIds }.thenBy { it.name.trim().lowercase(java.util.Locale.ROOT) })
     }
 
+    val flockId = remember { java.util.UUID.randomUUID().toString() }
+    val current = if (nameError == null && selectedKnownAgentIds.isNotEmpty())
+        Flock(if (isAddMode) flockId else flock!!.id, name.trim(), selectedKnownAgentIds.toList(), selectedParamsIds.distinct(), selectedSystemPromptId, selectedDefaultPromptId?.takeIf { aiSettings.getDefaultPromptById(it) != null }) else null
+    // Remembered ABOVE the picker returns below so closing a picker doesn't
+    // re-capture the edited form as the "unchanged" baseline.
+    val back = com.ai.ui.shared.rememberConfirmedBack(current, onBack)
+
     if (showParamsDialog) {
         ParametersSelectScreen(aiSettings = aiSettings, selectedIds = selectedParamsIds,
             onConfirm = { selectedParamsIds = it },
@@ -102,10 +109,6 @@ fun FlockEditScreen(
         return
     }
 
-    val flockId = remember { java.util.UUID.randomUUID().toString() }
-    val current = if (nameError == null && selectedKnownAgentIds.isNotEmpty())
-        Flock(if (isAddMode) flockId else flock!!.id, name.trim(), selectedKnownAgentIds.toList(), selectedParamsIds.distinct(), selectedSystemPromptId, selectedDefaultPromptId?.takeIf { aiSettings.getDefaultPromptById(it) != null }) else null
-    val back = com.ai.ui.shared.rememberConfirmedBack(current, onBack)
     BackHandler { back() }
 
     Column(

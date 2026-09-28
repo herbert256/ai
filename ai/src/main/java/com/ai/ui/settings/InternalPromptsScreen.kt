@@ -220,6 +220,26 @@ fun InternalPromptEditScreen(
         else -> null
     }
 
+    // Provider+Model mode wins when both are set; otherwise the prompt is bound
+    // to the agent (provider/model cleared) — mutually exclusive on disk.
+    val pmActive = useProviderModel && providerId.isNotBlank() && model.isNotBlank()
+    fun buildPrompt(id: String) = InternalPrompt(
+        id = id, name = name.trim(), reference = reference, category = category,
+        agent = if (isWorkers) AGENT_SELECT else if (pmActive) AGENT_SELECT else agent,
+        text = text, title = title.trim(),
+        provider = if (!isWorkers && pmActive) providerId else null,
+        model = if (!isWorkers && pmActive) model else null,
+        parameters = selectedParametersRef,
+        systemPrompt = selectedSystemPromptRef,
+        workers = if (isWorkers) workers else emptyList(),
+        modelSelection = if (showModelSelectionSwitch) selectedModelSelection else com.ai.model.MODEL_SELECTION_CONFIGURED
+    )
+    val promptId = remember { java.util.UUID.randomUUID().toString() }
+    val current = if (nameError == null) buildPrompt(if (isAddMode) promptId else internalPrompt!!.id) else null
+    // Remembered ABOVE the picker returns below so closing a picker doesn't
+    // re-capture the edited form as the "unchanged" baseline.
+    val back = com.ai.ui.shared.rememberConfirmedBack(current, onBack)
+
     if (showParamsDialog) {
         // The prompt stores a single preset ref; the multi-select
         // screen hands back ids — take the first and persist the id.
@@ -246,24 +266,6 @@ fun InternalPromptEditScreen(
     }
 
     var agentMenuOpen by remember { mutableStateOf(false) }
-
-    // Provider+Model mode wins when both are set; otherwise the prompt is bound
-    // to the agent (provider/model cleared) — mutually exclusive on disk.
-    val pmActive = useProviderModel && providerId.isNotBlank() && model.isNotBlank()
-    fun buildPrompt(id: String) = InternalPrompt(
-        id = id, name = name.trim(), reference = reference, category = category,
-        agent = if (isWorkers) AGENT_SELECT else if (pmActive) AGENT_SELECT else agent,
-        text = text, title = title.trim(),
-        provider = if (!isWorkers && pmActive) providerId else null,
-        model = if (!isWorkers && pmActive) model else null,
-        parameters = selectedParametersRef,
-        systemPrompt = selectedSystemPromptRef,
-        workers = if (isWorkers) workers else emptyList(),
-        modelSelection = if (showModelSelectionSwitch) selectedModelSelection else com.ai.model.MODEL_SELECTION_CONFIGURED
-    )
-    val promptId = remember { java.util.UUID.randomUUID().toString() }
-    val current = if (nameError == null) buildPrompt(if (isAddMode) promptId else internalPrompt!!.id) else null
-    val back = com.ai.ui.shared.rememberConfirmedBack(current, onBack)
     BackHandler { back() }
 
     Column(

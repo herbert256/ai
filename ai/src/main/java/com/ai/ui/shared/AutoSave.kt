@@ -23,10 +23,17 @@ import androidx.compose.runtime.setValue
  * [current] is the built entity, or `null` when the form is invalid — the same
  * value the Save button persists, so dirty-detection and validity share one
  * source of truth.
+ *
+ * Call it ABOVE any `if (showPicker) { Picker(...); return }` overlay: an
+ * overlay takes this call out of composition, and closing it would re-capture
+ * the already-edited form as the baseline (no confirm on Back). Where the call
+ * lives below such a return (inside [com.ai.ui.cruds.framework.CrudFormScaffold]),
+ * pass a [baseline] taken above the return via [rememberFormBaseline].
  */
 @Composable
-fun rememberConfirmedBack(current: Any?, onBack: () -> Unit): () -> Unit {
-    val baseline = remember { current }
+fun rememberConfirmedBack(current: Any?, onBack: () -> Unit, baseline: FormBaseline? = null): () -> Unit {
+    val ownBaseline = remember { current }
+    val base = if (baseline != null) baseline.value else ownBaseline
     var confirm by remember { mutableStateOf(false) }
     if (confirm) {
         AlertDialog(
@@ -45,5 +52,14 @@ fun rememberConfirmedBack(current: Any?, onBack: () -> Unit): () -> Unit {
             }
         )
     }
-    return { if (current != baseline) confirm = true else onBack() }
+    return { if (current != base) confirm = true else onBack() }
 }
+
+/** A form's first built value, held for [rememberConfirmedBack]. */
+class FormBaseline(val value: Any?)
+
+/** Remember [current] as the form's "unchanged" baseline. Call it above the
+ *  form's full-screen picker returns and hand the result to
+ *  [rememberConfirmedBack] (or `CrudFormScaffold(baseline = …)`). */
+@Composable
+fun rememberFormBaseline(current: Any?): FormBaseline = remember { FormBaseline(current) }

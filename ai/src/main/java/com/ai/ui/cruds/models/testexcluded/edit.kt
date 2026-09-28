@@ -38,6 +38,11 @@ internal fun TestExcludedModelForm(
     var model by remember(resetTick) { mutableStateOf(initial?.model ?: "") }
     var showPicker by remember { mutableStateOf(false) }
 
+    val hasModel = providerId.isNotBlank() && model.isNotBlank()
+    val current = if (hasModel) TestExcludedModel(providerId, model) else null
+    // Taken above the picker return — see rememberFormBaseline.
+    val baseline = com.ai.ui.shared.rememberFormBaseline(current)
+
     if (showPicker) {
         com.ai.ui.other.ReportSelectModelsScreen(
             aiSettings = aiSettings,
@@ -49,12 +54,12 @@ internal fun TestExcludedModelForm(
         return
     }
 
-    val hasModel = providerId.isNotBlank() && model.isNotBlank()
     CrudFormScaffold(
         title = if (isAdd) "Add test-excluded model" else "Edit test-excluded model",
         subject = "Exclude one model from Test all",
         isAdd = isAdd,
-        current = if (hasModel) TestExcludedModel(providerId, model) else null,
+        current = current,
+        baseline = baseline,
         onSave = { onSaved(TestExcludedModel(providerId, model)) },
         onBack = onBack,
         helpTopic = "crud_test_excluded",

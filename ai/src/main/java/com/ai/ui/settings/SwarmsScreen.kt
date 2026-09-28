@@ -68,6 +68,13 @@ fun SwarmEditScreen(
         else -> null
     }
 
+    val swarmId = remember { java.util.UUID.randomUUID().toString() }
+    val current = if (nameError == null && selectedMembers.isNotEmpty())
+        Swarm(if (isAddMode) swarmId else swarm!!.id, name.trim(), selectedMembers, selectedParamsIds.distinct(), selectedSystemPromptId, selectedDefaultPromptId?.takeIf { aiSettings.getDefaultPromptById(it) != null }) else null
+    // Remembered ABOVE the picker returns below so closing a picker doesn't
+    // re-capture the edited form as the "unchanged" baseline.
+    val back = com.ai.ui.shared.rememberConfirmedBack(current, onBack)
+
     if (showModelPicker) {
         // Same picker the New Report's "+Model" button uses — full-
         // screen, search + provider filter, with already-selected
@@ -123,10 +130,6 @@ fun SwarmEditScreen(
         return
     }
 
-    val swarmId = remember { java.util.UUID.randomUUID().toString() }
-    val current = if (nameError == null && selectedMembers.isNotEmpty())
-        Swarm(if (isAddMode) swarmId else swarm!!.id, name.trim(), selectedMembers, selectedParamsIds.distinct(), selectedSystemPromptId, selectedDefaultPromptId?.takeIf { aiSettings.getDefaultPromptById(it) != null }) else null
-    val back = com.ai.ui.shared.rememberConfirmedBack(current, onBack)
     BackHandler { back() }
 
     Column(

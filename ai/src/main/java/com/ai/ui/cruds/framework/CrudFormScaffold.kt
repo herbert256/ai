@@ -54,11 +54,16 @@ fun CrudFormScaffold(
      *  confirmation dialog runs first; [deleteName] names the entity. */
     onDelete: (() -> Unit)? = null,
     deleteName: String? = null,
+    /** "Unchanged" baseline for the Discard-changes check, remembered by a
+     *  form that early-returns into a full-screen picker before this
+     *  scaffold (see [com.ai.ui.shared.rememberFormBaseline]). Null → the
+     *  first [current] seen here. */
+    baseline: com.ai.ui.shared.FormBaseline? = null,
     content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit
 ) {
     var confirmDelete by remember { mutableStateOf(false) }
     // Back confirms "Discard changes?" when the form was edited; Save bypasses it.
-    val back = com.ai.ui.shared.rememberConfirmedBack(current, onBack)
+    val back = com.ai.ui.shared.rememberConfirmedBack(current, onBack, baseline)
     BackHandler { back() }
     Column(
         modifier = Modifier

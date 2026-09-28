@@ -123,6 +123,12 @@ private fun DefaultMetaItemForm(
     var agentMenuOpen by remember { mutableStateOf(false) }
     var showPicker by remember { mutableStateOf(false) }
 
+    val hasModel = providerName.isNotBlank() && modelName.isNotBlank()
+    val saveEnabled = metaName.isNotBlank() && (agentName.isNotBlank() || hasModel)
+    val current = if (saveEnabled) DefaultMetaItem(id = initial?.id ?: "", metaName = metaName.trim(), agentName = agentName.trim(), providerName = providerName.trim(), modelName = modelName.trim(), active = active) else null
+    // Taken above the picker return — see rememberFormBaseline.
+    val baseline = com.ai.ui.shared.rememberFormBaseline(current)
+
     if (showPicker) {
         com.ai.ui.other.ReportSelectModelsScreen(
             aiSettings = aiSettings,
@@ -134,14 +140,12 @@ private fun DefaultMetaItemForm(
         return
     }
 
-    val hasModel = providerName.isNotBlank() && modelName.isNotBlank()
-    val saveEnabled = metaName.isNotBlank() && (agentName.isNotBlank() || hasModel)
-
     CrudFormScaffold(
         title = if (isAdd) "Add default meta item" else "Edit default meta item",
         subject = "Auto-run a meta prompt on report completion",
         isAdd = isAdd,
-        current = if (saveEnabled) DefaultMetaItem(id = initial?.id ?: "", metaName = metaName.trim(), agentName = agentName.trim(), providerName = providerName.trim(), modelName = modelName.trim(), active = active) else null,
+        current = current,
+        baseline = baseline,
         onSave = {
             onSaved(
                 DefaultMetaItem(

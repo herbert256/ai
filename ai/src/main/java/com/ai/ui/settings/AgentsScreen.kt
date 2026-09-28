@@ -110,6 +110,16 @@ fun AgentEditScreen(
         else -> null
     }
 
+    val agentId = remember { java.util.UUID.randomUUID().toString() }
+    val current = if (nameError == null)
+        Agent(if (isAddMode) agentId else agent!!.id, name.trim(), selectedProvider, model, "", selectedEndpointId, selectedParamsIds, selectedSystemPromptId, selectedDefaultPromptId?.takeIf { aiSettings.getDefaultPromptById(it) != null })
+    else null
+    // Back confirms "Discard changes?" when edited; the Save button bypasses it.
+    // Remembered ABOVE the full-screen picker returns below: a picker takes
+    // this call out of composition, and coming back would re-capture the
+    // baseline as the already-edited form, silently skipping the confirm.
+    val back = com.ai.ui.shared.rememberConfirmedBack(current, onBack)
+
     if (showParamsDialog) {
         // Dedupe in case the picker handed back the same id twice — a
         // duplicate-id list silently double-applies the same preset.
@@ -153,12 +163,6 @@ fun AgentEditScreen(
         pendingEndpoints.firstOrNull { it.second.id == selectedEndpointId }
             ?.let { (provider, ep) -> onAddEndpoint(provider, ep) }
     }
-    val agentId = remember { java.util.UUID.randomUUID().toString() }
-    val current = if (nameError == null)
-        Agent(if (isAddMode) agentId else agent!!.id, name.trim(), selectedProvider, model, "", selectedEndpointId, selectedParamsIds, selectedSystemPromptId, selectedDefaultPromptId?.takeIf { aiSettings.getDefaultPromptById(it) != null })
-    else null
-    // Back confirms "Discard changes?" when edited; the Save button bypasses it.
-    val back = com.ai.ui.shared.rememberConfirmedBack(current, onBack)
     BackHandler { back() }
 
     Column(

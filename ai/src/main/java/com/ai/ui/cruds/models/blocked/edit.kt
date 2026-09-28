@@ -47,6 +47,11 @@ internal fun BlockedModelForm(
     var reason by remember(resetTick) { mutableStateOf(initial?.reason ?: "") }
     var showPicker by remember { mutableStateOf(false) }
 
+    val hasModel = providerId.isNotBlank() && model.isNotBlank()
+    val current = if (hasModel) BlockedModel(providerId, model, reason.trim()) else null
+    // Taken above the picker return — see rememberFormBaseline.
+    val baseline = com.ai.ui.shared.rememberFormBaseline(current)
+
     if (showPicker) {
         com.ai.ui.other.ReportSelectModelsScreen(
             aiSettings = aiSettings,
@@ -58,12 +63,12 @@ internal fun BlockedModelForm(
         return
     }
 
-    val hasModel = providerId.isNotBlank() && model.isNotBlank()
     CrudFormScaffold(
         title = if (isAdd) "Add blocked model" else "Edit blocked model",
         subject = "Block one model from being called",
         isAdd = isAdd,
-        current = if (hasModel) BlockedModel(providerId, model, reason.trim()) else null,
+        current = current,
+        baseline = baseline,
         onSave = { onSaved(BlockedModel(providerId, model, reason.trim())) },
         onBack = onBack,
         helpTopic = "crud_blocked_models",
