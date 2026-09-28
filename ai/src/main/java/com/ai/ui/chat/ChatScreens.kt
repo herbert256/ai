@@ -656,11 +656,13 @@ fun ChatSessionScreen(
         val sentReasoning = reasoningEffort
         val sentKbIds = attachedKnowledgeBaseIds
         // A user turn that failed before any answer stays visible (marked
-        // with its interruption) but is not re-sent: with no reply after it,
-        // the next request would carry two user messages back to back, which
-        // strict-alternation providers (Perplexity, deepseek-reasoner)
-        // reject with a 400 on every later turn.
-        val sentMessages = messages.filterNot { it.role == "user" && it.interruption != null }
+        // with its interruption) but is not re-sent on its own: with no reply
+        // after it, the next request would carry two user messages back to
+        // back, which strict-alternation providers (Perplexity,
+        // deepseek-reasoner) reject with a 400 on every later turn. It is
+        // folded into the next user turn instead, so "try again" still
+        // carries the question / image.
+        val sentMessages = mergeFailedUserTurns(messages)
         turnJob = scope.launch {
             isStreaming = true; streamingContentState.value = ""
             val sb = StringBuilder()

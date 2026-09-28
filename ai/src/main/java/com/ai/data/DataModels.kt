@@ -60,6 +60,39 @@ data class ChatMessage(
     val interruption: String? = null
 )
 
+/** Outgoing-context form of a chat: a user turn that failed before any
+ *  answer (kept on screen with its [ChatMessage.interruption]) is folded
+ *  into the NEXT user turn — its text prepended, its image kept when that
+ *  turn has none — instead of being re-sent on its own (two user messages
+ *  back to back, which strict-alternation providers reject with a 400) or
+ *  dropped (a "try again" then reached the model without the question). */
+fun mergeFailedUserTurns(messages: List<ChatMessage>): List<ChatMessage> {
+    val out = ArrayList<ChatMessage>(messages.size)
+    var pending: ChatMessage? = null
+    fun fold(into: ChatMessage, failed: ChatMessage) = into.copy(
+        content = listOf(failed.content, into.content).filter { it.isNotBlank() }.joinToString("\n\n"),
+        imageBase64 = into.imageBase64 ?: failed.imageBase64,
+        imageMime = if (into.imageBase64 != null) into.imageMime else failed.imageMime
+    )
+    for (m in messages) {
+        if (m.role == "user" && m.interruption != null) {
+            pending = pending?.let { fold(m, it) } ?: m
+            continue
+        }
+        val p = pending
+        pending = null
+        when {
+            p == null -> out += m
+            m.role == "user" -> out += fold(m, p)
+            // Defensive: something other than a user turn follows — send the
+            // failed turn as an ordinary one before it.
+            else -> { out += p.copy(interruption = null); out += m }
+        }
+    }
+    pending?.let { out += it.copy(interruption = null) }
+    return out
+}
+
 /**
  * Parameters for a chat session. [webSearchTool] is the new explicit
  * tool-use toggle: when true the dispatch layer injects the per-format
