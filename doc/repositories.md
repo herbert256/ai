@@ -303,7 +303,10 @@ step-8 fallback. Together this is what makes OpenRouter's catalog
   onboarding** — until that's completed at llm-stats.com/developer the
   endpoint returns `403 stats_api_access_denied` and the tier loads
   nothing.
-- **Paginated:** walk `next_cursor` (the fetcher loops, ≤20 pages).
+- **Paginated:** walk `next_cursor` (the fetcher loops, ≤20 pages of
+  200). A page that fails mid-walk, or a catalog past the cap, fails the
+  refresh and keeps the previous cache — a partial catalog is never
+  saved (same rule as CloudPrice).
 - **Provides:**
   - `providers[]` — each upstream provider's `input_price_per_m` /
     `output_price_per_m` ($/M). Collapsed to **one** representative

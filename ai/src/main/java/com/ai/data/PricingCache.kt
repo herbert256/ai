@@ -61,6 +61,9 @@ object PricingCache {
     private const val KEY_LLMSTATS_PRICING = "llmstats_pricing"
     private const val KEY_LLMSTATS_META = "llmstats_meta"
     private const val KEY_LLMSTATS_TIMESTAMP = "llmstats_timestamp"
+    /** Page cap for the llm-stats walk (200 models per page). Hitting it
+     *  fails the refresh instead of silently saving a truncated catalog. */
+    private const val LLM_STATS_MAX_PAGES = 20
     // genai-prices — Pydantic's curated catalog (raw.githubusercontent.com/
     // pydantic/genai-prices/main/prices/data_slim.json). $/M pricing +
     // context window. Keyless. Composite key <provider>/<modelId>.
@@ -1524,10 +1527,12 @@ object PricingCache {
 
     /** Pull the llm-stats catalog and replace the LLMSTATS tier. The
      *  endpoint is paginated (`next_cursor`), so this walks every page
-     *  (capped at 20) accumulating priced + meta entries. Returns the
-     *  number of priced entries, or null on auth / network / parse
-     *  failure (a blank key or the 403 `stats_api_access_denied` that
-     *  precedes Stats-API onboarding both yield null). */
+     *  (capped at [LLM_STATS_MAX_PAGES]) accumulating priced + meta entries.
+     *  Returns the number of priced entries, or null on auth / network /
+     *  parse failure (a blank key or the 403 `stats_api_access_denied` that
+     *  precedes Stats-API onboarding both yield null). A page that fails
+     *  mid-walk, or a catalog beyond the page cap, fails the whole refresh
+     *  and keeps the previous cache. */
     suspend fun fetchLlmStatsOnline(context: Context, apiKey: String): Int? = withTraceCategory("pricing/llm-stats") {
       withContext(kotlinx.coroutines.Dispatchers.IO) {
         if (apiKey.isBlank()) {
@@ -1545,12 +1550,20 @@ object PricingCache {
                     cursor?.let { append("&cursor="); append(java.net.URLEncoder.encode(it, "UTF-8")) }
                 }
                 val json = ApiFactory.fetchUrlAsString(url, headers = mapOf("Authorization" to "Bearer $apiKey"))
-                if (json.isNullOrBlank()) break
+                // A missing page must fail the whole refresh (like CloudPrice):
+                // saving + timestamping the pages before it would silently
+                // drop the rest of the catalog until the next refresh.
+                check(!json.isNullOrBlank()) {
+                    "llm-stats download incomplete at page ${pages + 1}; previous cache retained"
+                }
                 val (p, m, next) = parseLlmStatsJson(json)
                 pricing.putAll(p); meta.putAll(m)
                 cursor = next?.takeIf { it.isNotBlank() }
                 pages++
-            } while (cursor != null && pages < 20)
+                if (cursor != null) check(pages < LLM_STATS_MAX_PAGES) {
+                    "llm-stats download exceeds $LLM_STATS_MAX_PAGES pages; previous cache retained"
+                }
+            } while (cursor != null)
             AppLog.i("PricingCache", "llm-stats parse: ${pricing.size} priced, ${meta.size} meta entries ($pages pages)")
             if (pricing.isEmpty() && meta.isEmpty()) return@withContext null
             synchronized(lock) {
@@ -1562,6 +1575,8 @@ object PricingCache {
                 getPrefs(context).edit { putLong(KEY_LLMSTATS_TIMESTAMP, llmStatsTimestamp) }
             }
             pricing.size
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
         } catch (e: Exception) {
             AppLog.e("PricingCache", "llm-stats refresh failed: ${e.message}", e)
             null
