@@ -192,9 +192,16 @@ internal fun AppService.knownEndpointPaths(): List<String> = listOfNotNull(
     pathFor(ModelType.EMBEDDING)
 )
 
-/** Agent endpoints may be a base URL or a complete native API URL. */
+/** Agent endpoints may be a base URL or a complete native API URL. A native
+ *  provider without its own chat path gets its format's canonical one — the
+ *  global Model Types default is an OpenAI-style path. */
 internal fun nativeChatUrl(service: AppService, baseUrl: String, model: String, streaming: Boolean = false): String {
-    val path = service.chatPath.replace("{model}", model)
+    val chatPath = service.typePaths[ModelType.CHAT] ?: when (service.apiFormat) {
+        ApiFormat.ANTHROPIC -> "v1/messages"
+        ApiFormat.GOOGLE -> "v1beta/models/{model}:generateContent"
+        else -> service.chatPath
+    }
+    val path = chatPath.replace("{model}", model)
     val streamPath = path.replace(":generateContent", ":streamGenerateContent")
     val target = if (streaming) streamPath else path
     return buildChatUrl(baseUrl.replace("{model}", model), target,

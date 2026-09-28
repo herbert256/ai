@@ -226,9 +226,11 @@ Responses-API specifics (`OpenAiResponsesRequest`, `ApiModels.kt`):
 Claude's `/v1/messages` API has its own request/response shape.
 
 - **Auth**: `x-api-key: <key>` + `anthropic-version: 2023-06-01`.
-- **Path**: `v1/messages`. The dispatch layer rebuilds the URL from the
-  bare host + the canonical path so an already-encoded base can't
-  produce a doubled `/v1/messages/v1/messages`.
+- **Path**: `v1/messages`. Report (streaming and not), chat and the
+  audit line all resolve the agent's endpoint through `nativeChatUrl`:
+  a bare base URL gets the path appended, a full endpoint URL is used as
+  is (no doubled `/v1/messages/v1/messages`), so a custom host or proxy
+  endpoint applies to reports as well as chat.
 - **`max_tokens` is required.** The `ClaudeRequest.max_tokens` field is
   nullable (`Int? = null`); the required value is supplied at dispatch
   by `defaultMaxTokens` (per-family `maxTokensDefaults`, default 4096).
@@ -296,9 +298,11 @@ Gemini's `:generateContent` path-style API.
   token, not a header). The `GeminiApi` Retrofit interface passes it as
   `@Query("key")` on every call.
 - **Path**: `v1beta/models/{model}:generateContent` — the model id is
-  in the path, not the body, and is URL-encoded by the dispatcher. For
-  streaming the path becomes `:streamGenerateContent` (with
-  `@Query("alt") = "sse"`).
+  in the path, not the body. For streaming the path becomes
+  `:streamGenerateContent` (with `@Query("alt") = "sse"`). Like
+  Anthropic, every report and chat call builds the URL from the agent's
+  endpoint with `nativeChatUrl` (which also fills a `{model}` template),
+  so custom endpoints are honoured.
 - **`role` mapping**: Gemini uses `user` / `model`, not `user` /
   `assistant`. Translated by the dispatch layer.
 - **System prompt**: separate `systemInstruction` field rather than a

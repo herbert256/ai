@@ -149,9 +149,9 @@ internal suspend fun AnalysisRepository.streamResponsesApiReport(
 
 internal suspend fun AnalysisRepository.streamAnthropicReport(
     service: AppService, apiKey: String, prompt: String, model: String,
-    params: AgentParameters?, imageBase64: String?, imageMime: String?, onDelta: (String) -> Unit
+    params: AgentParameters?, baseUrl: String, imageBase64: String?, imageMime: String?, onDelta: (String) -> Unit
 ): AnalysisResponse {
-    val api = ApiFactory.createClaudeApi(service.baseUrl)
+    val api = ApiFactory.createClaudeApi(baseUrl)
     val userMessage = ChatMessage("user", prompt, imageBase64 = imageBase64, imageMime = imageMime).toClaudeMessage()
     val bundle = claudeReasoningBundle(service, model, params?.reasoningEffort, params?.maxTokens)
     val request = ClaudeRequest(
@@ -167,7 +167,7 @@ internal suspend fun AnalysisRepository.streamAnthropicReport(
         thinking = bundle.thinking,
         output_config = bundle.outputConfig
     ).withoutRejectedSampling(service)
-    val response = api.createMessageStream(apiKey, request = request)
+    val response = api.chatStreamAt(nativeChatUrl(service, baseUrl, model, streaming = true), apiKey, request)
     var finishReason: String? = null
     val result = collectStreamResponse(
         service,
@@ -185,7 +185,7 @@ internal suspend fun AnalysisRepository.streamAnthropicReport(
 
 internal suspend fun AnalysisRepository.streamGeminiReport(
     service: AppService, apiKey: String, prompt: String, model: String,
-    params: AgentParameters?, imageBase64: String?, imageMime: String?, onDelta: (String) -> Unit
+    params: AgentParameters?, baseUrl: String, imageBase64: String?, imageMime: String?, onDelta: (String) -> Unit
 ): AnalysisResponse {
     val genConfig = params?.let {
         GeminiGenerationConfig(it.temperature, it.topP, it.topK, it.maxTokens,
@@ -204,8 +204,8 @@ internal suspend fun AnalysisRepository.streamGeminiReport(
         systemInstruction = systemInstruction,
         tools = if (params?.webSearchTool == true) geminiWebSearchTool() else null
     )
-    val api = ApiFactory.createGeminiApi(service.baseUrl)
-    val response = api.streamGenerateContent(model, apiKey, request = request)
+    val api = ApiFactory.createGeminiApi(baseUrl)
+    val response = api.chatStreamAt(nativeChatUrl(service, baseUrl, model, streaming = true), apiKey, request)
     var finishReason: String? = null
     val result = collectStreamResponse(
         service,

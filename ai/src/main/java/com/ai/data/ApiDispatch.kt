@@ -160,8 +160,8 @@ suspend fun AnalysisRepository.analyze(
         withHostGate(baseUrl) {
             withApiCallTimeout {
                 when (service.apiFormat) {
-                    ApiFormat.ANTHROPIC -> analyzeAnthropic(service, apiKey, prompt, model, params, imageBase64, imageMime)
-                    ApiFormat.GOOGLE -> analyzeGemini(service, apiKey, prompt, model, params, imageBase64, imageMime)
+                    ApiFormat.ANTHROPIC -> analyzeAnthropic(service, apiKey, prompt, model, params, baseUrl, imageBase64, imageMime)
+                    ApiFormat.GOOGLE -> analyzeGemini(service, apiKey, prompt, model, params, baseUrl, imageBase64, imageMime)
                     ApiFormat.REPLICATE -> analyzeReplicate(service, apiKey, prompt, model, params, imageBase64, imageMime)
                     ApiFormat.OPENAI_COMPATIBLE -> analyzeOpenAi(service, apiKey, prompt, model, params, baseUrl, imageBase64, imageMime)
                 }
@@ -506,9 +506,11 @@ private suspend fun AnalysisRepository.analyzeResponsesApi(
 
 private suspend fun AnalysisRepository.analyzeAnthropic(
     service: AppService, apiKey: String, prompt: String, model: String, params: AgentParameters?,
-    imageBase64: String? = null, imageMime: String? = null
+    baseUrl: String, imageBase64: String? = null, imageMime: String? = null
 ): AnalysisResponse {
-    val api = ApiFactory.createClaudeApi(service.baseUrl)
+    // The agent's endpoint (custom host / proxy) — same URL rule chat uses,
+    // and the host the throttle gate already acquired for.
+    val api = ApiFactory.createClaudeApi(baseUrl)
     val userMessage = ChatMessage("user", prompt, imageBase64 = imageBase64, imageMime = imageMime).toClaudeMessage()
     val bundle = claudeReasoningBundle(service, model, params?.reasoningEffort, params?.maxTokens)
     val request = ClaudeRequest(
@@ -525,7 +527,7 @@ private suspend fun AnalysisRepository.analyzeAnthropic(
         thinking = bundle.thinking,
         output_config = bundle.outputConfig
     ).withoutRejectedSampling(service)
-    val response = api.createMessage(apiKey, request = request)
+    val response = api.chatAt(nativeChatUrl(service, baseUrl, model), apiKey, request)
     val headers = formatHeaders(response.headers())
     val statusCode = response.code()
     return if (response.isSuccessful) {
@@ -562,7 +564,7 @@ private suspend fun AnalysisRepository.analyzeAnthropic(
 
 private suspend fun AnalysisRepository.analyzeGemini(
     service: AppService, apiKey: String, prompt: String, model: String, params: AgentParameters?,
-    imageBase64: String? = null, imageMime: String? = null
+    baseUrl: String, imageBase64: String? = null, imageMime: String? = null
 ): AnalysisResponse {
     val genConfig = params?.let {
         GeminiGenerationConfig(it.temperature, it.topP, it.topK, it.maxTokens,
@@ -581,8 +583,8 @@ private suspend fun AnalysisRepository.analyzeGemini(
         systemInstruction = systemInstruction,
         tools = if (params?.webSearchTool == true) geminiWebSearchTool() else null
     )
-    val api = ApiFactory.createGeminiApi(service.baseUrl)
-    val response = api.generateContent(model, apiKey, request)
+    val api = ApiFactory.createGeminiApi(baseUrl)
+    val response = api.chatAt(nativeChatUrl(service, baseUrl, model), apiKey, request)
     val headers = formatHeaders(response.headers())
     val statusCode = response.code()
     return if (response.isSuccessful) {
@@ -702,25 +704,13 @@ internal fun AnalysisRepository.dispatchUrl(service: AppService, model: String, 
         ApiFormat.OPENAI_COMPATIBLE ->
             if (usesResponsesApi(service, model)) responsesUrlFor(service, baseUrl)
             else buildChatUrl(baseUrl, service.chatPath, service.knownEndpointPaths())
-        // Anthropic / Google baseUrls already encode the endpoint path (and
-        // Google's carries a `{model}` template), so rebuild from the bare
-        // host + the canonical path to avoid a doubled `/v1/messages/v1/messages`.
-        ApiFormat.ANTHROPIC -> hostBaseOf(baseUrl) + "/v1/messages"
-        ApiFormat.GOOGLE -> hostBaseOf(baseUrl) + "/v1beta/models/$model:generateContent"
+        // Same URL the native dispatchers call: nativeChatUrl accepts a bare
+        // host or a full endpoint (Google's may carry a `{model}` template)
+        // without doubling `/v1/messages/v1/messages`.
+        ApiFormat.ANTHROPIC, ApiFormat.GOOGLE -> nativeChatUrl(service, baseUrl, model)
         ApiFormat.REPLICATE -> baseUrl.trimEnd('/') + "/models/$model/predictions"
     }
 } catch (_: Exception) { baseUrl }
-
-/** `scheme://host` of [url], dropping any path/query. String-based (not
- *  [java.net.URI]) because Google's baseUrl carries an illegal `{model}`
- *  template that would make URI parsing throw — and then the caller would
- *  re-append the path onto the full template, doubling it. */
-private fun hostBaseOf(url: String): String {
-    val schemeEnd = url.indexOf("://")
-    if (schemeEnd < 0) return url.substringBefore("/").substringBefore("?")
-    val firstSlash = url.indexOf('/', schemeEnd + 3)
-    return if (firstSlash < 0) url else url.substring(0, firstSlash)
-}
 
 /** Central audit hook wrapping a single report-generating dispatch.
  *  Emits the per-call **technical line** (URL, tokens, cost / error)
@@ -1013,8 +1003,8 @@ internal suspend fun AnalysisRepository.analyzeAgentStreaming(
         // streaming path (sendChatStream) relies on.
         withHostGate(baseUrl) {
             when (service.apiFormat) {
-                ApiFormat.ANTHROPIC -> streamAnthropicReport(service, apiKey, prompt, model, params, imageBase64, imageMime, onDelta)
-                ApiFormat.GOOGLE -> streamGeminiReport(service, apiKey, prompt, model, params, imageBase64, imageMime, onDelta)
+                ApiFormat.ANTHROPIC -> streamAnthropicReport(service, apiKey, prompt, model, params, baseUrl, imageBase64, imageMime, onDelta)
+                ApiFormat.GOOGLE -> streamGeminiReport(service, apiKey, prompt, model, params, baseUrl, imageBase64, imageMime, onDelta)
                 ApiFormat.REPLICATE -> streamReplicateReport(service, apiKey, prompt, model, params, imageBase64, imageMime, onDelta)
                 ApiFormat.OPENAI_COMPATIBLE -> streamOpenAiReport(service, apiKey, prompt, model, params, baseUrl, imageBase64, imageMime, onDelta)
             }
