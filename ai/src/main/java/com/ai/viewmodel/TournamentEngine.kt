@@ -426,13 +426,21 @@ class TournamentEngine internal constructor(
         // never take the app down — this runs from the background resume
         // sweep at startup as well as user actions. Swallow + log; a failed
         // recompute just leaves the previous aggregate in place.
+        var method = run.selectedMethod
         try {
-            val matrix = computeWinMatrix(run.matches.values.toList()) { idByAgent[it] }
-            val ranks = rankFor(run.selectedMethod, matrix)
             val row = SecondaryResultStorage.get(context, reportId, aggId) ?: return
+            // The ranking method the user last picked lives on the stored
+            // aggregate: the View tab / podium switch it by rewriting that row
+            // (applyTournamentMethod) without touching this run's in-memory
+            // selectedMethod, so recomputing with the in-memory copy reverted
+            // their pick at run end / after a restart. Fall back to the run's
+            // method only before the first recompute wrote a matrix.
+            method = decodeTournamentMatrix(row.tournamentMatrix)?.second ?: run.selectedMethod
+            val matrix = computeWinMatrix(run.matches.values.toList()) { idByAgent[it] }
+            val ranks = rankFor(method, matrix)
             SecondaryResultStorage.save(context, row.copy(
                 content = ranks.toRerankJson(),
-                tournamentMatrix = matrix.encode(run.selectedMethod),
+                tournamentMatrix = matrix.encode(method),
                 durationMs = row.durationMs ?: 0,
                 // Keep the snapshot in lockstep with idByAgent's numbering —
                 // participants in report-agent order — so Top-ranked scopes
@@ -444,7 +452,7 @@ class TournamentEngine internal constructor(
                     .map { it.agentId }
             ))
         } catch (e: Exception) {
-            AppLog.w("Tournament", "recompute aggregate failed report=$reportId method=${run.selectedMethod}: ${e.javaClass.simpleName}: ${e.message}")
+            AppLog.w("Tournament", "recompute aggregate failed report=$reportId method=$method: ${e.javaClass.simpleName}: ${e.message}")
         }
     }
 
