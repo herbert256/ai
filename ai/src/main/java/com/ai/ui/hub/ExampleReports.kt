@@ -19,6 +19,7 @@ import com.ai.data.ReportStorage
 import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.TitleBar
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -55,21 +56,35 @@ internal fun rememberExampleOpener(
     // right away as a spinning-hourglass row in the Reports hub's "Latest AI
     // Reports" card (driven by ReportImportProgress) rather than a blocking
     // dialog — the import id is minted up front so it doubles as the new
-    // report id. When [overwrite] is set, every existing report with that
-    // title is deleted first.
+    // report id. When [overwrite] is set, earlier imports of this example
+    // are deleted — only AFTER the new import landed, and only reports with
+    // the example's exact title AND prompt: deleting every same-titled
+    // report first also destroyed the user's own reports, and a failed
+    // import left nothing behind.
     fun importExampleAndOpen(entry: com.ai.data.ExampleEntry, view: Boolean, overwrite: Boolean) {
         scope.launch {
             val importId = java.util.UUID.randomUUID().toString()
             com.ai.data.ReportImportProgress.start(importId, entry.title)
-            val rid = withContext(Dispatchers.IO) {
-                try {
-                    if (overwrite) {
-                        ReportStorage.getAllReports(context)
-                            .filter { it.title == entry.title }
-                            .forEach { ReportStorage.deleteReport(context, it.id) }
-                    }
-                    com.ai.data.importExampleReport(context, entry.zipFile, importId).newReportId
-                } finally { com.ai.data.ReportImportProgress.finish(importId) }
+            val rid = try {
+                withContext(Dispatchers.IO) {
+                    try {
+                        val newId = com.ai.data.importExampleReport(context, entry.zipFile, importId).newReportId
+                        if (overwrite) {
+                            ReportStorage.getReport(context, newId)?.let { imported ->
+                                ReportStorage.getAllReports(context)
+                                    .filter { it.id != newId && it.title == imported.title && it.prompt == imported.prompt }
+                                    .forEach { ReportStorage.deleteReport(context, it.id) }
+                            }
+                        }
+                        newId
+                    } finally { com.ai.data.ReportImportProgress.finish(importId) }
+                }
+            } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException && !isActive) throw e
+                com.ai.data.AppLog.e("ExampleReports", "Example import failed: ${entry.zipFile}", e)
+                android.widget.Toast.makeText(context, "Could not open the example: ${e.message ?: e.javaClass.simpleName}",
+                    android.widget.Toast.LENGTH_LONG).show()
+                return@launch
             }
             if (view) onOpenReportView(rid) else onOpenReportManage(rid)
         }

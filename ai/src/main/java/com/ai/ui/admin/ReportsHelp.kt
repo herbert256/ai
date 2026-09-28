@@ -86,7 +86,7 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
         cards = listOf(
             HelpCard("What you see", "A list of ready-made example reports bundled with the app. This screen appears from the home menu when you haven't set up any agents yet, so you can open a real, fully-populated report before configuring a provider. (The same list also lives as the 'Example AI Reports' card inside the AI Reports hub once you have agents.)"),
             HelpCard("How to use it", "Tap a row (or its 🔧) to open the example at Manage; tap 👁 to open the View tile grid. The first time you open an example it is imported into your reports — a brief 'Loading example report' popup shows while it copies. Imported examples then appear in your normal report lists."),
-            HelpCard("Already exists", "If a report with the same name already exists, you're asked whether to Continue with the existing report, Overwrite it from the example (re-import a fresh copy), or Cancel."),
+            HelpCard("Already exists", "If a report with the same name already exists, you're asked whether to Continue with the existing report, Overwrite it from the example (re-import a fresh copy), or Cancel. Overwrite imports first, then removes only earlier copies of the example (same title and prompt) — your own report that merely shares the name is kept."),
             HelpCard("Paging", "Rows are split into fixed pages that auto-fit the screen height; swipe left / right to flip between them.")
         )
     ),
