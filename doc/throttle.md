@@ -94,7 +94,10 @@ fan-meta pool), but all six are now sized identically. All caps
 are `@Volatile` and rebuilt at runtime via
 `ApiCallCaps.resetForNewLimits(globalMax: Int)`, wired from
 `AppViewModel` on bootstrap and whenever `maxConcurrentApiCalls`
-changes. `snapshot()` / `diagnosticLine()` / `isBusy()` expose
+changes. A holder releases the semaphore instance it acquired (captured
+at acquire time, e.g. in `acquireThrottledPermits` / `PermitHold`), never
+the current one, so a resize mid-call can't over-release the new pool.
+`snapshot()` / `diagnosticLine()` / `isBusy()` expose
 in-flight-vs-max for the stall watchdog and the Live Dashboard.
 
 > Note: the `ApiCallCaps` object's own field initialisers (100

@@ -419,8 +419,12 @@ internal suspend fun acquireThrottledPermits(
             var subHeld = true
             var globalHeld = false
             var waitMs = -1L
+            // Settings can swap the global semaphore (resetForNewLimits) at any
+            // time; release exactly the instance that was acquired, never the
+            // current one — that over-released the new pool.
+            val global = com.ai.data.ApiCallCaps.global
             try {
-                com.ai.data.ApiCallCaps.global.acquire()
+                global.acquire()
                 globalHeld = true
                 gate.lock()
                 val outcome = try {
@@ -432,7 +436,7 @@ internal suspend fun acquireThrottledPermits(
                     is com.ai.data.ProviderThrottle.Outcome.Acquired -> {
                         // Hand all three to the hold; clear the local flags so
                         // the finally below keeps (doesn't release) them.
-                        val hold = PermitHold(subCap, com.ai.data.ApiCallCaps.global, host, outcome.releaser)
+                        val hold = PermitHold(subCap, global, host, outcome.releaser)
                         subHeld = false
                         globalHeld = false
                         return hold
@@ -450,7 +454,7 @@ internal suspend fun acquireThrottledPermits(
                 // Release whatever is still held: the Blocked path (so the
                 // wait below holds NOTHING), or an exception / cancellation
                 // mid-acquire. No-op on the Acquired path (flags cleared).
-                if (globalHeld) com.ai.data.ApiCallCaps.global.release()
+                if (globalHeld) global.release()
                 if (subHeld) subCap.release()
             }
             kotlinx.coroutines.delay(waitMs)
