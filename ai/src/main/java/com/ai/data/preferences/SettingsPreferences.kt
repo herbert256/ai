@@ -1046,17 +1046,26 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         }
     }
 
-    private fun scheduleUsageStatsFlush() {
+    private fun scheduleUsageStatsFlush(delayMs: Long = USAGE_STATS_FLUSH_MS) {
         synchronized(usageStatsLock) {
-            if (scheduledUsageFlush?.isDone == false) return
+            scheduledUsageFlush?.let { pending ->
+                // A flush that is due at least as soon already covers this.
+                if (!pending.isDone && pending.getDelay(java.util.concurrent.TimeUnit.MILLISECONDS) <= delayMs) return
+                // Otherwise (a long back-off retry) bring it forward; the
+                // earlier run re-arms the back-off retry afterwards.
+                pending.cancel(false)
+            }
             scheduledUsageFlush = usageFlushExecutor.schedule({
                 synchronized(usageStatsLock) { scheduledUsageFlush = null }
+                // ReportCostJournal logs a failing report once per failure
+                // streak and backs it off (2 s … 10 min); retrying every 2 s
+                // here re-logged, re-toasted and re-queued a save recovery
+                // entry on every attempt, forever.
                 try { flushUsageStats() }
-                catch (e: Exception) {
-                    AppLog.e("ReportCosts", "Cost flush failed; durable entries retained", e)
-                    scheduleUsageStatsFlush()
-                }
-            }, USAGE_STATS_FLUSH_MS, java.util.concurrent.TimeUnit.MILLISECONDS)
+                catch (e: Exception) { AppLog.d("ReportCosts", "Cost flush incomplete; durable entries retained: ${e.message}") }
+                val retryInMs = ReportCostJournal.nextRetryDelayMs()
+                if (retryInMs != null) scheduleUsageStatsFlush(retryInMs.coerceAtLeast(USAGE_STATS_FLUSH_MS))
+            }, delayMs, java.util.concurrent.TimeUnit.MILLISECONDS)
         }
     }
 

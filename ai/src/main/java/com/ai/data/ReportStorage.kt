@@ -999,7 +999,7 @@ object ReportStorage {
      * same critical section before mutating it. Keeping this private prevents
      * a stale [getReport] snapshot from being written back over newer fields.
      */
-    private fun saveReport(report: Report) {
+    private fun saveReport(report: Report, recoveryKey: String? = null) {
         check(lock.isHeldByCurrentThread) { "ReportStorage.saveReport must be called under lock" }
         val dir = reportsDir ?: throw java.io.IOException("Report storage is unavailable")
         // Defence in depth: a runtime-import JSON payload can carry a
@@ -1020,6 +1020,7 @@ object ReportStorage {
         // If blob storage is full, retain a self-contained recovery payload.
         val diskJson = runCatching { ReportContentStore.pack(dir.parentFile!!, report.id, fullJson) }.getOrElse { fullJson }
         ReportSaveRecovery.write(target, diskJson, report.id, recoveryText = fullJson,
+            replaceKey = recoveryKey,
             retryLocked = { action -> lock.withLock { action() } },
             stillValid = { !existed || target.exists() },
             onSaved = { ReportDataVersion.bump(report.id) })
@@ -1957,14 +1958,21 @@ object ReportStorage {
             val seen = report.apiCallCosts.mapTo(HashSet()) { it.id }
             val toAppend = records.filter { seen.add(it.id) }
             if (toAppend.isEmpty()) return@withLock null
+            // Stamp the report with its newest call's completion time, not
+            // the flush time: a journal retry of the same records then
+            // writes identical JSON instead of a fresh variant (and a fresh
+            // save-recovery entry holding the whole report) per attempt.
             val updated = report.copy(
                 apiCallCosts = (report.apiCallCosts + toAppend).toMutableList(),
-                timestamp = System.currentTimeMillis()
+                timestamp = maxOf(report.timestamp, toAppend.maxOf { it.timestamp })
             )
             if (updated.apiCallCostsComplete) {
                 updated.totalCost = ledgerTotalCost(updated)
             }
-            saveReport(updated)
+            // Pending costs stay in the journal until acknowledged, so one
+            // recovery entry per report is enough; a newer failed append
+            // replaces the older one.
+            saveReport(updated, recoveryKey = "cost-journal:$id")
             updated.apiCallAppendResult()
         }
     }

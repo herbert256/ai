@@ -37,6 +37,19 @@ only unchanged captured journal records. UUID deduplication retains crash
 recovery across append/ack interruption. Report UI reads are conflated and
 reuse unchanged file versions to avoid competing full-report reloads.
 
+A report whose pending records keep failing to reach its ledger
+(unreadable report file, full storage, malformed record) is backed off per
+report — retried after 2 s, 4 s, 8 s … capped at 10 min — and logged once
+per failure streak (ERROR `ReportCosts`), with an INFO line when it
+recovers. The debounced flush re-arms itself for the earliest backed-off
+report instead of retrying every 2 s forever. The append stamps the report
+with its newest call's completion time (not the flush time), so a retry of
+the same records writes identical JSON, and a failed append keeps a single
+save-recovery entry per report (`ReportSaveRecovery.write(replaceKey = …)`)
+instead of one more copy of the report per attempt. At startup the journal
+flush and the ledger repair run as separate steps, so a stuck record no
+longer skips the repair.
+
 `PricingCache.computeInOutCost(usage, pricing)`
 (`data/PricingCache.kt:347`) turns a `TokenUsage` + a resolved
 `ModelPricing` into `(inDollars, outDollars)`:

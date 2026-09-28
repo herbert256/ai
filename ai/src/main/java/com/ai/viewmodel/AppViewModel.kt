@@ -1034,10 +1034,13 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         // also repairs saved trace links and proven reasoning-only successes
         // before a report is opened after an APK update.
         val accountingStart = android.os.SystemClock.elapsedRealtime()
-        runCatching {
-            com.ai.data.ReportCostJournal.flush(application.filesDir)
-            settingsPrefs.reconcileReportCostLedgers(application)
-        }.onFailure { AppLog.w(tag, "Report accounting repair will retry: ${it.message}") }
+        // Separate steps: a pending record that cannot be flushed (logged
+        // once by the journal and retried with back-off) must not skip the
+        // ledger repair on every launch.
+        runCatching { com.ai.data.ReportCostJournal.flush(application.filesDir) }
+            .onFailure { AppLog.d(tag, "Pending report costs kept for retry: ${it.message}") }
+        runCatching { settingsPrefs.reconcileReportCostLedgers(application) }
+            .onFailure { AppLog.w(tag, "Report accounting repair will retry: ${it.message}") }
         AppLog.d(tag, "Report accounting checked in ${android.os.SystemClock.elapsedRealtime() - accountingStart}ms")
 
         AppLog.d(tag, "bootstrap total ${System.currentTimeMillis() - bootStart}ms")

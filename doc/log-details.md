@@ -136,6 +136,10 @@ captured crash report — the message is the `report` string, not a literal.
 - **L740** `"ReportStorage"` — "Failed to save report ${report.id} (writeTextAtomic returned false)"
 - **L2666** `"ReportStorage"` — "Refusing to overwrite existing report ${report.id} via persistNewReport"
 
+### `data/ReportCostJournal.kt`
+
+- `"ReportCosts"` — "Pending call costs for report $reportId could not be added to its ledger; " + "they stay in the journal and are retried with back-off" (once per failure streak; the INFO "… added after ${previous.failures} failed attempt(s)" marks recovery)
+
 ### `data/SecondaryResult.kt`
 
 - **L73** `"SecondaryResultStorage"` — "Refusing to resolve report dir for suspect id $reportId"

@@ -23,14 +23,23 @@ object ReportSaveRecovery {
     private val pending = MutableStateFlow<List<UnsavedReportChange>>(emptyList())
     val changes = pending.asStateFlow()
     private val retries = java.util.concurrent.ConcurrentHashMap<String, () -> Unit>()
+    // replaceKey → id of the entry currently held under that key.
+    private val keyedIds = java.util.concurrent.ConcurrentHashMap<String, String>()
 
+    /** [replaceKey]: writes whose later payload supersedes an earlier failed
+     *  one (the cost journal re-appends every still-pending record to the
+     *  current file) keep a single recovery entry — a new failure under the
+     *  same key replaces the older entry instead of adding another copy of
+     *  the whole file. */
     fun write(file: File, text: String, reportId: String, retryLocked: ((() -> Unit) -> Unit),
-              stillValid: () -> Boolean = { true }, recoveryText: String = text, onSaved: () -> Unit) {
+              stillValid: () -> Boolean = { true }, recoveryText: String = text, replaceKey: String? = null,
+              onSaved: () -> Unit) {
         val baseRead = runCatching { file.takeIf { it.exists() }?.readText() }
         val base = baseRead.getOrNull()
         if (baseRead.isSuccess && file.writeTextAtomic(text)) { onSaved(); return }
         val id = ReportEvidenceStore.digest(file.absolutePath + text)
         if (retries.containsKey(id)) throw ReportSaveException(reportId, "This change is already awaiting a save retry.")
+        replaceKey?.let { key -> keyedIds.put(key, id)?.takeIf { it != id }?.let(::dismiss) }
         val change = UnsavedReportChange(id, reportId,
             "Changes could not be saved. Free storage, then retry saving without another AI call. Unsaved changes remain available while the app is open.", recoveryText)
         retries[id] = {
@@ -52,7 +61,11 @@ object ReportSaveRecovery {
         try { retries[id]?.invoke() ?: return; dismiss(id) }
         catch (e: Exception) { pending.update { rows -> rows.map { if (it.id == id) it.copy(message = e.message ?: "Save failed") else it } } }
     }
-    fun dismiss(id: String) { retries.remove(id); pending.update { it.filterNot { c -> c.id == id } } }
+    fun dismiss(id: String) {
+        retries.remove(id)
+        keyedIds.values.remove(id)
+        pending.update { it.filterNot { c -> c.id == id } }
+    }
 
     private fun merge(base: JsonElement?, desired: JsonElement?, current: JsonElement?): JsonElement? {
         if (desired == base) return current
