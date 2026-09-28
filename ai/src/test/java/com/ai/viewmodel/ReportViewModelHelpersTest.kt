@@ -62,8 +62,8 @@ class ReportViewModelHelpersTest {
             )
         )
         val secondaries = listOf(
-            translation("PROMPT", "prompt", "Dutch", "Nederlandse prompt"),
-            translation("AGENT", "a1", "Dutch", "Alpha vertaald")
+            translation("PROMPT", "prompt", "Dutch", "Nederlandse prompt", sourceText = "Original prompt"),
+            translation("AGENT", "a1", "Dutch", "Alpha vertaald", sourceText = "Alpha original")
         )
 
         val (prompt, resultsBlock) = buildLanguageInputs(
@@ -86,7 +86,7 @@ class ReportViewModelHelpersTest {
             )
         )
         val secondaries = listOf(
-            translation("AGENT", "a1", "Dutch", " Alpha vertaald ")
+            translation("AGENT", "a1", "Dutch", " Alpha vertaald ", sourceText = " Alpha original ")
         )
 
         val (_, resultsBlock) = buildLanguageInputs(
@@ -111,9 +111,9 @@ class ReportViewModelHelpersTest {
             )
         )
         val secondaries = listOf(
-            translation("PROMPT", "prompt", "Dutch", "Nederlandse prompt", native = "Nederlands"),
-            translation("TITLE", "title", "Dutch", "Nederlandse titel"),
-            translation("AGENT", "a1", "Dutch", " Alpha vertaald ")
+            translation("PROMPT", "prompt", "Dutch", "Nederlandse prompt", native = "Nederlands", sourceText = "Original prompt"),
+            translation("TITLE", "title", "Dutch", "Nederlandse titel", sourceText = "Original title"),
+            translation("AGENT", "a1", "Dutch", " Alpha vertaald ", sourceText = " Alpha original ")
         )
 
         val context = lookupLanguageTranslations(report, secondaries, "Dutch")
@@ -124,6 +124,34 @@ class ReportViewModelHelpersTest {
         assertThat(context.native).isEqualTo("Nederlands")
         assertThat(context.bodiesByAgentId)
             .containsExactly("a1", "Alpha vertaald", "a2", "Beta original")
+    }
+
+    @Test
+    fun lookupLanguageTranslationsSkipsTranslationsOfOutdatedSources() {
+        val report = report(
+            prompt = "Edited prompt",
+            agents = mutableListOf(
+                agent("a1", body = "Alpha regenerated"),
+                agent("a2", body = "Beta original"),
+                agent("a3", body = "Gamma original")
+            )
+        )
+        val secondaries = listOf(
+            // Translated before the prompt edit / a1's regenerate — stale.
+            translation("PROMPT", "prompt", "Dutch", "Oude prompt", sourceText = "Original prompt"),
+            translation("AGENT", "a1", "Dutch", "Alpha oud", sourceText = "Alpha original"),
+            // Unknown source text — can't be vouched for.
+            translation("AGENT", "a2", "Dutch", "Beta vertaald"),
+            // Translated from the current French translation — one hop, current.
+            translation("AGENT", "a3", "French", "Gamma traduit", sourceText = "Gamma original"),
+            translation("AGENT", "a3", "Dutch", "Gamma vertaald", sourceText = "Gamma traduit")
+        )
+
+        val context = lookupLanguageTranslations(report, secondaries, "Dutch")
+
+        assertThat(context!!.prompt).isEqualTo("Edited prompt")
+        assertThat(context.bodiesByAgentId)
+            .containsExactly("a1", "Alpha regenerated", "a2", "Beta original", "a3", "Gamma vertaald")
     }
 
     @Test
@@ -166,7 +194,8 @@ class ReportViewModelHelpersTest {
         sourceTargetId: String,
         language: String,
         content: String,
-        native: String? = null
+        native: String? = null,
+        sourceText: String? = null
     ) = SecondaryResult(
         id = "$sourceKind-$sourceTargetId-$language",
         reportId = "report-1",
@@ -179,6 +208,7 @@ class ReportViewModelHelpersTest {
         translateSourceKind = sourceKind,
         translateSourceTargetId = sourceTargetId,
         targetLanguage = language,
-        targetLanguageNative = native
+        targetLanguageNative = native,
+        translationSourceText = sourceText
     )
 }
