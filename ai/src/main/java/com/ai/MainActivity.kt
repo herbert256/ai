@@ -205,7 +205,12 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun handleIntent(intent: Intent?) {
-        when (intent?.action) {
+        // Reopened from Recents after the task was killed: Android re-delivers
+        // the task's BASE intent — the share or external request that first
+        // started it — flagged LAUNCHED_FROM_HISTORY. Replaying it would show
+        // the old share chooser / request confirmation again.
+        if (intent == null || (intent.flags and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY) != 0) return
+        when (intent.action) {
             "com.ai.ACTION_NEW_REPORT" -> {
                 externalTitle.value = intent.getStringExtra("title")
                 externalSystem.value = intent.getStringExtra("system")

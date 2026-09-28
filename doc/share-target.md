@@ -132,7 +132,10 @@ The launch intent is only processed when `savedInstanceState == null`,
 so a configuration change (rotation, locale switch) does **not**
 re-import shared content the user already consumed — otherwise the
 chooser or chat composer would re-populate with a payload that was
-just dismissed.
+just dismissed. Intents flagged `FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY`
+are ignored too: reopening the app from Recents after its task was
+killed re-delivers the task's base intent, which would replay an old
+share (or external request) the user already handled.
 
 ## Chooser overlay
 
