@@ -196,10 +196,13 @@ object KnowledgeStore {
 
     /** Persist a freshly indexed source's chunks + add the source to
      *  the KB manifest. If a source with [source.id] already exists,
-     *  its chunks file is replaced (re-index). */
+     *  its chunks file is replaced (re-index). Throws
+     *  [java.io.IOException] when the source could not be stored — it
+     *  used to return silently (and ignore failed writes), so the
+     *  index flow reported success for a source that was never saved. */
     fun saveSource(context: Context, kbId: String, source: KnowledgeSource, chunks: List<KnowledgeChunk>, embeddingDim: Int) {
         init(context)
-        val kbDir = kbDirOrNull(kbId) ?: return
+        val kbDir = kbDirOrNull(kbId) ?: throw java.io.IOException("Knowledge base no longer exists")
         // kbId now has a flat-id + canonical containment check in
         // kbDirOrNull, but source.id is still string-interpolated into
         // the chunks/ file path. A backup restore (or a future import
@@ -207,20 +210,23 @@ object KnowledgeStore {
         // would otherwise write the chunks blob outside chunks/.
         if (!isSafeSourceId(source.id)) {
             AppLog.e("Knowledge", "Refusing to save source with suspect id ${source.id}")
-            return
+            throw java.io.IOException("Refusing to save a source with a suspect id")
         }
         lock.withLock {
             val chunksDir = File(kbDir, CHUNKS_DIR).also { it.mkdirs() }
             val chunkFile = File(chunksDir, "${source.id}.json")
             if (!chunkFile.canonicalPath.startsWith(chunksDir.canonicalPath + File.separator)) {
                 AppLog.e("Knowledge", "Refusing to save source that escapes chunks dir: ${source.id}")
-                return
+                throw java.io.IOException("Refusing to save a source outside the knowledge base")
             }
-            chunkFile.writeTextAtomic(gson.toJson(chunks))
-            // A corrupt/missing manifest shouldn't throw out of the public
-            // API (Bug 40); the other public mutators wrap loadKb, so do the
-            // same here and bail rather than crash the index flow.
-            val current = runCatching { loadKb(kbDir) }.getOrNull() ?: return
+            // A corrupt/missing manifest shouldn't crash the index flow
+            // (Bug 40); the other public mutators wrap loadKb, so do the
+            // same here — but fail it visibly rather than report success.
+            val current = runCatching { loadKb(kbDir) }.getOrNull()
+                ?: throw java.io.IOException("Knowledge base manifest is unreadable")
+            if (!chunkFile.writeTextAtomic(gson.toJson(chunks))) {
+                throw java.io.IOException("Could not write the chunks of ${source.name}")
+            }
             val dimMismatch = current.embeddingDim != 0 && current.embeddingDim != embeddingDim
             val reindexReason = if (dimMismatch) {
                 "Embedding dimension changed from ${current.embeddingDim} to $embeddingDim; recreate this KB"
@@ -251,7 +257,12 @@ object KnowledgeStore {
                     current.embeddingDim
                 }
             }
-            saveManifest(kbDir, current.copy(sources = replaced, embeddingDim = newDim))
+            if (!saveManifest(kbDir, current.copy(sources = replaced, embeddingDim = newDim))) {
+                // A new source's chunks without a manifest row are
+                // unreachable — drop them rather than leave an orphan.
+                if (current.sources.none { it.id == source.id }) chunkFile.delete()
+                throw java.io.IOException("Could not update the knowledge base manifest")
+            }
         }
     }
 
@@ -271,7 +282,9 @@ object KnowledgeStore {
             }
             chunkFile.delete()
             val current = runCatching { loadKb(kbDir) }.getOrNull() ?: return@withLock
-            saveManifest(kbDir, current.copy(sources = current.sources.filter { it.id != sourceId }))
+            if (!saveManifest(kbDir, current.copy(sources = current.sources.filter { it.id != sourceId }))) {
+                AppLog.w("Knowledge", "deleteSource: manifest update failed for kb=$kbId source=$sourceId")
+            }
         }
     }
 
@@ -378,7 +391,7 @@ object KnowledgeStore {
         )
     }
 
-    private fun saveManifest(kbDir: File, kb: KnowledgeBase) {
+    /** True when the manifest reached disk. */
+    private fun saveManifest(kbDir: File, kb: KnowledgeBase): Boolean =
         File(kbDir, MANIFEST).writeTextAtomic(gson.toJson(kb))
-    }
 }

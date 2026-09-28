@@ -165,6 +165,10 @@ manifest dim is retained and the source row is stamped with
 `needsReindexReason = "Embedding dimension changed from X to Y;
 recreate this KB"` (the user almost certainly swapped embedders
 mid-life and should re-create the KB).
+`saveSource` throws when the source can't be stored (KB gone,
+unreadable manifest, a failed chunk or manifest write), so the index
+reports a failure instead of a success for a source that never reached
+disk.
 
 **Remote embed dispatch** — `repository.embed` / `embedWithStatus` are
 extension functions on `AnalysisRepository` that live in
