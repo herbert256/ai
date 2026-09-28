@@ -65,13 +65,12 @@ private const val KEY_SECOND_PROMPT = "second_prompt"
  *  launch an unbounded paid loop. */
 private const val MAX_DUAL_ROUNDS = 100
 
-private data class DualMessage(
+internal data class DualMessage(
     val modelIndex: Int,
     val content: String,
     val providerName: String,
     val modelName: String,
-    /** Wall clock at the moment this turn finished; retained for display
-     *  and for older saved-state fallbacks. */
+    /** Wall clock at the moment this turn finished; retained for display. */
     val timestamp: Long = System.currentTimeMillis(),
     /** Stable identity for LazyColumn keys — positional-index keys
      *  re-keyed every trailing item as the loop appends one message at a
@@ -83,53 +82,42 @@ private data class DualMessage(
     val traceFilename: String? = null
 )
 
-/** Saver that lets the dual-chat conversation survive a rotation /
- *  process recreation. Each message flattens to DUAL_MSG_STRIDE entries.
- *  Bundle has a practical ~1 MB ceiling
- *  so a very long high-content session may hit the limit; the previous
- *  in-memory-only state lost everything regardless, so this is strict
- *  improvement. */
-/** Number of flat entries each [DualMessage] serializes to. Keep in sync
- *  with the save/restore field list below. */
-private const val DUAL_MSG_STRIDE = 7
-private const val LEGACY_DUAL_MSG_STRIDE = 6
-
-private val DualMessagesSaver = androidx.compose.runtime.saveable.Saver<List<DualMessage>, java.util.ArrayList<Any?>>(
-    save = { list ->
-        java.util.ArrayList<Any?>().apply {
-            list.forEach { m ->
-                add(m.modelIndex)
-                add(m.content)
-                add(m.providerName)
-                add(m.modelName)
-                add(m.timestamp)
-                add(m.id)
-                add(m.traceFilename)
-            }
-        }
-    },
-    restore = { flat ->
-        val out = mutableListOf<DualMessage>()
-        var i = 0
-        val stride = if (flat.size % DUAL_MSG_STRIDE == 0) DUAL_MSG_STRIDE else LEGACY_DUAL_MSG_STRIDE
-        // `i + stride <= size` keeps the final complete record (it used to be
-        // `i + 4 < size`, a hand-written stride that silently dropped the tail
-        // if the field count changed).
-        while (i + stride <= flat.size) {
-            out += DualMessage(
-                modelIndex = flat[i] as Int,
-                content = flat[i + 1] as String,
-                providerName = flat[i + 2] as String,
-                modelName = flat[i + 3] as String,
-                timestamp = flat[i + 4] as Long,
-                id = flat[i + 5] as String,
-                traceFilename = if (stride == DUAL_MSG_STRIDE) flat[i + 6] as? String else null
-            )
-            i += stride
-        }
-        out
+/** The dual-chat conversation, OUTSIDE the saved-state bundle: a long run
+ *  (100 rounds + "Chat N more") saved there crashed the app with
+ *  TransactionTooLargeException when it went to the background. This
+ *  holder is scoped to the session's back-stack entry, so it survives
+ *  rotation and forward hops (trace / model info); [file] (in cacheDir,
+ *  keyed by the session id) brings it back after process death. Popping the
+ *  entry for good clears the holder and deletes the file. */
+internal class DualChatTranscript : androidx.lifecycle.ViewModel() {
+    val messages = mutableStateOf(emptyList<DualMessage>())
+    var file: java.io.File? = null
+    var loaded = false
+    /** Writes run one at a time, so an older snapshot can't land last. */
+    val writeLock = kotlinx.coroutines.sync.Mutex()
+    override fun onCleared() {
+        file?.delete()
     }
-)
+}
+
+private const val DUAL_TRANSCRIPT_DIR = "dual_chat"
+/** Transcripts left behind by a session that never came back after process death. */
+private const val DUAL_TRANSCRIPT_MAX_AGE_MS = 2L * 24 * 60 * 60 * 1000
+
+private fun dualTranscriptFile(context: Context, sessionId: String) =
+    java.io.File(java.io.File(context.cacheDir, DUAL_TRANSCRIPT_DIR), "$sessionId.json")
+
+private fun readDualTranscript(file: java.io.File): List<DualMessage> = try {
+    if (!file.exists()) emptyList()
+    else com.ai.data.createAppGson().fromJson(file.readText(), Array<DualMessage>::class.java)?.toList() ?: emptyList()
+} catch (_: Exception) { emptyList() }
+
+private fun pruneStaleDualTranscripts(context: Context) {
+    val cutoff = System.currentTimeMillis() - DUAL_TRANSCRIPT_MAX_AGE_MS
+    java.io.File(context.cacheDir, DUAL_TRANSCRIPT_DIR).listFiles()
+        ?.filter { it.isFile && it.lastModified() < cutoff }
+        ?.forEach { it.delete() }
+}
 
 private data class DualConfigDto(
     val p1: String, val m1: String, val sp1: String, val params1: ChatParameters,
@@ -449,13 +437,22 @@ fun DualChatSessionScreen(
     }
 
     val sessionId = rememberSaveable { "dualchat_${System.currentTimeMillis()}" }
-    // Persist the conversation across rotation / process recreation —
-    // a dual-chat run can take many turns and previously a rotation
-    // mid-run dropped every message back to an empty list. mutableStateOf
-    // + the DualMessage Saver below survive the bundle round-trip;
-    // mutableStateListOf doesn't and would lose its contents.
-    var messages by rememberSaveable(stateSaver = DualMessagesSaver) {
-        mutableStateOf(emptyList<DualMessage>())
+    // The conversation survives rotation / forward hops in the entry-scoped
+    // holder and process death in its cacheDir file — never in the Binder
+    // saved-state bundle (a long run overflowed it: TransactionTooLarge).
+    val transcript: DualChatTranscript = androidx.lifecycle.viewmodel.compose.viewModel()
+    if (transcript.file == null) transcript.file = dualTranscriptFile(context, sessionId)
+    var messages by transcript.messages
+    LaunchedEffect(messages) {
+        val file = transcript.file ?: return@LaunchedEffect
+        if (messages.isEmpty()) return@LaunchedEffect
+        val snapshot = messages
+        transcript.writeLock.lock()
+        try {
+            withContext(Dispatchers.IO) { file.writeTextAtomic(com.ai.data.createAppGson().toJson(snapshot)) }
+        } finally {
+            transcript.writeLock.unlock()
+        }
     }
     val appendMessage: (DualMessage) -> Unit = { m -> messages = messages + m }
     var currentInteraction by rememberSaveable { mutableIntStateOf(0) }
@@ -552,8 +549,22 @@ fun DualChatSessionScreen(
 
     DisposableEffect(Unit) { onDispose { chatJob?.cancel() } }
     LaunchedEffect(Unit) {
-        if (!started) { started = true; startChatLoop() }
-        else if (!isRunning) isStopped = true
+        if (!transcript.loaded) {
+            transcript.loaded = true
+            if (started) {
+                // A started session with a fresh holder = recreated after
+                // process death: read its conversation back before offering
+                // Resume / Chat more (both continue from the last answer).
+                val file = transcript.file
+                val saved: List<DualMessage> =
+                    if (file == null) emptyList() else withContext(Dispatchers.IO) { readDualTranscript(file) }
+                if (messages.isEmpty()) messages = saved
+            }
+        }
+        if (!started) {
+            started = true; startChatLoop()
+            withContext(Dispatchers.IO) { pruneStaleDualTranscripts(context) }
+        } else if (!isRunning) isStopped = true
     }
     // Auto-scroll once recomposition has committed the appended message,
     // rather than reading messages.size immediately after the state mutation

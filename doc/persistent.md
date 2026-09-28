@@ -626,7 +626,11 @@ deletes one left behind on an older install.)
 - All of `cacheDir` — share exports (including earlier backup zips,
   which used to make every backup contain all previous ones),
   shared-trace handoffs, camera captures, update downloads, staging,
-  the in-flight restore zip and the reset flow's plaintext key temp.
+  the in-flight restore zip, the reset flow's plaintext key temp, and
+  Dual Chat transcripts (`dual_chat/<sessionId>.json` — the running
+  conversation, so it survives process death without going through the
+  saved-state bundle; deleted when the session screen is closed, stale
+  ones after 2 days).
   Nothing there is needed after a restore.
 
 See [backup-restore.md](backup-restore.md) for the full backup format

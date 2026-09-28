@@ -586,7 +586,9 @@ templates that reference each other's output (`%subject%`,
 model answers about the subject; the second responds to the first;
 they take turns until they hit the count. Useful for adversarial
 cross-examination, devil's-advocate setups, or multi-step pipelines.
-Conversations persist across rotation and process recreation.
+Conversations persist across rotation and process recreation (kept in
+memory and in a cache file, not in Android's saved-state bundle, so a
+long run can't crash the app when it goes to the background).
 While the models are taking turns, ℹ️, the model names and the 🐞
 trace icons are disabled: leaving the screen would stop the run and
 discard the answer in flight. Stop first to open them.
