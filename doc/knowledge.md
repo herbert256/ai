@@ -228,12 +228,16 @@ never answered without it:
 - **Report**: `ReportKnowledge.prepare` retrieves **once** per report
   prompt and persists the block as `Report.knowledgeContext`; every
   answer's saved execution prompt starts with it. The replays
-  (temperature / reasoning / web-search / prompt-edit) and the model
-  switch reuse that saved block through
-  `ReportViewModel.replayKnowledgeContext` (retrieving + persisting it
-  once when the report has none yet, e.g. after a prompt edit) and fail
-  rather than run ungrounded — they never re-retrieve, so a candidate
-  sees the same evidence as the answer it may replace.
+  (temperature / reasoning / web-search) and the model switch reuse
+  that saved block through `ReportViewModel.replayKnowledgeContext`
+  (retrieving + persisting it once when the report has none yet, e.g.
+  after a prompt edit) and fail rather than run ungrounded — they never
+  re-retrieve, so a candidate sees the same evidence as the answer it
+  may replace. The **prompt-edit** replay asks a different question, so
+  it retrieves for the edited prompt (`ReportKnowledge.retrieveFor`,
+  same budget, **not** persisted — the saved block stays the report
+  prompt's) and fails the same way; an unchanged prompt reuses the
+  saved block.
   `AnalysisRepository.analyzeWithAgent` / `analyzeWithAgentStreaming`
   still accept `knowledgeBaseIds` (retrieve per call, prefix via
   `withRagPrefix`, error response on failure), but no report path

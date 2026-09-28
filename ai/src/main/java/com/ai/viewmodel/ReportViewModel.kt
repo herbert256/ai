@@ -2005,8 +2005,13 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 val effectiveImage = if (canVision) report.imageBase64 else null
                 val effectiveImageMime = if (canVision) report.imageMime else null
                 val baseUrl = ai.getEffectiveEndpointUrlForAgent(task.runtimeAgent)
-                // Saved passages, never a fresh (or silently failed) retrieval.
-                val knowledge = replayKnowledgeContext(context, report, ai)
+                // An edited prompt asks a different question: ground it on
+                // passages retrieved for THAT question (not persisted — the
+                // report's saved context stays its own prompt's), failing
+                // loudly like the saved-context path. An unchanged prompt
+                // reuses the saved passages.
+                val knowledge = if (editedPrompt == report.prompt.trim()) replayKnowledgeContext(context, report, ai)
+                    else ReportKnowledge.retrieveFor(context, report, editedPrompt, appViewModel.repository, ai)
 
                 withTracerTags(reportId = reportId, category = MODEL_PROMPT_EDIT_CALL_KIND) {
                     val traceSink = java.util.concurrent.atomic.AtomicReference<String?>(null)
