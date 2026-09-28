@@ -561,6 +561,21 @@ object ReportStorage {
         updateAgentStatus(context, reportId, agentId, ReportStatus.STOPPED,
             AgentStatusPatch(errorMessage = "Stopped by user"))
 
+    /** Compare-and-set [markAgentStopped] for a queued (never dispatched)
+     *  agent of a stopped Regenerate batch: only while the row is still
+     *  PENDING and [stillOwned] — evaluated under the storage lock — says no
+     *  newer batch has claimed it. A stale dispatch's queued task otherwise
+     *  stamped Stopped onto rows a newer Regenerate had already reset (or
+     *  finished). */
+    fun markAgentStoppedIfPending(context: Context, reportId: String, agentId: String, stillOwned: () -> Boolean): Boolean {
+        init(context)
+        return lock.withLock {
+            val agent = loadReport(reportId)?.agents?.find { it.agentId == agentId } ?: return@withLock false
+            // lock is reentrant: the check and the write are one atomic step.
+            agent.reportStatus == ReportStatus.PENDING && stillOwned() && markAgentStopped(context, reportId, agentId)
+        }
+    }
+
     // Async variants
     suspend fun createReportAsync(
         context: Context, title: String, prompt: String, agents: List<ReportAgent>,

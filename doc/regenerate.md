@@ -192,7 +192,14 @@ Stop scheduling cancels the orchestrator. Submitted calls may finish, persist
 results and incur cost; AGENTS-phase models still queued for their throttle
 permits are not dispatched — `forceRegenerateAllAgents` checks the
 orchestrator's cancellation (`stopScheduling`) before and after the permit
-wait and settles those rows as Stopped. Retry waits for previously scheduled calls to settle,
+wait and settles those rows as Stopped. That settle is a compare-and-set
+(`ReportStorage.markAgentStoppedIfPending`, inside the storage lock): only a
+row still PENDING, and only while no newer batch owns it (`ownsRow` — no newer
+orchestrator registered, or the newer batch doesn't run that row). A new
+Regenerate cancels the old orchestrator too, and its own reset / answers must
+not be stamped Stopped by the old dispatch's queued tasks; `startOrchestrator`
+registers the new orchestrator (lazy start) before its body resets any row.
+Retry waits for previously scheduled calls to settle,
 refreshes completed rows from disk, and requeues only unfinished work. Stale
 background scans remain read-only; they do not silently submit paid calls.
 

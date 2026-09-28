@@ -2720,10 +2720,16 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
      *  on a normal Regenerate, just the errored ones on "Retry failed").
      *  Null = every agent, the historical behavior. [stopScheduling] true →
      *  an agent not yet dispatched (still waiting for its permits) settles
-     *  as Stopped instead of calling — the batch's "Stop scheduling". */
+     *  as Stopped instead of calling — the batch's "Stop scheduling" — but
+     *  only while its row is still PENDING and [ownsRow] (checked inside
+     *  the storage lock) says no newer Regenerate batch has taken the
+     *  report over: that batch resets and re-runs the same rows, and a
+     *  stale Stopped stamp showed its answers as Stopped / ended its
+     *  AGENTS phase early. */
     fun forceRegenerateAllAgents(
         context: Context, reportId: String, onlyAgentIds: Set<String>? = null,
-        stopScheduling: () -> Boolean = { false }
+        stopScheduling: () -> Boolean = { false },
+        ownsRow: (String) -> Boolean = { true }
     ) {
         appViewModel.viewModelScope.launch(reportLogContext()) {
             trackRegenerateJob(reportId, coroutineContext[Job]!!)
@@ -2773,7 +2779,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                             // settle its reset (PENDING) row as Stopped — the
                             // Regenerate dialog's Retry failed picks it up.
                             if (stopScheduling()) {
-                                ReportStorage.markAgentStopped(context, reportId, task.resultId)
+                                ReportStorage.markAgentStoppedIfPending(context, reportId, task.resultId) { ownsRow(task.resultId) }
                                 return@async
                             }
                             // Canonical order global → report → per-host (host
@@ -2783,7 +2789,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                                     try {
                                         // The permit wait can be long — re-check.
                                         if (stopScheduling()) {
-                                            ReportStorage.markAgentStopped(context, reportId, task.resultId)
+                                            ReportStorage.markAgentStoppedIfPending(context, reportId, task.resultId) { ownsRow(task.resultId) }
                                             return@async
                                         }
                                         withContext(ProviderThrottle.permitPreAcquired.asContextElement(true)) {

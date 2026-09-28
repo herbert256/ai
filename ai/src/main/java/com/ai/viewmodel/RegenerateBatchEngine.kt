@@ -18,6 +18,7 @@ import com.ai.data.SecondaryResult
 import com.ai.data.SecondaryResultStorage
 import com.ai.ui.shared.shortModelName
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelAndJoin
@@ -383,7 +384,10 @@ class RegenerateBatchEngine internal constructor(
         appViewModel.updateUiState {
             it.copy(activeSecondaryBatches = it.activeSecondaryBatches + 1)
         }
-        val job = appViewModel.viewModelScope.launch(reportViewModel.reportLogContext()) {
+        // LAZY + register-then-start: the orchestrator is in orchestratorJobs
+        // before its body resets any row, so an older batch's queued agents
+        // (see dispatchPhase AGENTS) can tell their rows were taken over.
+        val job = appViewModel.viewModelScope.launch(reportViewModel.reportLogContext(), start = CoroutineStart.LAZY) {
             try {
                 orchestrate(context, reportId)
             } catch (e: Exception) {
@@ -395,6 +399,7 @@ class RegenerateBatchEngine internal constructor(
             }
         }
         orchestratorJobs[reportId] = job
+        job.start()
     }
 
     private suspend fun orchestrate(context: Context, reportId: String) {
@@ -761,10 +766,25 @@ class RegenerateBatchEngine internal constructor(
                 // billed call. Hand it the orchestrator: once that's
                 // cancelled (Stop scheduling / Delete / a newer Regenerate),
                 // queued agents settle as Stopped instead of dispatching.
+                //
+                // A newer Regenerate also cancels this orchestrator, then
+                // resets and re-runs its rows under its own one; this
+                // dispatch's queued tasks may only settle a row as Stopped
+                // while no newer orchestrator is registered, or the newer
+                // batch (persisted before it starts) doesn't run that row.
+                // startOrchestrator registers before its body — and so its
+                // row reset — runs.
                 val orchestrator = kotlinx.coroutines.currentCoroutineContext()[Job]
                 reportViewModel.forceRegenerateAllAgents(
                     context, reportId, phaseTasks.map { it.rowId }.toSet(),
-                    stopScheduling = { orchestrator?.isCancelled == true }
+                    stopScheduling = { orchestrator?.isCancelled == true },
+                    ownsRow = { rowId ->
+                        val current = orchestratorJobs[reportId]
+                        current == null || current === orchestrator ||
+                            _jobs.value[reportId]?.tasks?.none {
+                                it.phase == RegeneratePhase.AGENTS && it.rowId == rowId
+                            } == true
+                    }
                 )
             }
             RegeneratePhase.META, RegeneratePhase.FAN_IN -> {
