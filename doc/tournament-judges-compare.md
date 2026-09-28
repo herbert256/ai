@@ -197,6 +197,12 @@ View-side drill-in:
   each column recomputed locally from the stored win matrix.
 - Tapping a ranked model opens head-to-head cards, including A-vs-B/B-vs-A
   orientation switching and trace links.
+- Both surfaces resolve the ranking's `[N]` ids through the aggregate row's
+  `sourceAgentIds` snapshot (`tournamentRankAgentIds`), never by renumbering
+  the report's current agents — so removing a model from the report (with
+  "Use report models" off, which leaves the tournament's matches in place)
+  can't shift ranks onto other models; the removed participant is labelled
+  from the run's saved answers.
 
 The aggregate row's rerank-compatible `content` is consumed beyond the tournament
 screens: it drives the Top-ranked scope (`extractTopRankedIds`) and feeds the

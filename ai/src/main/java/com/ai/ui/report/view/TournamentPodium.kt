@@ -358,29 +358,30 @@ private fun loadTournamentPodium(
         SecondaryResultStorage.listForReport(context, reportId, SecondaryKind.TOURNAMENT)
             .filter { it.tournamentRole == "MATCH" && it.tournamentJudgeRunId == runId }
     }.orEmpty()
-    // Number participants by their stable position in report.agents (filtered
-    // to the tournament's participant set), exactly as TournamentEngine assigns
-    // the [N] ids when it writes the ranking JSON. Numbering through the CURRENT
-    // success set shifted the ids whenever a participant was transiently non-
-    // SUCCESS (mid-regenerate) or a non-participant agent was SUCCESS, mapping
-    // ranks to the wrong models.
+    // Resolve the [N] ids through the aggregate's saved participant snapshot —
+    // the numbering TournamentEngine wrote the ranking JSON with. Renumbering
+    // through the CURRENT report shifted the ids whenever a participant was
+    // removed from the report, transiently non-SUCCESS (mid-regenerate), or a
+    // non-participant agent was SUCCESS, mapping ranks to the wrong models.
     val participantIds = matchRows
         .flatMap { listOf(it.matchResponseAId, it.matchResponseBId) }
         .filterNotNull()
         .toHashSet()
-    val agentsByRankId = (report?.agents ?: emptyList())
-        .filter { it.agentId in participantIds }
-        .mapIndexed { index, agent ->
-            (index + 1) to TournamentAgent(
-                rankId = index + 1,
-                agentId = agent.agentId,
-                label = shortModelName2(agent.model)
-            )
-        }.toMap()
     // Labels for every agent (not just SUCCESS) so a participant that dipped
-    // out of SUCCESS still names its model in the head-to-head cards.
-    val agentIdToLabel = (report?.agents ?: emptyList())
-        .associate { it.agentId to shortModelName2(it.model) }
+    // out of SUCCESS still names its model in the head-to-head cards; one
+    // removed from the report since names it from the run's saved answers.
+    val savedModels = row?.let { com.ai.data.ReportEvidenceStore.sources(it) }
+        ?.answers.orEmpty().associate { it.id to it.model }
+    val agentIdToLabel = (savedModels + (report?.agents ?: emptyList()).associate { it.agentId to it.model })
+        .mapValues { shortModelName2(it.value) }
+    val agentsByRankId = com.ai.data.tournamentRankAgentIds(row, report, participantIds)
+        .mapValues { (rankId, agentId) ->
+            TournamentAgent(
+                rankId = rankId,
+                agentId = agentId,
+                label = agentIdToLabel[agentId] ?: "(removed model)"
+            )
+        }
     val agentIdToResponse = successful.associate { it.agentId to it.responseBody }
     val records = buildTournamentRecords(matchRows)
     val rankings = row?.content?.let { parseRerankRows(it) }.orEmpty().map { rankRow ->

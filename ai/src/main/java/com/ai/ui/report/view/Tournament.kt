@@ -111,29 +111,27 @@ fun TournamentViewScreen(
                 SecondaryResultStorage.listForReport(context, reportId, SecondaryKind.TOURNAMENT)
                     .filter { it.tournamentRole == "MATCH" && it.tournamentJudgeRunId == rk }
             }.orEmpty()
-            // Number the ranking's [N] ids by each PARTICIPANT's stable position
-            // in report.agents — exactly how TournamentEngine writes them (and
-            // how TournamentPodium reads them). Numbering through the CURRENT
-            // success set shifted the ids whenever the success set drifted from
-            // the participant set (e.g. an errored model regenerated to SUCCESS
-            // after the tournament ran), mapping ranks to the wrong models.
+            // Resolve the ranking's [N] ids through the aggregate's saved
+            // participant snapshot — exactly the numbering TournamentEngine
+            // wrote them with (and how TournamentPodium reads them).
+            // Renumbering through the CURRENT report shifted the ids whenever
+            // the agents drifted from the participant set (a participant
+            // removed from the report, a model regenerated to SUCCESS after
+            // the tournament ran), mapping ranks to the wrong models.
             val participantIds = matchRows
                 .flatMap { listOf(it.matchResponseAId, it.matchResponseBId) }
                 .filterNotNull()
                 .toHashSet()
-            val participants = (report?.agents ?: emptyList())
-                .filter { it.agentId in participantIds }
-            val labels = participants
-                .mapIndexed { i, a -> (i + 1) to shortModelName2(a.model) }
-                .toMap()
-            val rankAgentIds = participants
-                .mapIndexed { i, a -> (i + 1) to a.agentId }
-                .toMap()
+            val rankAgentIds = com.ai.data.tournamentRankAgentIds(row, report, participantIds)
             // Labels for every agent (not just SUCCESS) so a participant that
-            // dipped out of SUCCESS still names its model in the match cards.
-            val agentIdToLabel = (report?.agents ?: emptyList()).associate {
-                it.agentId to shortModelName2(it.model)
-            }
+            // dipped out of SUCCESS still names its model in the match cards;
+            // one removed from the report since names it from the run's
+            // saved answers.
+            val savedModels = row?.let { com.ai.data.ReportEvidenceStore.sources(it) }
+                ?.answers.orEmpty().associate { it.id to it.model }
+            val agentIdToLabel = (savedModels + (report?.agents ?: emptyList()).associate { it.agentId to it.model })
+                .mapValues { shortModelName2(it.value) }
+            val labels = rankAgentIds.mapValues { (_, id) -> agentIdToLabel[id] ?: "(removed model)" }
             // One display row per unordered pair (keyed by the sorted agent-id
             // pair), carrying BOTH orientations separately so the screen's
             // A<>B / B<>A switch can show each one's verdict + reason + trace.

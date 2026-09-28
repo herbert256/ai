@@ -616,10 +616,23 @@ private fun rebuildTournamentMatrixFromRows(
     // mapping ranks to the wrong models. Matches TournamentEngine's
     // recomputeAndPersistAggregate and the podium loader's numbering.
     val participantIds = matches.flatMapTo(HashSet()) { listOf(it.responseAId, it.responseBId) }
-    val idByAgent = report.agents
-        .filter { it.agentId in participantIds }
-        .withIndex().associate { (i, a) -> a.agentId to (i + 1) }
+    val idByAgent = tournamentRankAgentIds(aggregateRow, report, participantIds)
+        .entries.associate { (rankId, agentId) -> agentId to rankId }
     return computeWinMatrix(matches) { idByAgent[it] }
+}
+
+/** A tournament AGGREGATE row's `[N]` rank ids → participant agent ids, in
+ *  the numbering its ranking JSON was written with. Prefers the row's
+ *  [SecondaryResult.sourceAgentIds] snapshot, which every recompute keeps in
+ *  lockstep with the ids — renumbering through the report's CURRENT agents
+ *  shifted every rank onto the wrong model once a participant was removed
+ *  from the report (with "Use report models" off the tournament keeps that
+ *  participant's matches). Aggregates written before the snapshot existed
+ *  fall back to the participants' order in the current report. */
+fun tournamentRankAgentIds(aggregate: SecondaryResult?, report: Report?, participantIds: Set<String>): Map<Int, String> {
+    val ordered = aggregate?.sourceAgentIds?.takeIf { it.isNotEmpty() }
+        ?: report?.agents.orEmpty().filter { it.agentId in participantIds }.map { it.agentId }
+    return ordered.withIndex().associate { (i, id) -> (i + 1) to id }
 }
 
 /** Inverse of [WinMatrix.encode] — returns the matrix and the stored
