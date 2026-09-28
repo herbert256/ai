@@ -183,8 +183,10 @@ object NavRoutes {
     fun aiReportInfo(reportId: String) = "ai_report_info/$reportId"
     // agentId is usually a UUID, but staged swarm / fan-out rows use a
     // synthetic id like "swarm:Provider:vendor/model" that contains '/' and
-    // ':' — encode it or the nav route can't be matched (crash). Decoded on
-    // the read side in ReportRoutes.
+    // ':' — encode it or the nav route can't be matched (crash). Navigation
+    // decodes every encode()d argument exactly once, so route composables
+    // read it as-is — decoding again turned '+' into a space and a literal
+    // '%' into an exception (→ empty string).
     fun aiReportModel(reportId: String, agentId: String) = "ai_report_model/$reportId/${encode(agentId)}"
 
     fun traceDetail(filename: String) = "trace_detail/$filename"

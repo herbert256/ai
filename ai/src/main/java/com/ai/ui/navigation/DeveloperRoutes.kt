@@ -333,7 +333,7 @@ internal fun NavGraphBuilder.developerRoutes(
                 onHousekeeping = { navController.navigate(NavRoutes.AI_COSTS_MAINTENANCE) })
         }
         monitorComposable(NavRoutes.AI_USAGE_PROVIDER, monitorNav) { entry ->
-            val pid = try { java.net.URLDecoder.decode(entry.arguments?.getString("providerId") ?: "", "UTF-8") } catch (_: Exception) { "" }
+            val pid = entry.arguments?.getString("providerId") ?: ""
             AiSpendUsageProviderScreen(
                 providerId = pid,
                 onBack = safePopBack, onNavigateHome = navigateHome,
@@ -341,7 +341,7 @@ internal fun NavGraphBuilder.developerRoutes(
                 onNavigateToStatistics = toStatistics)
         }
         monitorComposable(NavRoutes.AI_USAGE_TYPE_GROUP, monitorNav) { entry ->
-            val prefix = try { java.net.URLDecoder.decode(entry.arguments?.getString("groupPrefix") ?: "", "UTF-8") } catch (_: Exception) { "" }
+            val prefix = entry.arguments?.getString("groupPrefix") ?: ""
             AiSpendUsageTypeGroupScreen(
                 groupPrefix = prefix,
                 onBack = safePopBack, onNavigateHome = navigateHome,
@@ -350,7 +350,7 @@ internal fun NavGraphBuilder.developerRoutes(
                 onNavigateToStatistics = toStatistics)
         }
         monitorComposable(NavRoutes.AI_USAGE_TYPE, monitorNav) { entry ->
-            val prefix = try { java.net.URLDecoder.decode(entry.arguments?.getString("typePrefix") ?: "", "UTF-8") } catch (_: Exception) { "" }
+            val prefix = entry.arguments?.getString("typePrefix") ?: ""
             AiSpendUsageTypeScreen(
                 typePrefix = prefix,
                 onBack = safePopBack, onNavigateHome = navigateHome,
@@ -688,9 +688,7 @@ internal fun NavGraphBuilder.developerRoutes(
             com.ai.ui.admin.DependenciesScreen(onBack = safePopBack)
         }
         composable(NavRoutes.HELP_FOR_TOPIC) { entry ->
-            val topicId = try {
-                java.net.URLDecoder.decode(entry.arguments?.getString("topicId") ?: "", "UTF-8")
-            } catch (_: Exception) { "" }
+            val topicId = entry.arguments?.getString("topicId") ?: ""
             HelpScreen(
                 topicId = topicId, onBack = safePopBack, onNavigateHome = navigateHome,
                 onNavigateToTopic = { id -> navController.navigate(NavRoutes.helpForTopic(id)) },
@@ -736,9 +734,7 @@ internal fun NavGraphBuilder.developerRoutes(
         }
         composable(NavRoutes.TRACE_LIST_FOR_REPORT_CATEGORY) { entry ->
             val reportId = entry.arguments?.getString("reportId") ?: ""
-            val category = try {
-                java.net.URLDecoder.decode(entry.arguments?.getString("category") ?: "", "UTF-8")
-            } catch (_: Exception) { "" }
+            val category = entry.arguments?.getString("category") ?: ""
             val backToReport: () -> Unit = {
                 if (!navController.popBackStack(NavRoutes.AI_REPORTS, false))
                     navController.navigate(NavRoutes.aiReports())
@@ -761,7 +757,7 @@ internal fun NavGraphBuilder.developerRoutes(
             }
         }
         composable(NavRoutes.TRACE_LIST_FOR_MODEL) { entry ->
-            val model = try { java.net.URLDecoder.decode(entry.arguments?.getString("model") ?: "", "UTF-8") } catch (_: Exception) { "" }
+            val model = entry.arguments?.getString("model") ?: ""
             val uiState by appViewModel.uiState.collectAsState()
             TraceListScreen(aiSettings = uiState.aiSettings,
                 onBack = safePopBack, onNavigateHome = navigateHome,
@@ -775,7 +771,7 @@ internal fun NavGraphBuilder.developerRoutes(
                 onSettings = { navController.navigate(NavRoutes.SETTINGS_LOGGING) })
         }
         composable(NavRoutes.TRACE_LIST_FOR_RUN) { entry ->
-            val runId = try { java.net.URLDecoder.decode(entry.arguments?.getString("runId") ?: "", "UTF-8") } catch (_: Exception) { "" }
+            val runId = entry.arguments?.getString("runId") ?: ""
             val uiState by appViewModel.uiState.collectAsState()
             TraceListScreen(aiSettings = uiState.aiSettings,
                 onBack = safePopBack, onNavigateHome = navigateHome,
@@ -798,9 +794,7 @@ internal fun NavGraphBuilder.developerRoutes(
                 navArgument("provider") { type = NavType.StringType; nullable = true; defaultValue = null },
             )
         ) { entry ->
-            fun arg(k: String) = entry.arguments?.getString(k)?.let {
-                try { java.net.URLDecoder.decode(it, "UTF-8") } catch (_: Exception) { it }
-            }
+            fun arg(k: String) = entry.arguments?.getString(k)
             val uiState by appViewModel.uiState.collectAsState()
             TraceListScreen(aiSettings = uiState.aiSettings,
                 onBack = safePopBack, onNavigateHome = navigateHome,

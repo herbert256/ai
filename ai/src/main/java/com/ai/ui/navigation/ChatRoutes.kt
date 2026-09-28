@@ -166,7 +166,7 @@ internal fun NavGraphBuilder.chatRoutes(
         }
         composable(NavRoutes.AI_CHAT_PARAMS) { entry ->
             val provider = AppService.findById(entry.arguments?.getString("provider") ?: "")
-            val model = try { java.net.URLDecoder.decode(entry.arguments?.getString("model") ?: "", "UTF-8") } catch (_: Exception) { "" }
+            val model = entry.arguments?.getString("model") ?: ""
             val uiState by appViewModel.uiState.collectAsState()
             if (provider != null) {
                 ChatParametersScreen(provider = provider, model = model, aiSettings = uiState.aiSettings,
@@ -177,7 +177,7 @@ internal fun NavGraphBuilder.chatRoutes(
         composable(NavRoutes.AI_CHAT_SESSION) { entry ->
             val context = LocalContext.current
             val provider = AppService.findById(entry.arguments?.getString("provider") ?: "")
-            val model = try { java.net.URLDecoder.decode(entry.arguments?.getString("model") ?: "", "UTF-8") } catch (_: Exception) { "" }
+            val model = entry.arguments?.getString("model") ?: ""
             val uiState by appViewModel.uiState.collectAsState()
             // The app-wide chatParameters belong to whichever chat was started
             // LAST. Capture them once per back-stack entry (JSON in the entry's

@@ -83,7 +83,7 @@ internal fun NavGraphBuilder.settingsAdminRoutes(
         // ===== Models =====
         composable(NavRoutes.AI_MODEL_INFO) { entry ->
             val provider = AppService.findById(entry.arguments?.getString("provider") ?: "")
-            val model = try { java.net.URLDecoder.decode(entry.arguments?.getString("model") ?: "", "UTF-8") } catch (_: Exception) { "" }
+            val model = entry.arguments?.getString("model") ?: ""
             val uiState by appViewModel.uiState.collectAsState()
             val context = LocalContext.current
             val scope = rememberCoroutineScope()
@@ -132,7 +132,7 @@ internal fun NavGraphBuilder.settingsAdminRoutes(
         // reached from any model-name click on a View Report screen.
         composable(NavRoutes.AI_MODEL_INFO_VIEW) { entry ->
             val provider = AppService.findById(entry.arguments?.getString("provider") ?: "")
-            val model = try { java.net.URLDecoder.decode(entry.arguments?.getString("model") ?: "", "UTF-8") } catch (_: Exception) { "" }
+            val model = entry.arguments?.getString("model") ?: ""
             val uiState by appViewModel.uiState.collectAsState()
             val context = LocalContext.current
             val scope = rememberCoroutineScope()
@@ -237,7 +237,7 @@ internal fun NavGraphBuilder.settingsAdminRoutes(
         }
         composable(NavRoutes.AI_MANUAL_OVERRIDE_ADD) { entry ->
             val providerId = entry.arguments?.getString("provider") ?: ""
-            val model = try { java.net.URLDecoder.decode(entry.arguments?.getString("model") ?: "", "UTF-8") } catch (_: Exception) { "" }
+            val model = entry.arguments?.getString("model") ?: ""
             val uiState by appViewModel.uiState.collectAsState()
             ManualModelOverrideEntryScreen(
                 aiSettings = uiState.aiSettings,
@@ -249,7 +249,7 @@ internal fun NavGraphBuilder.settingsAdminRoutes(
         }
         composable(NavRoutes.AI_MANUAL_COST_OVERRIDE_ADD) { entry ->
             val providerId = entry.arguments?.getString("provider") ?: ""
-            val model = try { java.net.URLDecoder.decode(entry.arguments?.getString("model") ?: "", "UTF-8") } catch (_: Exception) { "" }
+            val model = entry.arguments?.getString("model") ?: ""
             val uiState by appViewModel.uiState.collectAsState()
             ManualCostOverrideEntryScreen(
                 aiSettings = uiState.aiSettings,
@@ -416,9 +416,7 @@ internal fun NavGraphBuilder.settingsAdminRoutes(
                 initialSubScreen = SettingsSubScreen.AI_SWARMS)
         }
         composable(NavRoutes.SETTINGS_INTERNAL_PROMPTS_BY_CATEGORY) { entry ->
-            val cat = try {
-                java.net.URLDecoder.decode(entry.arguments?.getString("category") ?: "meta", "UTF-8")
-            } catch (_: Exception) { "meta" }
+            val cat = entry.arguments?.getString("category") ?: "meta"
             SettingsScreenNav(viewModel = appViewModel, onNavigateBack = safePopBack, onNavigateHome = navigateHome,
                 onNavigateToCostConfig = { navController.navigate(NavRoutes.AI_COST_CONFIG) },
                 onNavigateToTrace = { navController.navigate(NavRoutes.traceDetail(it)) },
