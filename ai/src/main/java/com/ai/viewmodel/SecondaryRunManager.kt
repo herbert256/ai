@@ -705,7 +705,13 @@ class SecondaryRunManager(
         // its Manage screens show red crosses for exactly the problems this
         // scan flags, and the ⚠️ badge must agree with what's on screen.
         val currentId = appViewModel.uiState.value.currentReportId
-        val recent = ReportStorage.getAllReports(context).filter { it.timestamp >= cutoff || it.id == currentId }
+        // Pick the recent ids off the cached header index and parse only
+        // those reports — every 30 s this used to fully parse EVERY report
+        // (image-heavy ones are MBs) just to drop the old ones.
+        val recent = ReportStorage.getReportHeaders(context)
+            .filter { it.timestamp >= cutoff || it.id == currentId }
+            .sortedByDescending { it.timestamp }
+            .mapNotNull { ReportStorage.getReport(context, it.id) }
         if (recent.isEmpty()) return@withContext emptyList()
         val batches = recent.flatMap { report -> detectBrokenBatchesForReport(context, report) }
             .sortedByDescending { it.timestamp }
@@ -795,7 +801,9 @@ class SecondaryRunManager(
      *  (TournamentEngine.ROLE_MATCH / [com.ai.data.JUDGE_ROLE_CELL]). */
     private fun detectBrokenBatchesForReport(context: Context, report: Report): List<BrokenBatch> {
         val reportId = report.id
-        val rows = SecondaryResultStorage.listForReport(context, reportId)
+        // Read-through: the scan walks every recent report, and inserting
+        // each into the 3-report row cache evicted the one the user has open.
+        val rows = SecondaryResultStorage.listForReportWithoutCaching(context, reportId)
         val batches = BrokenWorkPolicy.detectBatches(
             reportId = reportId,
             reportTitle = report.title,

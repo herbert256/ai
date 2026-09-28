@@ -357,6 +357,32 @@ object SecondaryResultStorage {
         }
     }
 
+    /** [listForReport] for scans across many reports (the 30 s Broken-work
+     *  scan, statistics, Model-info usage): a report already in the cache is
+     *  served (and refreshed) exactly like [listForReport]; any other report
+     *  is parsed into a throwaway cache that is NOT inserted. The LRU holds
+     *  three reports, so a scan over dozens used to evict the report the
+     *  user has open (its screens then re-parsed every row on the next read)
+     *  and churn the cache under the store lock on every pass. */
+    fun listForReportWithoutCaching(context: Context, reportId: String, kind: SecondaryKind? = null): List<SecondaryResult> {
+        init(context)
+        return lock.withLock {
+            val dir = resolveReportDirForRead(reportId) ?: return@withLock emptyList()
+            if (!dir.exists()) return@withLock emptyList()
+            val dirMtime = dir.lastModified()
+            val cached = reportCaches[reportId]
+            if (cached != null) {
+                if (!cached.loaded || cached.dirMtime != dirMtime) refreshReportCacheFromDisk(dir, cached)
+                return@withLock rowsFromCache(cached, kind).also {
+                    if (cached.bytes > 8L * 1024 * 1024) reportCaches.remove(reportId)
+                }
+            }
+            val scratch = ReportCache()
+            refreshReportCacheFromDisk(dir, scratch)
+            rowsFromCache(scratch, kind)
+        }
+    }
+
     /** Reject a result id that could escape the report dir (separators, `.`,
      *  `..`, blank). Result ids are internal UUIDs today; this hardens the
      *  direct read/exists/delete helpers for any future caller that builds the
