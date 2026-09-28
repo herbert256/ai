@@ -495,6 +495,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
      *  bootstrap coroutine launched there may save before later property
      *  initialisers have run. */
     private val settingsSaveMutex = Mutex()
+    /** Same for [updateGeneralSettings]: saves write the latest
+     *  GeneralSettings under this lock, in order. */
+    private val generalSettingsSaveMutex = Mutex()
 
     init {
         // The logging master switch defaults OFF, so until the bootstrap
@@ -1371,7 +1374,12 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             AppLog.i("Settings", "Log level changed: ${previous.logLevel} → ${settings.logLevel}")
         }
         _uiState.update { it.copy(generalSettings = settings) }
-        viewModelScope.launch(Dispatchers.IO) { settingsPrefs.saveGeneralSettings(settings) }
+        // Serialised, latest snapshot read under the lock (as for the AI
+        // settings): one unordered IO launch per call let an older
+        // snapshot land last and undo a newer edit.
+        viewModelScope.launch(Dispatchers.IO) {
+            generalSettingsSaveMutex.withLock { settingsPrefs.saveGeneralSettings(_uiState.value.generalSettings) }
+        }
     }
 
     /** Push (provider, model) onto the front of the Report-section
@@ -1413,11 +1421,14 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
      *  lock), so two quick updates can't reach disk out of order —
      *  unordered IO launches of per-call snapshots let an older one
      *  land last and silently undo the newer edit. */
-    private fun persistLatestSettings() {
-        viewModelScope.launch(Dispatchers.IO) {
-            settingsSaveMutex.withLock { settingsPrefs.saveSettings(_uiState.value.aiSettings) }
-        }
+    internal fun persistLatestSettings() {
+        viewModelScope.launch(Dispatchers.IO) { saveLatestSettingsNow() }
     }
+
+    /** Suspending [persistLatestSettings] for callers already off the main
+     *  thread that must know the write has landed. */
+    private suspend fun saveLatestSettingsNow() =
+        settingsSaveMutex.withLock { settingsPrefs.saveSettings(_uiState.value.aiSettings) }
 
     private var infoProviderRecomputeJob: kotlinx.coroutines.Job? = null
 
@@ -1450,7 +1461,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 }
                 if (applied) {
                     com.ai.model.SettingsHolder.current = recomputed
-                    settingsPrefs.saveSettings(recomputed)
+                    saveLatestSettingsNow()
                     break
                 }
                 kotlinx.coroutines.currentCoroutineContext().ensureActive()
@@ -1538,7 +1549,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
      *  calls in a single SharedPreferences write. */
     fun flushAiSettingsToDisk() {
         val snapshot = _uiState.value.aiSettings
-        viewModelScope.launch(Dispatchers.IO) { settingsPrefs.saveSettings(snapshot) }
+        persistLatestSettings()
         AppLog.i(
             "ModelTest",
             "→ test-run flush: ${snapshot.blockedModels.size} blocked, ${snapshot.testExcludedModels.size} test-excluded, ${snapshot.inaccessibleModels.size} inaccessible"
@@ -1975,7 +1986,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 _uiState.update { it.copy(aiSettings = it.aiSettings.applyOpenRouterTypes()) }
                 // All downloads, merges and worker checkpoints have joined.
                 // One full snapshot now contains every provider's result.
-                settingsPrefs.saveSettings(_uiState.value.aiSettings)
+                saveLatestSettingsNow()
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (e: Throwable) {
@@ -1999,7 +2010,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 if (f.name == com.ai.model.DEFAULT_AGENTS_FLOCK_NAME) f.copy(agentIds = emptyList()) else f
             }))
         }
-        settingsSaveMutex.withLock { settingsPrefs.saveSettings(_uiState.value.aiSettings) }
+        saveLatestSettingsNow()
     }
 
     /** Worker-only variant of [startRefreshAll]. Skips every catalog
@@ -2030,7 +2041,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 runWorkerPhase(testable)
                 _uiState.update { it.copy(aiSettings = it.aiSettings.applyOpenRouterTypes()) }
                 // Persist the complete worker result before offering restart.
-                settingsPrefs.saveSettings(_uiState.value.aiSettings)
+                saveLatestSettingsNow()
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (e: Throwable) {

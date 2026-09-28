@@ -485,15 +485,19 @@ class JudgeEvalEngine internal constructor(
      *  future runs (and the Tournament) no longer use it. Persists settings.
      *  No-op if the swarm or member can't be found. */
     fun removeJudgeFromSwarm(providerId: String, model: String) {
-        val aiSettings = appViewModel.uiState.value.aiSettings
-        val swarmName = judgePrompt(aiSettings)?.workers?.firstOrNull()?.swarm ?: return
-        val updated = aiSettings.copy(swarms = aiSettings.swarms.map { s ->
-            if (s.name.equals(swarmName, ignoreCase = true))
-                s.copy(members = s.members.filter { !(it.provider.id == providerId && it.model == model) })
-            else s
-        })
-        appViewModel.updateUiState { it.copy(aiSettings = updated) }
-        appViewModel.viewModelScope.launch(Dispatchers.IO) { appViewModel.settingsPrefs.saveSettings(updated) }
+        val swarmName = judgePrompt(appViewModel.uiState.value.aiSettings)?.workers?.firstOrNull()?.swarm ?: return
+        // Edit the CURRENT settings and save through the ordered latest-
+        // snapshot path — a stale snapshot + its own IO save could undo a
+        // concurrent settings edit.
+        appViewModel.updateUiState { st ->
+            val ai = st.aiSettings
+            st.copy(aiSettings = ai.copy(swarms = ai.swarms.map { s ->
+                if (s.name.equals(swarmName, ignoreCase = true))
+                    s.copy(members = s.members.filter { !(it.provider.id == providerId && it.model == model) })
+                else s
+            }))
+        }
+        appViewModel.persistLatestSettings()
         AppLog.i("JudgeEval", "Removed judge $providerId/$model from swarm '$swarmName'")
     }
 
@@ -553,20 +557,24 @@ class JudgeEvalEngine internal constructor(
      *  of [removeJudgeFromSwarm], so future runs (and the Tournament) include it.
      *  No-op if the swarm is unresolved or already contains the member. */
     fun addJudgeToSwarm(provider: AppService, model: String) {
-        val aiSettings = appViewModel.uiState.value.aiSettings
-        val swarmName = judgePrompt(aiSettings)?.workers?.firstOrNull()?.swarm ?: return
+        val swarmName = judgePrompt(appViewModel.uiState.value.aiSettings)?.workers?.firstOrNull()?.swarm ?: return
         var changed = false
-        val updated = aiSettings.copy(swarms = aiSettings.swarms.map { s ->
-            if (s.name.equals(swarmName, ignoreCase = true) &&
-                s.members.none { it.provider.id == provider.id && it.model == model }
-            ) {
-                changed = true
-                s.copy(members = s.members + SwarmMember(provider, model))
-            } else s
-        })
+        // Current settings + ordered latest-snapshot save (see removeJudgeFromSwarm).
+        appViewModel.updateUiState { st ->
+            changed = false
+            val ai = st.aiSettings
+            val updated = ai.copy(swarms = ai.swarms.map { s ->
+                if (s.name.equals(swarmName, ignoreCase = true) &&
+                    s.members.none { it.provider.id == provider.id && it.model == model }
+                ) {
+                    changed = true
+                    s.copy(members = s.members + SwarmMember(provider, model))
+                } else s
+            })
+            if (changed) st.copy(aiSettings = updated) else st
+        }
         if (!changed) return
-        appViewModel.updateUiState { it.copy(aiSettings = updated) }
-        appViewModel.viewModelScope.launch(Dispatchers.IO) { appViewModel.settingsPrefs.saveSettings(updated) }
+        appViewModel.persistLatestSettings()
         AppLog.i("JudgeEval", "Added judge ${provider.id}/$model to swarm '$swarmName'")
     }
 
