@@ -184,6 +184,7 @@ definition (`AppService.defaultModel` / `defaultModelSource`), so
 |---|---|---|
 | `model_list_timestamp_<providerId>` | Long | last successful `/models` fetch — drives 24 h cache validity (a key *prefix*, one per provider) |
 | `first_run_bootstrapped` | Boolean | gates the one-time first-run providers + prompts seed (the every-start delta-merge still runs on subsequent starts — see [architecture.md](architecture.md)) |
+| `bundled_test_excluded_offered` / `bundled_inaccessible_offered` | StringSet | `provider:model` keys from `assets/excluded.json` / `assets/inaccessible.json` already offered by the start-up delta-merge; only keys missing here are added, so a removed entry stays removed. Cleared by Clear all configuration |
 | `ai_report_agents_v2` | StringSet | last-used agent selection for the Reports flow |
 | `ai_report_models_v2` | StringSet | last-used direct-model selection for the Reports flow |
 | `last_ai_report_title` | String | most recent report title (used by external-intent flows) |

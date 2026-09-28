@@ -123,7 +123,9 @@ practice `ModelTestEngine.startRun` consults it per-model via
   again. Also **seeded** from
   `assets/excluded.json` on app start (`TestExcludedSeed.ensureAllPresent`,
   [data/TestExcludedSeed.kt:43](../ai/src/main/java/com/ai/data/TestExcludedSeed.kt)),
-  a delta-merge that never touches existing keys. Hand-curable via the
+  a delta-merge that never touches existing keys and only adds keys this
+  install hasn't been offered before (prefs `bundled_test_excluded_offered`),
+  so a bundled entry you delete stays deleted. Hand-curable via the
   `testexcluded/` CRUD.
 - **Picker effect**: **none** — these models stay fully visible and
   selectable everywhere; the list only gates the sweep.
@@ -147,7 +149,10 @@ or OpenRouter non-serverless catalog entries). Carries a **required**
   (`InaccessibleSeed.ensureAllPresent`,
   [data/InaccessibleSeed.kt:49](../ai/src/main/java/com/ai/data/InaccessibleSeed.kt));
   blank-reason seed rows default to "Unable to access non-serverless
-  (bundled)". Hand-curable via the `inaccessible/` CRUD.
+  (bundled)". Only keys not offered before are added (prefs
+  `bundled_inaccessible_offered`), so an entry removed by a passing retry
+  or by hand is not re-added on the next launch. Hand-curable via the
+  `inaccessible/` CRUD.
 - **Picker effect**: dimmed with a tertiary `🔒 Inaccessible: …`
   caption (`inaccessibleReasonByKey`). Per
   [ui/other/Selection.kt:225](../ai/src/main/java/com/ai/ui/other/Selection.kt)

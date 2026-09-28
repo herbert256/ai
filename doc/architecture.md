@@ -934,7 +934,8 @@ for providers) and never overwrites an existing row:
   prompts point at), merged by name; a Flock's member agents resolve by
   name against the current agent set.
 - `assets/excluded.json` / `assets/inaccessible.json` — appended
-  test-excluded / inaccessible `(provider, model)` entries.
+  test-excluded / inaccessible `(provider, model)` entries, each key
+  offered once per install (a removed entry is not re-added).
 - `assets/meta.json` — default Meta items.
 
 None of the above overwrite an existing row on this automatic path, so

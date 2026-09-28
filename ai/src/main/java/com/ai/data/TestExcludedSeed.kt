@@ -38,15 +38,22 @@ object TestExcludedSeed {
         }
     }
 
-    /** Append every bundled entry whose `provider:model` key is not
-     *  yet in [existing]. Existing rows are untouched. */
+    /** Prefs StringSet of every bundled `provider:model` key already
+     *  offered on an earlier launch. Cleared with the configuration. */
+    const val OFFERED_PREFS_KEY = "bundled_test_excluded_offered"
+
+    /** Append every bundled entry whose `provider:model` key is neither
+     *  in [existing] nor in [alreadyOffered]. An entry offered before and
+     *  since removed (a passing retry, a user delete) stays removed — only
+     *  keys new to this APK's asset are added. Existing rows are untouched. */
     fun ensureAllPresent(
         existing: List<TestExcludedModel>,
-        bundled: List<TestExcludedModel>
+        bundled: List<TestExcludedModel>,
+        alreadyOffered: Set<String>
     ): List<TestExcludedModel> {
         if (bundled.isEmpty()) return existing
         val known = existing.map { it.key }.toSet()
-        val toAdd = bundled.filter { it.key !in known }
+        val toAdd = bundled.filter { it.key !in known && it.key !in alreadyOffered }
         return if (toAdd.isEmpty()) existing else existing + toAdd
     }
 }

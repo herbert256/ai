@@ -963,13 +963,20 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             val bundled = com.ai.data.TestExcludedSeed.loadFromAssets(application)
             AppLog.d(tag, "  bundled excluded.json entries: ${bundled.size}")
             if (bundled.isNotEmpty()) {
+                // Only keys this install hasn't been offered yet — one removed
+                // after a passing retry or by the user must not come back.
+                val offered = prefs.getStringSet(com.ai.data.TestExcludedSeed.OFFERED_PREFS_KEY, null).orEmpty()
                 val before = ai.testExcludedModels.size
-                val merged = com.ai.data.TestExcludedSeed.ensureAllPresent(ai.testExcludedModels, bundled)
+                val merged = com.ai.data.TestExcludedSeed.ensureAllPresent(ai.testExcludedModels, bundled, offered)
                 val added = merged.size - before
                 if (added != 0) {
                     ai = ai.copy(testExcludedModels = merged)
                     settingsPrefs.saveSettings(ai)
                     AppLog.d(tag, "  settings saved with $added new test-excluded entries")
+                }
+                val nowOffered = offered + bundled.map { it.key }
+                if (nowOffered.size != offered.size) {
+                    prefs.edit().putStringSet(com.ai.data.TestExcludedSeed.OFFERED_PREFS_KEY, HashSet(nowOffered)).apply()
                 }
                 AppLog.d(tag, "← excluded.json delta-merge done in ${System.currentTimeMillis() - tExcluded}ms (added=$added)")
             } else {
@@ -991,13 +998,20 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             val bundled = com.ai.data.InaccessibleSeed.loadFromAssets(application)
             AppLog.d(tag, "  bundled inaccessible.json entries: ${bundled.size}")
             if (bundled.isNotEmpty()) {
+                // Only keys this install hasn't been offered yet — one removed
+                // after a passing retry or by the user must not come back.
+                val offered = prefs.getStringSet(com.ai.data.InaccessibleSeed.OFFERED_PREFS_KEY, null).orEmpty()
                 val before = ai.inaccessibleModels.size
-                val merged = com.ai.data.InaccessibleSeed.ensureAllPresent(ai.inaccessibleModels, bundled)
+                val merged = com.ai.data.InaccessibleSeed.ensureAllPresent(ai.inaccessibleModels, bundled, offered)
                 val added = merged.size - before
                 if (added != 0) {
                     ai = ai.copy(inaccessibleModels = merged)
                     settingsPrefs.saveSettings(ai)
                     AppLog.d(tag, "  settings saved with $added new inaccessible entries")
+                }
+                val nowOffered = offered + bundled.map { it.key }
+                if (nowOffered.size != offered.size) {
+                    prefs.edit().putStringSet(com.ai.data.InaccessibleSeed.OFFERED_PREFS_KEY, HashSet(nowOffered)).apply()
                 }
                 AppLog.d(tag, "← inaccessible.json delta-merge done in ${System.currentTimeMillis() - tInaccessible}ms (added=$added)")
             } else {
@@ -1235,6 +1249,12 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         AppLog.i("Housekeeping", "→ Clear all configuration")
         updateSettings(Settings())
         updateGeneralSettings(GeneralSettings())
+        // The emptied Inaccessible / Test-excluded lists are re-seeded from
+        // the bundled assets on the next launch.
+        prefs.edit()
+            .remove(com.ai.data.InaccessibleSeed.OFFERED_PREFS_KEY)
+            .remove(com.ai.data.TestExcludedSeed.OFFERED_PREFS_KEY)
+            .apply()
         val llms = LocalLlm.clearAll(context)
         val embedders = LocalEmbedder.clearAll(context)
         // Drop the per-(name, title) emoji cache. The prompts themselves
