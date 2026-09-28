@@ -106,7 +106,14 @@ fun AppNavHost(
         // once its loaded report is dismissed. Backgrounded like the hub's
         // back, never finish(): that destroys the Activity and with it
         // AppViewModel.viewModelScope, killing every running generation/batch.
+        // Re-rooted on the AI redirect first: the leaving Manage screen has
+        // already dismissed its report, so coming back must re-run the
+        // redirect (latest report / Reports hub / First launch) — exactly what
+        // a relaunch after the old finish() showed.
         else if (appViewModel.uiState.value.generalSettings.appHomeMode == AppHomeMode.HOME_BAR) {
+            navController.navigate(NavRoutes.AI) {
+                popUpTo(navController.graph.id) { inclusive = true }
+            }
             backActivity?.moveTaskToBack(true)
         }
     }

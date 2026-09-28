@@ -217,10 +217,11 @@ five route-group files.
   report's Manage screen, the Reports hub, or First launch) and a
   persistent `HomeIconBar` is painted at the **top** with section
   shortcuts (Reports, Chat, Monitor, Setup, Housekeeping, Settings,
-  …). Back at the nav root in this mode backgrounds the app
-  (`moveTaskToBack`, like the hub's back) — never `finish()`, which
-  would destroy the Activity and cancel every running generation / batch
-  with `AppViewModel.viewModelScope`.
+  …). Back at the nav root in this mode re-roots the back stack on the
+  `AI` redirect and backgrounds the app (`moveTaskToBack`, like the hub's
+  back), so returning shows the latest report again — never `finish()`,
+  which would destroy the Activity and cancel every running generation /
+  batch with `AppViewModel.viewModelScope`.
 
 A `BottomIconBar` is painted at the bottom of every destination except
 the `AI` Hub and Help screens; each screen's `TitleBar` publishes its
