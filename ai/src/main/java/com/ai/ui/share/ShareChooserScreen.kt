@@ -7,6 +7,11 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -140,6 +145,58 @@ private fun ShareCard(
                     color = if (enabled) AppColors.TextPrimary else AppColors.TextDim)
                 Text(description, fontSize = 11.sp,
                     color = if (enabled) AppColors.TextTertiary else AppColors.TextDim)
+            }
+        }
+    }
+}
+
+/**
+ * Chrome for the full-screen overlays AppNavHost draws BEFORE its nav graph
+ * (Share, External request, Choose saved prompt). They sit outside the
+ * providers that give every other screen its bottom icon bar and Help
+ * navigation, so their ❓ never appeared and Help was unreachable. This
+ * supplies both: a bottom bar fed by the overlay's own TitleBar, and Help
+ * pages layered ON TOP of the overlay — the overlay stays composed (its state
+ * survives), Back closes one help page at a time and then returns to it.
+ */
+@Composable
+fun OverlayWithHelp(content: @Composable () -> Unit) {
+    val barState = remember { mutableStateOf<com.ai.ui.shared.TitleBarIcons?>(null) }
+    // Topic ids; null = Help home. Each drill-in pushes, Back pops.
+    var helpStack by remember { mutableStateOf(emptyList<String?>()) }
+    val openHelp: (String?) -> Unit = { topic -> helpStack = helpStack + topic }
+    Box(modifier = Modifier.fillMaxSize()) {
+        CompositionLocalProvider(
+            com.ai.ui.shared.LocalBottomIconState provides barState,
+            com.ai.ui.shared.LocalNavigateToHelp provides openHelp
+        ) {
+            Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground)) {
+                Box(modifier = Modifier.weight(1f)) { content() }
+                com.ai.ui.shared.BottomIconBar(icons = barState.value)
+            }
+        }
+        if (helpStack.isNotEmpty()) {
+            val closeTop = { helpStack = helpStack.dropLast(1) }
+            // Opaque and touch-swallowing: taps must not reach the overlay's
+            // Continue / Cancel / destination cards underneath.
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(AppColors.AppBackground)
+                    .clickable(
+                        interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                        indication = null
+                    ) { }
+            ) {
+                // Composed after the overlay, so its BackHandler wins.
+                com.ai.ui.admin.HelpScreen(
+                    topicId = helpStack.last(),
+                    onBack = closeTop,
+                    onNavigateHome = closeTop,
+                    onNavigateToTopic = { openHelp(it) },
+                    onNavigateToHelpHome = { openHelp(null) },
+                    onNavigateToAbout = null
+                )
             }
         }
     }

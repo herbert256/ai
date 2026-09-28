@@ -37,7 +37,7 @@ internal val developerHelp: Map<String, HelpContent> = mapOf(
             HelpCard("New Chat card", "💬. Opens a fresh chat session with the shared text and first image (if any) staged as the first turn. Enabled when there's text or at least one image; greyed otherwise."),
             HelpCard("Add to Knowledge card", "📚, experimental-features only. Opens the Knowledge screen with the shared file or URL pre-staged. Plain shared text that isn't a URL can't be ingested here — greyed unless a URI was shared or the text is itself a URL."),
             HelpCard("Cancel", "Back / system back fires onCancel which discards the share without routing. The chooser doesn't add itself to the regular back stack."),
-            HelpCard("Title-bar icons", "Help and Home only. Help points to this entry; Home aborts the chooser."),
+            HelpCard("Bottom bar", "Only the ❓, which opens this page on top of the chooser — Back returns to it with the share still pending. There is no Home icon: leave with Back (discards the share) or by picking a destination."),
             HelpCard("Tips", "Cards stay tappable even when the payload is \"weak\" for that route — only-image-shared can still go to Report (vision attach). The receiving callbacks do the heavier validation."),
             HelpCard("Pitfalls", "Multiple shared images: only the first attaches to a chat or report; the rest are dropped.")
         )
@@ -220,14 +220,25 @@ internal val developerHelp: Map<String, HelpContent> = mapOf(
             HelpCard("Overview", "Confirmation gate shown before this app fulfils a `com.ai.ACTION_NEW_REPORT` request. Another app is asking AI to generate a report with instructions embedded in the intent — review what will happen before spending API credits."),
             HelpCard("Prompt with a system prompt", "A plain prompt request (no instructions) normally just pre-fills New Report without asking. When it also carries a `system` extra, this screen appears first so you see that system prompt — it would reach every model without a system prompt of its own. Continue then opens New Report pre-filled as usual; nothing runs until you generate."),
             HelpCard("Prompts and data", "<prompt>text</prompt> and <system>text</system> always contain literal text, even when it matches a saved prompt name or ID. Matching @name@ placeholders use supplied data. Only <parameters>Name</parameters> looks up a Parameters preset by ID or unique name. Eval sends data tags only for placeholders used in its instruction text. <default>, <edit>, <type> and <select> are no longer controls. <model>model@provider</model> selects a direct model; provider IDs ignore case."),
-            HelpCard("Title bar — Back", "Cancels the request and returns to the calling app. Nothing is sent; no API calls fire."),
+            HelpCard("Back / Cancel", "Cancels the request and stays in AI, showing the screen underneath — switch back to the calling app yourself. Nothing is sent; no API calls fire. The ❓ in the bottom bar opens this page on top of the request; Back returns to it."),
             HelpCard("Prompt card", "Shows the optional title + a preview of the AI prompt (first 400 chars, truncated with …) + the system prompt (first 400 chars) if one was passed. A title sent by the other app becomes the report's title and is kept — AI title mode doesn't replace it."),
             HelpCard("Presentation HTML card", "Only shown when the request carries <open> / <close> presentation. Lists each one's size in characters and whether it contains script (a <script> tag, a javascript: link or an on…= event handler). That HTML is rendered with the report in its HTML view, where JavaScript and network access are on — decline a request whose presentation you don't expect to run code."),
             HelpCard("Will-do card","Shows whether Continue opens Report - setup or model selection. Lists requested Models, Agents, Flocks and Swarms. Any supplied selection skips model selection; no selection opens it."),
             HelpCard("Side-effects card (red)", "Only shown when the intent specifies post-generation actions: email the report, open it in the browser, share its HTML via the system sheet, or close this app afterward once the side effect completes (control returns to the caller, but no data is explicitly returned). Each is bulleted so you can spot a malicious or unexpected effect before confirming."),
             HelpCard("Confirm", "Continue opens the indicated setup screen. Invalid selections prevent continuation. Generation starts only from Generate report on the worker screen. Completion actions run after generation."),
-            HelpCard("Pitfalls", "A malicious caller could ask the app to email a report to an attacker's address or open a sketchy URL — review the side-effects card carefully. Cancel always returns to the caller with no data leakage."),
+            HelpCard("Pitfalls", "A malicious caller could ask the app to email a report to an attacker's address or open a sketchy URL — review the side-effects card carefully. Cancel never sends anything back to the caller."),
             HelpCard("Reached from", "Another app sending `com.ai.ACTION_NEW_REPORT` with an instructions extra.")
+        )
+    ),
+    "external_prompt_picker" to HelpContent(
+        title = "Help - Choose saved prompt",
+        cards = listOf(
+            HelpCard("Overview", "Shown for a `com.ai.ACTION_NEW_REPORT` request that supplies no question — no <prompt>, no `prompt` extra and no Agent/Flock/Swarm with default prompts. Pick one of this app's own saved prompts to ask instead; the other app never chooses it."),
+            HelpCard("Choose saved prompt", "Lists your example prompts and non-internal prompt templates that have text, sorted by name. Search filters by name. Tapping one moves on — straight to the External request confirmation when the request carries its own <system> text, otherwise to the system-prompt step."),
+            HelpCard("Choose system prompt", "\"Use configured system prompts\" keeps the picked prompt's own system prompt (or the usual worker / provider defaults). Any saved system prompt below overrides it for this report. Back returns to the prompt list."),
+            HelpCard("Next", "The External request confirmation then shows the chosen prompt; nothing runs until you continue there and generate."),
+            HelpCard("Cancel", "Cancel, or Back from the prompt list, drops the request and stays in AI. Nothing is sent and no API calls fire. The ❓ opens this page on top of the picker; Back returns to it."),
+            HelpCard("Reached from", "Another app sending `com.ai.ACTION_NEW_REPORT` with instructions but no question.")
         )
     ),
     "inaccessible_models" to HelpContent(

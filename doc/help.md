@@ -69,17 +69,17 @@ adding 12 per-domain maps plus one auto-built map:
 | `SearchHelp.kt` | 4 | Search / local semantic search |
 | `LocalKnowledgeHelp.kt` | 13 | RAG knowledge bases + on-device runtime |
 | `SettingsAdminHelp.kt` | 93 | Settings sub-screens + Housekeeping |
-| `DeveloperHelp.kt` | 21 | Trace, logs, developer tools |
+| `DeveloperHelp.kt` | 22 | Trace, logs, developer tools |
 | `ChatHelp.kt` | 9 | Chat hub, session, Dual Chat |
 | `ModelsHelp.kt` | 15 | Model lists, states, info |
 | `ProviderCatalogHelp.kt` | 38 | `providers` + `providers_predefined` + `provider_edit` + 35 `provider_*` per-provider pages |
 | `CrudHelp.kt` | 15 | `crud_generic` overview + 14 per-CRUD topics (via the shared `crud()` helper) |
 
-That is **365 base `HelpContent` entries**. On top of those,
+That is **366 base `HelpContent` entries**. On top of those,
 `ICON_HELP_TOPIC_CONTENT` auto-builds **22** empty-bodied
 `<topic>_icons` pages (one per `ICON_HELP_AS_PAGE` member; the table
 itself is rendered by `HelpScreen`, not stored in the `HelpContent`),
-for **387 topics** total.
+for **388 topics** total.
 
 Topics group, roughly, into:
 
@@ -265,6 +265,13 @@ with no `RELATED_HOME_HELP` entry render no footer.
   `help/{topicId}_icons` page still exists and is still reachable,
   but only from the "❔ Icons on this screen" cross-link on the
   topic's own help page, not from the bottom bar.)
+- The three overlays AppNavHost draws before its nav graph (Share,
+  External request, Choose saved prompt) sit outside the providers
+  above, so `OverlayWithHelp` (`ui/share/ShareChooserScreen.kt`) gives
+  them their own `BottomIconBar` and renders `HelpScreen` on top of the
+  still-composed overlay instead of navigating: drill-ins push onto a
+  local stack, Back pops it and finally returns to the overlay. The
+  footer's About row is hidden there (`onNavigateToAbout = null`).
 - The Help **home** page (`/help`, rendered by `CompactOverview`)
   shows: a Welcome card whose text interpolates
   `AppService.entries.size` for the provider count, a "Per-screen

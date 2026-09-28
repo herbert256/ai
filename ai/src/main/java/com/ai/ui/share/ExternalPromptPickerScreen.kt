@@ -33,6 +33,7 @@ fun ExternalPromptPickerScreen(
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         TitleBar(
+            helpTopic = "external_prompt_picker",
             title = if (selectedPrompt == null) "Choose saved prompt" else "Choose system prompt",
             subject = request.title.orEmpty(), onBackClick = { back() }
         )

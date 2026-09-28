@@ -90,9 +90,9 @@ fun HelpScreen(
      *  jump back to the top-level help without using Android-back. */
     onNavigateToHelpHome: () -> Unit = {},
     /** Open the About screen — surfaced in the per-screen footer
-     *  alongside the Help-home link. Defaults to a no-op so
-     *  legacy callers compile. */
-    onNavigateToAbout: () -> Unit = {}
+     *  alongside the Help-home link. Null hides the About row (the help
+     *  layered over the Share / External request overlays can't reach it). */
+    onNavigateToAbout: (() -> Unit)? = {}
 ) {
     BackHandler { onBack() }
     val mi = LocalMetadataIcons.current
@@ -221,7 +221,7 @@ fun HelpScreen(
 @Composable
 private fun HelpFooter(
     onNavigateToHelpHome: (() -> Unit)?,
-    onNavigateToAbout: () -> Unit
+    onNavigateToAbout: (() -> Unit)?
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val mi = LocalMetadataIcons.current
@@ -243,12 +243,14 @@ private fun HelpFooter(
                         Text("Help home", fontSize = 13.sp, color = AppColors.InfoAccent, fontWeight = FontWeight.SemiBold)
                     }
                 }
-                Row(
-                    modifier = Modifier.fillMaxWidth().clickable { onNavigateToAbout() },
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(mi.info, fontSize = 24.sp, modifier = Modifier.width(40.dp))
-                    Text("About", fontSize = 13.sp, color = AppColors.InfoAccent, fontWeight = FontWeight.SemiBold)
+                if (onNavigateToAbout != null) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().clickable { onNavigateToAbout() },
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(mi.info, fontSize = 24.sp, modifier = Modifier.width(40.dp))
+                        Text("About", fontSize = 13.sp, color = AppColors.InfoAccent, fontWeight = FontWeight.SemiBold)
+                    }
                 }
                 Row(
                     modifier = Modifier.fillMaxWidth().clickable {

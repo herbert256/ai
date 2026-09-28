@@ -174,6 +174,15 @@ hardware back button to `onCancel`, which clears the share state
 content into a report/chat") with the dedicated help topic
 `share_target` (defined in `DeveloperHelp.kt`).
 
+Because the chooser renders before the `CompositionLocalProvider` that
+gives every nav destination its bottom icon bar and Help navigation, it
+is wrapped in `OverlayWithHelp` (`ui/share/ShareChooserScreen.kt`) —
+as are the External request confirmation and its saved-prompt picker.
+The wrapper supplies its own `BottomIconBar` (so the ❓ shows) and
+draws Help pages on top of the still-composed overlay: Back closes one
+help page at a time and then returns to the chooser, with the share
+still pending. The overlays have no Home icon.
+
 The chooser shows a preview card — subject (bold), up to 300 chars of
 text (truncated with an ellipsis), an attachment count ("1 attachment" /
 "N attachments"), and the mime type — then up to three destination

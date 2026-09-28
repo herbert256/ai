@@ -66,6 +66,8 @@ screens use the generic `TitleBar`.
 | Chat | \<running cost\> |
 | Chat History | Resume any of your saved chat sessions |
 | Chat Parameters | Set model & options before chatting |
+| Choose saved prompt | \<external request title\> |
+| Choose system prompt | \<external request title\> |
 | Clear all configuration | Wipe all config; keeps reports & chats |
 | Clear Info providers | Drop cached pricing; refetch on Refresh |
 | Clear runtime data | Drop history; keeps config & API keys |

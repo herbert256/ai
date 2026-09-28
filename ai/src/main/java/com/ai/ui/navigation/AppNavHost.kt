@@ -157,6 +157,9 @@ fun AppNavHost(
     }
 
     pendingExternalReport.value?.let { staged ->
+      // Drawn before the providers below: OverlayWithHelp gives it its own
+      // bottom bar + layered Help so the ❓ works.
+      com.ai.ui.share.OverlayWithHelp {
         if (staged.needsStoredPrompt && staged.resolutionErrors.isEmpty()) {
             val state by appViewModel.uiState.collectAsState()
             com.ai.ui.share.ExternalPromptPickerScreen(
@@ -165,10 +168,7 @@ fun AppNavHost(
                 onCancel = { pendingExternalReport.value = null },
                 onSelected = { pendingExternalReport.value = it }
             )
-            return
-        }
-
-        com.ai.ui.share.ExternalIntentConfirmScreen(
+        } else com.ai.ui.share.ExternalIntentConfirmScreen(
             intent = staged,
             onCancel = { pendingExternalReport.value = null },
             onConfirm = onConfirm@{
@@ -211,6 +211,7 @@ fun AppNavHost(
                 pendingExternalReport.value = null
             }
         )
+      }
         return
     }
 
@@ -222,7 +223,7 @@ fun AppNavHost(
         val context = LocalContext.current
         val scope = rememberCoroutineScope()
         val uiStateForShare by appViewModel.uiState.collectAsState()
-        com.ai.ui.share.ShareChooserScreen(
+        com.ai.ui.share.OverlayWithHelp { com.ai.ui.share.ShareChooserScreen(
             shared = sharedContent,
             experimentalFeatures = uiStateForShare.generalSettings.experimentalFeaturesEnabled,
             onCancel = onSharedContentHandled,
@@ -255,7 +256,7 @@ fun AppNavHost(
                 }
                 onSharedContentHandled()
             }
-        )
+        ) }
         return
     }
 

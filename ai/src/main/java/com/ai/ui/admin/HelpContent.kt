@@ -226,6 +226,7 @@ internal val RELATED_HOME_HELP: Map<String, List<String>> = mapOf(
     "external_services" to listOf("help_home_info_providers", "help_home_ai_providers"),
     "info_providers_setup" to listOf("help_home_info_providers", "refresh_info_providers"),
     "external_intent" to listOf("help_privacy", "help_glossary_operations"),
+    "external_prompt_picker" to listOf("help_privacy", "help_glossary_operations"),
 
     // ===== Settings =====
     "settings_main" to listOf("help_about", "help_privacy"),
