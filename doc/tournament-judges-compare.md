@@ -151,7 +151,7 @@ expect while staying immune to later status changes.
 The matrix and the method that produced the current ranking are serialised into
 the `tournamentMatrix` sidecar via `WinMatrix.encode(method)`, so the View can
 recompute and persist a different ranking **locally with no API calls**
-(`setMethod` / `applyTournamentMethod` / `decodeTournamentMatrix`).
+(`applyTournamentMethod` / `decodeTournamentMatrix`).
 
 ### Ranking methods
 

@@ -456,28 +456,6 @@ class TournamentEngine internal constructor(
         }
     }
 
-    /** Switch the displayed / Top-ranked aggregation method — a pure local
-     *  recompute from the stored win matrix, no API calls. */
-    fun setMethod(context: Context, reportId: String, method: TournamentMethod): Job =
-        appViewModel.viewModelScope.launch(Dispatchers.IO) {
-            val run = _runs.value[reportId] ?: return@launch
-            val aggId = run.aggregateRowId ?: return@launch
-            _runs.update { runs ->
-                val r = runs[reportId] ?: return@update runs
-                runs + (reportId to r.copy(selectedMethod = method))
-            }
-            val row = SecondaryResultStorage.get(context, reportId, aggId) ?: return@launch
-            val decoded = decodeTournamentMatrix(row.tournamentMatrix)
-            if (decoded != null && (method != TournamentMethod.DAVIDSON || decoded.first.hasTieData)) {
-                val ranks = rankFor(method, decoded.first)
-                SecondaryResultStorage.save(context, row.copy(
-                    content = ranks.toRerankJson(), tournamentMatrix = decoded.first.encode(method)
-                ))
-            } else {
-                recomputeAggregate(context, reportId)
-            }
-        }
-
     // -----------------------------------------------------------------
     // Failure / rerun / delete
     // -----------------------------------------------------------------
