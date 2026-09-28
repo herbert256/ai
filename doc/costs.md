@@ -6,6 +6,13 @@ The 7 September Report monitor follow-up upgrades version-3 ledgers to version 4
 
 The 12 September follow-up upgrades complete version-3/4 ledgers to version 5. It appends missing calls only when retained, completed successful traces contain provider usage, preserving existing rows and skipping ambiguous unlinked historical entries. API-reported costs are retained; other recovered calls use the available pricing catalog. Newly interrupted report dispatches preserve usage from their exact completed trace before propagating cancellation or failure, so a later retry cannot hide that earlier billable attempt. Missing, partial, or unreadable traces cannot establish spend and are not estimated by this recovery path.
 
+Imported reports (report bundles, bundled examples, runtime Reports /
+All imports) never add to this install's AI Usage totals: right after
+the import `ReportStorage.settleImportedApiCallCostLedger` rebuilds the
+report's own ledger and discards the delta (or marks it current as-is,
+like a duplicated report), so the startup ledger repair has nothing
+left to fold into the global statistics.
+
 Every billable LLM / rerank call is costed from its token usage ×
 the resolved per-model price. The same machinery feeds four
 surfaces: the global **Spend & usage** dashboard, the per-report

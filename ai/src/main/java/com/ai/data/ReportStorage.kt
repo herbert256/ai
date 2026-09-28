@@ -1985,6 +1985,28 @@ object ReportStorage {
     fun ensureApiCallCostLedger(context: Context, reportId: String): Boolean =
         reconcileApiCallCostLedger(context, reportId) != null
 
+    /** An imported report's spend happened elsewhere (another install, or a
+     *  bundled example). Bring its OWN ledger up to date right after the
+     *  import and discard the delta, instead of leaving an incomplete /
+     *  old-version ledger for the startup repair
+     *  (SettingsPreferences.reconcileReportCostLedgers), which folds every
+     *  repaired row into this install's AI Usage totals — again on every
+     *  re-import of the same example. When no rows can be rebuilt, the
+     *  ledger is marked current as-is, like [copyReport] does. Never throws:
+     *  the import itself has already committed. */
+    fun settleImportedApiCallCostLedger(context: Context, reportId: String) {
+        runCatching {
+            reconcileApiCallCostLedger(context, reportId)
+            lock.withLock {
+                val report = loadReport(reportId) ?: return@withLock
+                if (isApiCallCostLedgerCurrent(report)) return@withLock
+                val updated = report.copy(apiCallCostsComplete = true, apiCallCostsVersion = API_CALL_COST_LEDGER_VERSION)
+                updated.totalCost = ledgerTotalCost(updated)
+                saveReport(updated)
+            }
+        }.onFailure { AppLog.w("ReportStorage", "Imported report $reportId: cost ledger not settled", it) }
+    }
+
     private fun ledgerTotalCost(report: Report): Double =
         report.apiCallCosts.sumOf { it.inputCost + it.outputCost }
 

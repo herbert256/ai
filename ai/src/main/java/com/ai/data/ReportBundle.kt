@@ -537,6 +537,10 @@ internal fun readReportZip(
     require(!secondaryTarget.exists() && stagedSecondary.renameTo(secondaryTarget)) { "Could not commit imported secondary files" }
     require(ReportStorage.persistNewReport(context, report, recoverOnFailure = false)) { "Could not commit imported report" }
     committed = true
+    // The bundle's spend was made elsewhere: settle this copy's own ledger
+    // now so the startup ledger repair never adds it to AI Usage (bundled
+    // examples ship without a current ledger).
+    ReportStorage.settleImportedApiCallCostLedger(context, newReportId)
     tick()
     return ReportImportSummary(
         title = report.title,

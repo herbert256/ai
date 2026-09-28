@@ -323,6 +323,10 @@ private fun applyRuntimeReports(context: Context, root: JsonObject): ImportRepor
                 skipped++
             }
             secondariesAdded += applyRuntimeReportChildren(context, root, secondariesObj, report.id, isNew, gson)
+            // Imported spend was made elsewhere — settle the report's own
+            // ledger (after its secondaries landed) so the startup ledger
+            // repair never adds it to this install's AI Usage totals.
+            if (isNew) ReportStorage.settleImportedApiCallCostLedger(context, report.id)
         } catch (e: Exception) {
             // ReportSaveException (a CancellationException) lands here too;
             // report it as a failure instead of silently ending the import.
