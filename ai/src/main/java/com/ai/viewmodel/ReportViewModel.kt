@@ -17,7 +17,9 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -170,6 +172,12 @@ internal fun formatSweepReasoningEffort(effort: String?): String =
 private fun webSearchReplayPrompt(prompt: String): String =
     if (prompt.isBlank()) WEB_SEARCH_REPLAY_PROMPT_SUFFIX
     else prompt.trimEnd() + "\n\n" + WEB_SEARCH_REPLAY_PROMPT_SUFFIX
+
+/** [prompt] with a replay's saved knowledge block in front — the same
+ *  shape the primary run's saved execution prompt has (see
+ *  [ReportViewModel.replayKnowledgeContext]). */
+internal fun withReplayKnowledge(knowledge: String, prompt: String): String =
+    if (knowledge.isBlank()) prompt else "$knowledge\n\n$prompt"
 
 /** One re-runnable Report-info metadata item — the target of the per-item
  *  🔄 reload on the Get-info detail screens. [ReportViewModel.regenerateMetaItem]
@@ -942,6 +950,36 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
     private fun reportPreGenParamsActive(report: Report): Boolean =
         report.advancedParameters != null || report.webSearchTool || report.reasoningEffort != null
 
+    /** The saved knowledge passages every replay of [report]'s prompt must
+     *  carry (temperature / reasoning / web-search / prompt-edit replays and
+     *  the model switch). Those used to hand knowledgeBaseIds to the
+     *  dispatch, which retrieved AGAIN: fresh passages instead of the
+     *  evidence the saved answer was grounded on and, on any retrieval
+     *  failure (deleted KB, missing embedder key), a silently ungrounded
+     *  candidate that Apply then put in place of the grounded answer. Reuses
+     *  the report's saved context — retrieving and persisting it once
+     *  through [ReportKnowledge] when there is none yet (e.g. after a prompt
+     *  edit) — and throws when that fails, so a replay never runs
+     *  ungrounded. "" when no KB is attached or nothing relevant was found. */
+    internal suspend fun replayKnowledgeContext(context: Context, report: Report, aiSettings: Settings): String {
+        if (report.knowledgeBaseIds.isEmpty()) return ""
+        report.knowledgeContext?.let { return it }
+        val prepared = try {
+            ReportKnowledge.prepare(context, report.id, appViewModel.repository, aiSettings)
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            // prepare signals "report inputs changed mid-retrieval" as a
+            // CancellationException; only a real cancellation propagates,
+            // the other must end the replay with a visible error rather
+            // than a spinner that never stops.
+            currentCoroutineContext().ensureActive()
+            throw java.io.IOException(e.message ?: "Report inputs changed during knowledge retrieval; retry", e)
+        }
+        return prepared
+            ?.takeIf { it.prompt == report.prompt && it.knowledgeBaseIds == report.knowledgeBaseIds }
+            ?.knowledgeContext
+            ?: throw java.io.IOException("This report's knowledge passages are unavailable; the replay was not run without them")
+    }
+
     internal fun buildTemperatureSweepTask(report: Report, state: UiState, reportAgent: ReportAgent): ReportTask? {
         val ai = state.aiSettings
         val provider = AppService.findById(reportAgent.provider) ?: return null
@@ -1389,7 +1427,9 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 val effectiveImage = if (canVision) report.imageBase64 else null
                 val effectiveImageMime = if (canVision) report.imageMime else null
                 val baseUrl = ai.getEffectiveEndpointUrlForAgent(task.runtimeAgent)
-                val knowledgeBaseIds = report.knowledgeBaseIds
+                // The report's saved knowledge passages, not a fresh retrieval
+                // (see replayKnowledgeContext) — throws rather than run ungrounded.
+                val knowledge = replayKnowledgeContext(context, report, ai)
 
                 withTracerTags(reportId = reportId, category = MODEL_TEMPERATURE_CALL_KIND) {
                     temps.forEachIndexed { index, temp ->
@@ -1402,11 +1442,10 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                                         withContext(ProviderThrottle.permitPreAcquired.asContextElement(true)) {
                                             withTraceFilenameSink(traceSink) {
                                                 appViewModel.repository.analyzeWithAgentStreaming(
-                                                    task.runtimeAgent, "", report.prompt,
+                                                    task.runtimeAgent, "", withReplayKnowledge(knowledge, report.prompt),
                                                     task.resolvedParams,
                                                     gatedOverride.copy(temperature = temp),
                                                     context, baseUrl, effectiveImage, effectiveImageMime,
-                                                    knowledgeBaseIds = knowledgeBaseIds,
                                                     aiSettings = ai
                                                 ) { /* transient comparison; no live preview */ }
                                             }
@@ -1575,7 +1614,8 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 val effectiveImage = if (canVision) report.imageBase64 else null
                 val effectiveImageMime = if (canVision) report.imageMime else null
                 val baseUrl = ai.getEffectiveEndpointUrlForAgent(task.runtimeAgent)
-                val knowledgeBaseIds = report.knowledgeBaseIds
+                // Saved passages, never a fresh (or silently failed) retrieval.
+                val knowledge = replayKnowledgeContext(context, report, ai)
 
                 withTracerTags(reportId = reportId, category = MODEL_REASONING_CALL_KIND) {
                     requestedEfforts.forEachIndexed { index, effort ->
@@ -1598,11 +1638,10 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                                         withContext(ProviderThrottle.permitPreAcquired.asContextElement(true)) {
                                             withTraceFilenameSink(traceSink) {
                                                 appViewModel.repository.analyzeWithAgentStreaming(
-                                                    task.runtimeAgent, "", report.prompt,
+                                                    task.runtimeAgent, "", withReplayKnowledge(knowledge, report.prompt),
                                                     if (effort == null) task.resolvedParams.copy(reasoningEffort = null) else task.resolvedParams,
                                                     baseNoReasoningOverride.copy(reasoningEffort = effort),
                                                     context, baseUrl, effectiveImage, effectiveImageMime,
-                                                    knowledgeBaseIds = knowledgeBaseIds,
                                                     aiSettings = ai
                                                 ) { /* transient comparison; no live preview */ }
                                             }
@@ -1762,8 +1801,9 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 val effectiveImage = if (canVision) report.imageBase64 else null
                 val effectiveImageMime = if (canVision) report.imageMime else null
                 val baseUrl = ai.getEffectiveEndpointUrlForAgent(task.runtimeAgent)
-                val knowledgeBaseIds = report.knowledgeBaseIds
-                val replayPrompt = webSearchReplayPrompt(report.prompt)
+                // Saved passages, never a fresh (or silently failed) retrieval.
+                val knowledge = replayKnowledgeContext(context, report, ai)
+                val replayPrompt = withReplayKnowledge(knowledge, webSearchReplayPrompt(report.prompt))
 
                 withTracerTags(reportId = reportId, category = MODEL_WEB_SEARCH_CALL_KIND) {
                     val traceSink = java.util.concurrent.atomic.AtomicReference<String?>(null)
@@ -1777,7 +1817,6 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                                                 task.runtimeAgent, "", replayPrompt,
                                                 resolvedParams, webOverride,
                                                 context, baseUrl, effectiveImage, effectiveImageMime,
-                                                knowledgeBaseIds = knowledgeBaseIds,
                                                 aiSettings = ai
                                             ) { /* transient comparison; no live preview */ }
                                         }
@@ -1954,7 +1993,8 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 val effectiveImage = if (canVision) report.imageBase64 else null
                 val effectiveImageMime = if (canVision) report.imageMime else null
                 val baseUrl = ai.getEffectiveEndpointUrlForAgent(task.runtimeAgent)
-                val knowledgeBaseIds = report.knowledgeBaseIds
+                // Saved passages, never a fresh (or silently failed) retrieval.
+                val knowledge = replayKnowledgeContext(context, report, ai)
 
                 withTracerTags(reportId = reportId, category = MODEL_PROMPT_EDIT_CALL_KIND) {
                     val traceSink = java.util.concurrent.atomic.AtomicReference<String?>(null)
@@ -1965,10 +2005,9 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                                     withContext(ProviderThrottle.permitPreAcquired.asContextElement(true)) {
                                         withTraceFilenameSink(traceSink) {
                                             appViewModel.repository.analyzeWithAgentStreaming(
-                                                task.runtimeAgent, "", editedPrompt,
+                                                task.runtimeAgent, "", withReplayKnowledge(knowledge, editedPrompt),
                                                 finalParams, null,
                                                 context, baseUrl, effectiveImage, effectiveImageMime,
-                                                knowledgeBaseIds = knowledgeBaseIds,
                                                 aiSettings = ai
                                             ) { /* transient prompt edit; no live preview */ }
                                         }

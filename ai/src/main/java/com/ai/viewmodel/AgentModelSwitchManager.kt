@@ -143,6 +143,10 @@ class AgentModelSwitchManager internal constructor(
         val effectiveImage = if (canVision) report.imageBase64 else null
         val effectiveImageMime = if (canVision) report.imageMime else null
         val baseUrl = ai.getEffectiveEndpointUrlForAgent(task.runtimeAgent)
+        // The report's saved knowledge passages, not a fresh retrieval that
+        // could differ or silently fail — throws (→ Error result) rather
+        // than preview an ungrounded candidate Use would then commit.
+        val knowledge = reportViewModel.replayKnowledgeContext(context, report, ai)
         return withTracerTags(reportId = reportId, category = AGENT_MODEL_SWITCH_CALL_KIND) {
             val traceSink = java.util.concurrent.atomic.AtomicReference<String?>(null)
             val startTime = System.currentTimeMillis()
@@ -152,10 +156,9 @@ class AgentModelSwitchManager internal constructor(
                     withContext(ProviderThrottle.permitPreAcquired.asContextElement(true)) {
                         withTraceFilenameSink(traceSink) {
                             appViewModel.repository.analyzeWithAgentStreaming(
-                                task.runtimeAgent, "", report.prompt,
+                                task.runtimeAgent, "", withReplayKnowledge(knowledge, report.prompt),
                                 finalParams, null,
                                 context, baseUrl, effectiveImage, effectiveImageMime,
-                                knowledgeBaseIds = report.knowledgeBaseIds,
                                 aiSettings = ai
                             ) { /* transient candidate; no live preview */ }
                         }

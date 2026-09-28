@@ -200,9 +200,10 @@ cite the source name, returning `""` for an empty hit list so callers
 can unconditionally concatenate.
 
 **Injection at API time** — a chat or report stores its attached KBs
-as `knowledgeBaseIds` (on `ChatSession`, `Report`). The retrieve +
-format step runs per call, wrapped in `runCatching` so an embedder
-hiccup falls back to the bare prompt instead of killing the call:
+as `knowledgeBaseIds` (on `ChatSession`, `Report`). A failed
+retrieval (deleted KB, missing embedder key, embedder error) fails the
+call with an explicit error — a request that asked for knowledge is
+never answered without it:
 
 - **Chat**: `ChatViewModel.messagesWithRag`
   ([`viewmodel/ChatViewModel.kt`](../ai/src/main/java/com/ai/viewmodel/ChatViewModel.kt))
@@ -216,15 +217,19 @@ hiccup falls back to the bare prompt instead of killing the call:
   `recordRagEmbeddingUsage` logs the query's token cost against the
   KB's embedder under usage-kind `"chat/rag"`. This applies to the
   on-device-LLM chat path (`sendLocalLlmStream`) too.
-- **Report**: `AnalysisRepository.analyzeWithAgent` (and its streaming
-  sibling `analyzeWithAgentStreaming`) builds a `ragPrefix` when
-  `knowledgeBaseIds` is non-empty and a `context` + `aiSettings` are
-  present, then prepends it to the built prompt via `withRagPrefix`
-  ([`data/AnalysisRepository.kt` — the `ragPrefix` block just before
-  the `agent.provider.id == AppService.LOCAL.id`
-  fork](../ai/src/main/java/com/ai/data/AnalysisRepository.kt)). Both
-  the LOCAL and the remote dispatch arms wrap `buildPrompt(...)` with
-  the same prefix.
+- **Report**: `ReportKnowledge.prepare` retrieves **once** per report
+  prompt and persists the block as `Report.knowledgeContext`; every
+  answer's saved execution prompt starts with it. The replays
+  (temperature / reasoning / web-search / prompt-edit) and the model
+  switch reuse that saved block through
+  `ReportViewModel.replayKnowledgeContext` (retrieving + persisting it
+  once when the report has none yet, e.g. after a prompt edit) and fail
+  rather than run ungrounded — they never re-retrieve, so a candidate
+  sees the same evidence as the answer it may replace.
+  `AnalysisRepository.analyzeWithAgent` / `analyzeWithAgentStreaming`
+  still accept `knowledgeBaseIds` (retrieve per call, prefix via
+  `withRagPrefix`, error response on failure), but no report path
+  passes them any more.
 
 Because injection keys off the stored `knowledgeBaseIds`, an
 already-attached KB keeps feeding context even when the

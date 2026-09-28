@@ -194,6 +194,20 @@ class AnalysisRepository(
     private fun withRagPrefix(prompt: String, ragPrefix: String): String =
         if (ragPrefix.isBlank()) prompt else "$ragPrefix\n\n$prompt"
 
+    /** Retrieve + render the knowledge block for a dispatch that asked for
+     *  [knowledgeBaseIds]. Throws on failure; callers turn that into an
+     *  error response rather than answering without the knowledge. */
+    private suspend fun knowledgePrefix(context: Context, aiSettings: com.ai.model.Settings,
+                                        knowledgeBaseIds: List<String>, query: String): String {
+        // Own throwaway trace sink: the embedding call must not leave ITS
+        // trace in the caller's sink, where it became the answer's
+        // traceFile when no model trace followed (Local).
+        val hits = withTraceFilenameSink(java.util.concurrent.atomic.AtomicReference()) {
+            KnowledgeService.retrieve(context, this@AnalysisRepository, aiSettings, knowledgeBaseIds, query)
+        }
+        return KnowledgeService.formatContextBlock(hits)
+    }
+
     internal fun resolveReportPrompt(prompt: String, agent: com.ai.model.Agent): String = buildPrompt(prompt, agent)
     internal fun effectiveReportParameters(base: AgentParameters, overlay: AgentParameters?, provider: AppService,
         model: String, context: Context): AgentParameters {
@@ -277,19 +291,19 @@ class AnalysisRepository(
         // wrap the response.
         // RAG injection: if knowledge bases are attached, retrieve
         // top-K chunks for this prompt and prepend the rendered
-        // context block. Failures are silent (fallback to bare
-        // prompt) so an embedder hiccup doesn't kill the whole call.
-        val repository = this@AnalysisRepository
+        // context block. A failed retrieval fails the call: a request
+        // that asked for knowledge is never answered ungrounded (the old
+        // silent fallback to the bare prompt did exactly that on a
+        // deleted KB or a missing embedder key).
         val ragPrefix = if (knowledgeBaseIds.isNotEmpty() && context != null && aiSettings != null) {
-            runCatching {
-                // Own throwaway trace sink: the embedding call must not
-                // leave ITS trace in the caller's sink, where it became the
-                // answer's traceFile when no model trace followed (Local).
-                val hits = withTraceFilenameSink(java.util.concurrent.atomic.AtomicReference()) {
-                    KnowledgeService.retrieve(context, repository, aiSettings, knowledgeBaseIds, prompt.ifBlank { content })
-                }
-                KnowledgeService.formatContextBlock(hits)
-            }.getOrDefault("")
+            try {
+                knowledgePrefix(context, aiSettings, knowledgeBaseIds, prompt.ifBlank { content })
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                return@withContext AnalysisResponse(agent.provider, null,
+                    "Knowledge retrieval failed; no ungrounded answer was requested: ${e.message}", agentName = agent.name)
+            }
         } else ""
 
         if (agent.provider.id == AppService.LOCAL.id) {
@@ -444,17 +458,17 @@ class AnalysisRepository(
             PricingCache.liteLLMSupportsNativeStreaming(agent.provider, agent.model) == false) {
             return@withContext nonStreaming()
         }
-        val repository = this@AnalysisRepository
+        // Same fail-loud retrieval as analyzeWithAgent — never an
+        // ungrounded answer to a request that asked for knowledge.
         val ragPrefix = if (knowledgeBaseIds.isNotEmpty() && context != null && aiSettings != null) {
-            runCatching {
-                // Own throwaway trace sink: the embedding call must not
-                // leave ITS trace in the caller's sink, where it became the
-                // answer's traceFile when no model trace followed (Local).
-                val hits = withTraceFilenameSink(java.util.concurrent.atomic.AtomicReference()) {
-                    KnowledgeService.retrieve(context, repository, aiSettings, knowledgeBaseIds, prompt.ifBlank { content })
-                }
-                KnowledgeService.formatContextBlock(hits)
-            }.getOrDefault("")
+            try {
+                knowledgePrefix(context, aiSettings, knowledgeBaseIds, prompt.ifBlank { content })
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                return@withContext AnalysisResponse(agent.provider, null,
+                    "Knowledge retrieval failed; no ungrounded answer was requested: ${e.message}", agentName = agent.name)
+            }
         } else ""
         val finalPrompt = withRagPrefix(buildPrompt(prompt, agent), ragPrefix)
         val params = merged
