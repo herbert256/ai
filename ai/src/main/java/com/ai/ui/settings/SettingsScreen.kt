@@ -789,8 +789,11 @@ fun SettingsScreen(
                         aiSettings = aiSettings,
                         fixedCategory = effectiveCategory,
                         onSave = { saved ->
-                            val updated = if (ip != null) aiSettings.copy(internalPrompts = aiSettings.internalPrompts.map { if (it.id == ip.id) saved else it })
-                            else aiSettings.copy(internalPrompts = aiSettings.internalPrompts + saved)
+                            // Upsert by the SAVED id: a 👯 copy carries a new id
+                            // and must be added, not replace the original.
+                            val list = aiSettings.internalPrompts
+                            val updated = if (list.any { it.id == saved.id }) aiSettings.copy(internalPrompts = list.map { if (it.id == saved.id) saved else it })
+                            else aiSettings.copy(internalPrompts = list + saved)
                             onSaveAi(updated)   // the form's Save then calls onBack (= goBack) itself — a second goBack here popped two screens
                         },
                         onBack = goBack, onNavigateHome = onNavigateHome
