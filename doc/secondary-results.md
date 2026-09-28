@@ -407,6 +407,11 @@ Useful methods beyond the basics:
   Regenerate it **adds** the prior input/output cost+tokens onto the
   incoming row (additive accumulation, not overwrite).
 - `listForReport(reportId, kind?)`, `get`, `updateContent`, `delete`.
+- `listForReportWithoutCaching(reportId, kind?)` — same rows for scans
+  that walk many reports (Broken-work scan, statistics, Model info,
+  report picker filters): a report already in the 3-report parse cache
+  is served from it; any other is parsed into a throwaway cache and
+  never inserted, so the scan can't evict the report the user has open.
 - `countForReport` → `Counts(rerank, meta, moderation, translate,
   tournament, judges, compare, transrank)`. TOURNAMENT, JUDGES and
   TRANSRANK count **only** `tournamentRole == "AGGREGATE"` rows (the
