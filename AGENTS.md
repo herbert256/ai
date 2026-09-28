@@ -19,7 +19,7 @@ have format-specific code.
 | Language | Kotlin 2.4.20 |
 | UI | Jetpack Compose, Compose BOM 2026.09.00, Material 3 dark |
 | Build | AGP 9.4.1, Gradle 9.8.0, build-tools 37.0.0, Java 25, JVM target 25 |
-| SDK | `namespace = com.ai`, `minSdk = 36`, `compileSdk = 37.2` (`release(37) { minorApiLevel = 2 }`), `targetSdk = 36` |
+| SDK | `namespace = com.ai`, `minSdk = 36`, `compileSdk = 37.2` (`release(37) { minorApiLevel = 2 }`), `targetSdk = 37` |
 | Persistence | SharedPreferences + JSON files in `<filesDir>` |
 | Networking | Retrofit + OkHttp + custom interceptors (tracing, 429 retry) |
 | Streaming | Kotlin Flow over SSE |

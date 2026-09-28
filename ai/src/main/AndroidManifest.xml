@@ -3,6 +3,13 @@
     xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Android 17 (targetSdk 37) blocks traffic to LAN addresses
+         (192.168/16, 10/8, 172.16/12, IPv6 ULA / link-local, *.local)
+         without this runtime permission; loopback stays exempt. No
+         built-in provider needs it and the app never prompts for it —
+         declared so a user whose custom Base URL points at a LAN host
+         can grant it under App info → Permissions → Nearby devices. -->
+    <uses-permission android:name="android.permission.ACCESS_LOCAL_NETWORK" />
     <!-- Self-update: the "Update from cloud" flow in Housekeeping
          reads an APK from a user-picked storage location (typically
          a Drive sync folder) and fires the system PackageInstaller.

@@ -30,7 +30,8 @@ import java.util.zip.ZipInputStream
  * Lifecycle:
  *   - [isInstalled]: file present on disk
  *   - [ensureLoaded]: idempotent `System.load` for the present file
- *   - [download]: HTTP fetch + zip extract + atomic rename
+ *   - [download]: HTTP fetch + zip extract + atomic rename, then
+ *     mark read-only (required for System.load on Android 17+)
  *   - [delete]: remove the on-disk file (process keeps the loaded
  *     copy until restart — System.load can't be undone)
  */
@@ -72,7 +73,14 @@ object LlmRuntime {
         if (loaded) return true
         if (!isInstalled(context)) return false
         return try {
-            System.load(runtimeFile(context).absolutePath)
+            // Android 17 (targetSdk 37) refuses System.load on a writable
+            // file (UnsatisfiedLinkError). download() already marks it
+            // read-only; this also covers a file written by an older build.
+            val file = runtimeFile(context)
+            if (file.canWrite() && !file.setReadOnly()) {
+                AppLog.w("LlmRuntime", "could not mark ${file.name} read-only")
+            }
+            System.load(file.absolutePath)
             loaded = true
             AppLog.i("LlmRuntime", "loaded ${runtimeFile(context).absolutePath}")
             true
@@ -137,6 +145,10 @@ object LlmRuntime {
                     java.nio.file.StandardCopyOption.REPLACE_EXISTING
                 )
             }
+            // Native code loaded via System.load must be read-only on
+            // Android 17+ (targetSdk 37). The rename above still replaces
+            // a read-only predecessor — that only needs the dir writable.
+            target.setReadOnly()
             AppLog.i("LlmRuntime", "downloaded $SO_NAME (${target.length() / (1024 * 1024)} MiB)")
             recordTrace(bytes = target.length(), durationMs = System.currentTimeMillis() - started, error = null)
             true

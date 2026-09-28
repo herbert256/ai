@@ -98,7 +98,7 @@ embeddings, usage stats, pricing tier blobs, RAG knowledge bases).
 
 ~161,212 LOC across 406 Kotlin files under `ai/src/main/java/com/ai`
 (`namespace = "com.ai"`, `applicationId = "com.ai"`, `compileSdk = 37.2` (`release(37) { minorApiLevel = 2 }`),
-`minSdk = 36`, `targetSdk = 36`; Kotlin 2.4.20 / AGP 9.4.1 / Compose BOM
+`minSdk = 36`, `targetSdk = 37`; Kotlin 2.4.20 / AGP 9.4.1 / Compose BOM
 2026.09.00, Java 25 / JVM target 25):
 
 - **`data/` — 97 files.** 91 at the top level plus two nested

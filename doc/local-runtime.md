@@ -168,9 +168,11 @@ downloads it on demand:
   `jni/arm64-v8a/libllm_inference_engine_jni.so` into `<filesDir>/native/`
   (`NATIVE_DIR = "native"`), and atomic-renames the `.part` temp into
   place (falling back to a non-atomic move when `ATOMIC_MOVE` isn't
-  supported).
+  supported), then marks it read-only.
 - **Load.** `ensureLoaded` is idempotent (a volatile `loaded` flag) and
-  calls `System.load` on the on-disk file. It is invoked from
+  calls `System.load` on the on-disk file, first marking it read-only
+  if it is still writable — with `targetSdk = 37`, Android 17 rejects
+  `System.load` of a writable file with `UnsatisfiedLinkError`. It is invoked from
   `LocalLlm.getEngine` **before** any MediaPipe type is touched,
   because `LlmInference.LlmInferenceOptions`'s static init calls
   `System.loadLibrary("llm_inference_engine_jni")`, which only succeeds

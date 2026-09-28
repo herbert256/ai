@@ -24,7 +24,7 @@ internal val providerSettingsHelp: Map<String, HelpContent> = mapOf(
     "provider_card_basics" to HelpContent(
         title = "Help - Basics",
         cards = listOf(
-            HelpCard("Base URL", "Root of every API call to this provider. Paths declared on the API card (`v1/chat/completions`, `v1/messages`, etc.) append to this. Should end with a slash; the dispatcher normalises both shapes."),
+            HelpCard("Base URL", "Root of every API call to this provider. Paths declared on the API card (`v1/chat/completions`, `v1/messages`, etc.) append to this. Should end with a slash; the dispatcher normalises both shapes. A host on your local network (192.168.x.x, 10.x.x.x, `*.local`) needs HTTPS plus the \"Nearby devices\" permission (App info → Permissions) on Android 17+ — without it requests to that host time out; `localhost` is exempt."),
             HelpCard("Admin URL", "Provider's web dashboard — where the user gets / rotates an API key. Optional. Rendered as a tappable link on the per-provider help page so the user can jump out and grab a key."),
             HelpCard("Identity is immutable", "The provider id (= its display label) lives in the title bar above and can't be edited in place. Pre-unification builds carried separate id / displayName / prefsKey fields; the unification refactor collapsed them into one. Renaming a provider is a delete-and-add operation, not an in-place change.")
         )

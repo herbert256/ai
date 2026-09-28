@@ -14,7 +14,7 @@ JAVA_HOME=/opt/homebrew/opt/openjdk@25 ./gradlew :ai:assembleRelease
 Toolchain: Kotlin 2.4.20, AGP 9.4.1, Gradle 9.8.0, Java 25 (JVM
 target 25, source/target compatibility 25), Compose BOM 2026.09.00.
 `compileSdk = 37.2` (`release(37) { minorApiLevel = 2 }`), `buildToolsVersion = "37.0.0"`, `minSdk = 36`,
-`targetSdk = 36`, namespace `com.ai`, `applicationId = "com.ai"`.
+`targetSdk = 37`, namespace `com.ai`, `applicationId = "com.ai"`.
 Release builds enable `isMinifyEnabled` and `isShrinkResources` and
 require `local.properties` to define `KEYSTORE_FILE` /
 `KEYSTORE_PASSWORD` / `KEY_ALIAS` / `KEY_PASSWORD` — the build

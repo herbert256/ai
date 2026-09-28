@@ -202,14 +202,14 @@ downloads it on demand.</p>
 
 <dl class="kv">
 <div><dt>Source</dt><div class="meta">Google Maven &middot; <code>AAR_VERSION = "0.10.35"</code></div><dd>Downloads the MediaPipe Tasks GenAI AAR (<code>tasks-genai-0.10.35.aar</code>) from <code>dl.google.com</code>, streams the whole AAR (a zip &mdash; <code>DOWNLOAD_SIZE_MB_HINT = 40</code> drives the button label), plucks the entry <code>jni/arm64-v8a/libllm_inference_engine_jni.so</code> into <code class="path">&lt;filesDir&gt;/native/</code> (<code>NATIVE_DIR</code>).</dd></div>
-<div><dt>Load</dt><div class="meta"><code>ensureLoaded</code></div><dd>Idempotent (a volatile <code>loaded</code> flag), calls <code>System.load</code> on the on-disk file. Invoked from <code>LocalLlm.getEngine</code> before any MediaPipe type is touched, because <code>LlmInference.LlmInferenceOptions</code>'s static init calls <code>System.loadLibrary(&hellip;)</code>, which only succeeds once the <code>.so</code> is already mapped via <code>System.load</code>. If the runtime isn't installed, <code>getEngine</code> throws <code>IllegalStateException("LLM runtime not installed &mdash; visit Setup &rarr; Local LLMs&hellip;")</code>.</dd></div>
+<div><dt>Load</dt><div class="meta"><code>ensureLoaded</code></div><dd>Idempotent (a volatile <code>loaded</code> flag), calls <code>System.load</code> on the on-disk file, first marking it read-only if it is still writable &mdash; with <code>targetSdk = 37</code>, Android 17 rejects <code>System.load</code> of a writable file with <code>UnsatisfiedLinkError</code>. Invoked from <code>LocalLlm.getEngine</code> before any MediaPipe type is touched, because <code>LlmInference.LlmInferenceOptions</code>'s static init calls <code>System.loadLibrary(&hellip;)</code>, which only succeeds once the <code>.so</code> is already mapped via <code>System.load</code>. If the runtime isn't installed, <code>getEngine</code> throws <code>IllegalStateException("LLM runtime not installed &mdash; visit Setup &rarr; Local LLMs&hellip;")</code>.</dd></div>
 <div><dt>Delete</dt><div class="meta"></div><dd><code>System.load</code> can't be undone, so <code>delete</code> removes the on-disk file but the in-process copy stays mapped until the next app start &mdash; callers remind the user to restart.</dd></div>
 <div><dt>Version coupling</dt><div class="meta"></div><dd><code>AAR_VERSION</code> must match the <code>tasks-genai</code> Gradle dependency; a mismatch surfaces as a &quot;JNI method not found&quot; error at first <code>generate()</code>.</dd></div>
 </dl>
 
 <p>The download streams to a <code>.part</code> temp then
 atomic-renames into place (falling back to a non-atomic move when
-<code>ATOMIC_MOVE</code> isn't supported).
+<code>ATOMIC_MOVE</code> isn't supported), then marks the file read-only.
 <code>LocalLlm.availableLlms</code> returns <code>.task</code> files
 <strong>only when the runtime is installed</strong>, so a picker never
 hands out a model that would explode on first <code>generate()</code>.

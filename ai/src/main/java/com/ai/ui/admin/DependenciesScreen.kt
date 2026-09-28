@@ -105,7 +105,7 @@ private val DEPENDENCY_SECTIONS: List<Pair<String, List<Pair<String, String>>>> 
     ),
     "Android platform / SDK" to listOf(
         "compileSdk" to "37.2 (Android 17)",
-        "targetSdk" to "36 (Android 16)",
+        "targetSdk" to "37 (Android 17)",
         "minSdk" to "36 (Android 16)",
         "ABI" to "arm64-v8a, x86_64"
     ),
