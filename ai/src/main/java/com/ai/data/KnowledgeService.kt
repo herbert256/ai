@@ -50,7 +50,7 @@ object KnowledgeService {
         uri: Uri,
         displayName: String,
         progress: IndexProgress = IndexProgress { _, _, _ -> }
-    ): Result<KnowledgeSource> = runCatching {
+    ): Result<KnowledgeSource> = indexCatching {
         // Persist the file's bytes locally first — SAF Uris come with
         // a permission that won't survive a process restart, and we
         // want re-index after a relaunch to keep working without
@@ -74,7 +74,7 @@ object KnowledgeService {
         kbId: String,
         url: String,
         progress: IndexProgress = IndexProgress { _, _, _ -> }
-    ): Result<KnowledgeSource> = runCatching {
+    ): Result<KnowledgeSource> = indexCatching {
         progress.onProgress("Fetching…", 0, 1)
         val text = KnowledgeExtractors.extract(context, KnowledgeSourceType.URL, url)
         val displayName = runCatching { java.net.URL(url).host }.getOrNull()?.takeIf { it.isNotBlank() } ?: url
@@ -97,7 +97,7 @@ object KnowledgeService {
         kbId: String,
         source: KnowledgeSource,
         progress: IndexProgress = IndexProgress { _, _, _ -> }
-    ): Result<KnowledgeSource> = runCatching {
+    ): Result<KnowledgeSource> = indexCatching {
         progress.onProgress("Re-extracting…", 0, 1)
         val text = KnowledgeExtractors.extract(context, source.type, source.origin)
         runIndex(context, repository, aiSettings, kbId,
@@ -109,6 +109,19 @@ object KnowledgeService {
             existingSourceId = source.id
         )
     }
+
+    /** [runCatching] that lets cancellation through. runCatching turned
+     *  a cancelled index into an ordinary failure, so the caller's
+     *  `catch (CancellationException)` cleanup (ingestSharedKb dropping
+     *  its half-built "Shared with …" KB) never ran. */
+    private inline fun <T> indexCatching(block: () -> T): Result<T> =
+        try {
+            Result.success(block())
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Throwable) {
+            Result.failure(e)
+        }
 
     private suspend fun runIndex(
         context: Context,
