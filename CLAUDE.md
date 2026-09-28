@@ -70,7 +70,7 @@ Check the emulator. If nothing is connected, start one and wait:
 adb devices | grep -E "emulator|device$"
 
 # If empty:
-~/Library/Android/sdk/emulator/emulator -avd Medium_Phone_API_37 -no-snapshot-load &
+~/Library/Android/sdk/emulator/emulator -avd Pixel_8_Pro_API_37 -no-snapshot-load &
 adb wait-for-device
 ```
 
