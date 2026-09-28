@@ -54,9 +54,9 @@ class RateLimitRetryInterceptor : Interceptor {
         // won't clear on a quick retry, and skip the retry loop.
         // Four triggers:
         //  • Gemini's per-day quota (generate_requests_per_model_per_day)
-        //    — bench for the response's own retry hint (it carries a
-        //    real "retry in <hours>"); fall back to the Pacific-
-        //    midnight reset only if the hint is missing / unparseable.
+        //    — bench until the Pacific-midnight reset. Google's
+        //    retryDelay hint is often only seconds even though the quota
+        //    refills at the day boundary; a longer hint still wins.
         //  • Cohere's monthly trial-key cap — no Retry-After / no
         //    structured reset time, so bench until the next calendar
         //    month (best-effort; the real window is whenever the
@@ -84,9 +84,10 @@ class RateLimitRetryInterceptor : Interceptor {
             val peekedBody = runCatching { response.peekBody(64L * 1024L).string() }.getOrNull()
             val cohereTrialCap = cohereTrialQuotaExhausted(peekedBody)
             val benchUntil: Long? = when {
-                isGemini && googleDailyQuotaExhausted(peekedBody) ->
-                    retryAfterHintMs(response, peekedBody)?.let { System.currentTimeMillis() + it }
-                        ?: nextPacificMidnightMs()
+                isGemini && googleDailyQuotaExhausted(peekedBody) -> maxOf(
+                    nextPacificMidnightMs(),
+                    retryAfterHintMs(response, peekedBody)?.let { System.currentTimeMillis() + it } ?: 0L
+                )
                 cohereTrialCap -> nextMonthStartMs()
                 creditOrSpendingLimitExhausted(peekedBody) ->
                     System.currentTimeMillis() + 6L * 60L * 60L * 1000L

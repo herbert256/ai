@@ -53,8 +53,8 @@ store prunes it.
 Transient, time-based benches. A 429 gets the pair benched (until a
 computed `benchUntil`) in any of four cases the retry interceptor
 recognises ([data/RateLimitRetry.kt:86](../ai/src/main/java/com/ai/data/RateLimitRetry.kt)):
-Gemini daily-quota exhausted (retry-after hint, else next Pacific
-midnight), Cohere Trial-key monthly cap (next month start), any
+Gemini daily-quota exhausted (next Pacific midnight — Google's short
+`retryDelay` hint is ignored unless it reaches further), Cohere Trial-key monthly cap (next month start), any
 provider out of credits / over its spending limit (a billing 429 —
 benched 6h), and any provider whose `retry-after` hint exceeds
 `LONG_RETRY_THRESHOLD_MS` (1 hour). See [throttle.md](throttle.md) for
