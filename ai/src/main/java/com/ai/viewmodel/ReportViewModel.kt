@@ -571,6 +571,9 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             // position's FEN there: that model analysed the OTHER position).
             // Only the post-completion actions stay, for this report.
             val externalIntentAtLaunch = state.externalIntent
+            // An external request's own title (doc: "Report title") stays —
+            // AI title mode would otherwise replace it right after creation.
+            val keepExternalTitle = !externalIntentAtLaunch.title.isNullOrBlank() && title == externalIntentAtLaunch.title
             val externalPostCompletion = ExternalIntent(
                 email = externalIntentAtLaunch.email,
                 nextAction = externalIntentAtLaunch.nextAction,
@@ -745,7 +748,8 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
 
                 iconGen.kickOffLanguageGeneration(context, reportId, report.prompt, aiSettings)
                 // Generate titles, then the icon, each from the original question.
-                iconGen.kickOffReportTitleGeneration(context, reportId, report.prompt, aiSettings, thenIcon = true)
+                iconGen.kickOffReportTitleGeneration(context, reportId, report.prompt, aiSettings, thenIcon = true,
+                    keepTitle = keepExternalTitle)
 
                 try {
                     runReportPrimaryCalls(

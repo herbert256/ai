@@ -667,6 +667,10 @@ data class ExternalIntent(
     val flockNames: List<String> = emptyList(),
     val swarmNames: List<String> = emptyList(),
     val context: com.ai.ui.share.ExternalReportContext = com.ai.ui.share.ExternalReportContext(),
+    /** The request's `title` extra. A report generated with exactly this
+     *  (non-blank) title keeps it: the AI short/long title calls are skipped
+     *  for it (the icon still runs). */
+    val title: String? = null,
     /** The report generated for this request, stamped when it's created.
      *  Its email / next action / return fire only when THAT report
      *  completes — not whichever finished report happens to be on screen. */

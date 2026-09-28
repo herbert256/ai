@@ -236,6 +236,10 @@ Models, Agents, Flocks and Swarms can be combined; duplicate selections are merg
   resolves effective default prompts and captures execution configurations.
 - [`ReportViewModel.kt`](../ai/src/main/java/com/ai/viewmodel/ReportViewModel.kt)
   applies report-level system/parameter selections and runs generation.
+  A non-blank `title` extra (kept on `ExternalIntent.title`) stays the
+  report's title: when the report is generated with exactly that title, the
+  AI short/long title calls are skipped even in AI title mode (the report
+  icon is still generated). Get info → regenerate can still retitle it.
 - [`RuntimeState.kt`](../ai/src/main/java/com/ai/ui/report/manage/RuntimeState.kt)
   handles external worker selections and completion actions.
 - [`AndroidManifest.xml`](../ai/src/main/AndroidManifest.xml) registers the

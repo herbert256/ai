@@ -600,12 +600,20 @@ class IconGenerationManager(
         /** When true, generate the report icon after the title attempt.
          * Both describe the original question independently. A title-only
          * restart leaves a good icon alone. */
-        thenIcon: Boolean = false
+        thenIcon: Boolean = false,
+        /** The report already carries a title it must keep (an external
+         *  request's own `title`): skip both title calls, still chain the
+         *  icon when [thenIcon]. */
+        keepTitle: Boolean = false
     ) {
         if (metadataDisabledFor(context, reportId)) return
         // Master switch — MANUAL mode = user typed a title themselves;
         // never run the LLM call.
         if (!appViewModel.uiState.value.generalSettings.reportTitleAiOn()) return
+        if (keepTitle) {
+            if (thenIcon) kickOffIconGeneration(context, reportId, promptText, aiSettings)
+            return
+        }
         // Two worker prompts → two calls: a ≤25-char short title (list
         // cards) and a ≤50-char long title (top-bar orange line). Each is a
         // random-pick / 429-fallback chain over the same 'workers' swarm.

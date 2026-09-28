@@ -128,7 +128,7 @@ fun AppNavHost(
     // Bare prompt — pre-fill the editor, no side effects. [system] is only
     // ever a `system` extra the user accepted on the confirmation screen.
     val openExternalPrefill: (String, String, String?) -> Unit = { title, prompt, system ->
-        appViewModel.setExternalInstructions(closeHtml = null, email = null, systemPrompt = system)
+        appViewModel.setExternalInstructions(closeHtml = null, email = null, systemPrompt = system, title = title)
         navController.navigate(NavRoutes.aiNewReportWithParams(title, prompt, external = true)) {
             popUpTo(NavRoutes.AI) { inclusive = false }
         }
@@ -188,7 +188,8 @@ fun AppNavHost(
                     modelReferences = staged.modelReferences,
                     openHtml = staged.openHtml,
                     systemPrompt = staged.systemPrompt,
-                    context = staged.context
+                    context = staged.context,
+                    title = staged.title
                 )
                 val fullPrompt = if (staged.openHtml != null)
                     "${staged.aiPrompt}\n<user>${staged.openHtml}</user>" else staged.aiPrompt

@@ -2402,10 +2402,11 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         swarmNames: List<String> = emptyList(),
         modelReferences: List<String> = emptyList(), openHtml: String? = null,
         systemPrompt: String? = null,
-        context: com.ai.ui.share.ExternalReportContext = com.ai.ui.share.ExternalReportContext()
+        context: com.ai.ui.share.ExternalReportContext = com.ai.ui.share.ExternalReportContext(),
+        title: String? = null
     ) {
         _uiState.update { it.copy(externalIntent = ExternalIntent(
-            systemPrompt = systemPrompt, closeHtml = closeHtml, context = context,
+            systemPrompt = systemPrompt, closeHtml = closeHtml, context = context, title = title,
             email = email,
             nextAction = nextAction, returnAfterNext = returnAfterNext,
             modelReferences = modelReferences, openHtml = openHtml,
