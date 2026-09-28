@@ -42,8 +42,14 @@ private const val INPUT_HEADROOM = 4_096
  *  code sent max_tokens=70904, which 400'd AtlasCloud.) */
 private const val LOOSE_MATCH_CEILING = 16_384
 
-private fun clampOutputToContext(out: Int, context: Int?): Int =
-    if (context != null && context > 0) out.coerceAtMost((context - INPUT_HEADROOM).coerceAtLeast(1)) else out
+/** A small window (≤ 2 × [INPUT_HEADROOM], e.g. qwen-math-plus's 4 096) is
+ *  split evenly between prompt and answer; subtracting the full headroom
+ *  there used to leave max_tokens=1. */
+private fun clampOutputToContext(out: Int, context: Int?): Int {
+    if (context == null || context <= 0) return out
+    val headroom = INPUT_HEADROOM.coerceAtMost(context / 2)
+    return out.coerceAtMost((context - headroom).coerceAtLeast(1))
+}
 
 internal fun defaultMaxTokens(service: AppService, model: String): Int {
     val native = com.ai.model.SettingsHolder.current?.getProvider(service)?.modelCapabilities?.get(model)

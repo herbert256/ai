@@ -571,7 +571,8 @@ unit tests verify code correctness, not feature correctness here.
   The `ClaudeRequest` field is nullable; `defaultMaxTokens` resolves
   in order: `service.maxTokensDefaults.resolveMaxTokens(model)` (the
   per-provider config) → the model's models.dev max-output window
-  (capped against its context window minus `INPUT_HEADROOM`) → a
+  (capped against its context window minus `INPUT_HEADROOM` = 4096, or
+  minus half the window when that is ≤ 8192 — never `max_tokens=1`) → a
   static **4096** fallback. That default is also applied to
   OpenAI-compatible calls (to avoid OpenRouter balance-gating 402s),
   not Anthropic-only. `claudeReasoningBundle` bumps `max_tokens` above
