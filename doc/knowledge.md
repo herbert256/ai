@@ -107,12 +107,12 @@ is stale and lists only four):
 | `TEXT` | `readUriText` — read straight, forced UTF-8, normalise newlines |
 | `MARKDOWN` | `readUriText` — identical path to `TEXT`; paragraph boundaries preserved for the chunker |
 | `PDF` | `readUriPdf` — PDFBox-Android `PDFTextStripper` (`sortByPosition = true`) |
-| `DOCX` | `readUriDocx` — streaming `XmlPullParser` over `word/document.xml` (`<w:p>`→¶, `<w:t>` text, `<w:tab>`→`\t`) |
-| `ODT` | `readUriOdt` — same approach over `content.xml` (`<text:p>`/`<text:h>`→¶, `<text:tab>`→`\t`) |
+| `DOCX` | `readUriDocx` — streaming `XmlPullParser` over `word/document.xml` (`<w:p>`→¶, `<w:t>` text, `<w:tab>`→`\t`, `<w:br>`/`<w:cr>`→line break) |
+| `ODT` | `readUriOdt` — same approach over `content.xml` (`<text:p>`/`<text:h>`→¶, `<text:tab>`→`\t`, `<text:line-break>`→line break) |
 | `XLSX` | `readUriXlsx` — single-pass zip walk of `xl/sharedStrings.xml` + `xl/worksheets/sheet*.xml`, tab-separated rows, `[sheet N]` headers (spools pre-sharedStrings sheets to a cacheDir temp file) |
 | `ODS` | `readUriOds` — `content.xml` `<table:table>`/`<table:table-row>`/`<table:table-cell>`, tab-separated, `[sheet N]` headers |
-| `CSV` | `readUriCsv` — RFC-4180-ish `PushbackReader` tokenizer; comma-vs-semicolon delimiter auto-sniffed from a 1 KB sample; detected header repeated atop each 10-row block |
-| `URL` | `fetchUrlAsText` — Jsoup fetch (UA `Mozilla/5.0 (compatible; AI-Reports-RAG/1.0)`, 20 s timeout), strips `script/style/noscript/nav/footer/aside/header`, returns `body().text()` |
+| `CSV` | `readUriCsv` — RFC-4180-ish `PushbackReader` tokenizer (a quote opens a quoted field only at the field's start; mid-field it's literal); comma / semicolon / tab delimiter auto-sniffed from a 1 KB sample (`.tsv` lands here too); detected header repeated atop each 10-row block — the header test accepts comma-decimal numbers (`1,5`) as numeric |
+| `URL` | `fetchUrlAsText` — Jsoup fetch (UA `Mozilla/5.0 (compatible; AI-Reports-RAG/1.0)`, 20 s timeout), strips `script/style/noscript/nav/footer/aside/header`, then `blockText` walks the body: paragraph break around block elements, line break per `<br>`/`<tr>`, space between cells |
 
 Every extractor returns `String.normalised()`: CRLF/CR→LF, runs of
 3+ newlines collapsed to exactly 2 (`Regex("\n{3,}") → "\n\n"`),

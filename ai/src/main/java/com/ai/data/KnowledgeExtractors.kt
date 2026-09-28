@@ -79,7 +79,8 @@ internal object KnowledgeExtractors {
      *  pull the visible text out via a streaming XmlPullParser pass.
      *  Drops every other entry — styles, themes, headers, comments
      *  etc. don't carry knowledge content. <w:p> becomes a paragraph
-     *  break (\n\n), <w:t> contributes its text, <w:tab> becomes \t. */
+     *  break (\n\n), <w:t> contributes its text, <w:tab> becomes \t,
+     *  <w:br>/<w:cr> a line break. */
     private fun readUriDocx(context: Context, uri: Uri): String {
         return context.contentResolver.openInputStream(uri).use { inp ->
             requireNotNull(inp) { "Could not open $uri" }
@@ -91,7 +92,8 @@ internal object KnowledgeExtractors {
                             zin,
                             paragraphLocalNames = setOf("p"),
                             textLocalNames = setOf("t"),
-                            tabLocalNames = setOf("tab")
+                            tabLocalNames = setOf("tab"),
+                            breakLocalNames = setOf("br", "cr")
                         )
                     }
                     entry = zin.nextEntry
@@ -115,7 +117,8 @@ internal object KnowledgeExtractors {
                             zin,
                             paragraphLocalNames = setOf("p", "h"),
                             textLocalNames = emptySet(), // ODT puts text directly under <text:p>
-                            tabLocalNames = setOf("tab")
+                            tabLocalNames = setOf("tab"),
+                            breakLocalNames = setOf("line-break")
                         )
                     }
                     entry = zin.nextEntry
@@ -135,7 +138,10 @@ internal object KnowledgeExtractors {
         stream: InputStream,
         paragraphLocalNames: Set<String>,
         textLocalNames: Set<String>,
-        tabLocalNames: Set<String>
+        tabLocalNames: Set<String>,
+        // Soft line breaks (Shift+Enter): ignoring them glued the lines
+        // on either side into one word ("line oneline two").
+        breakLocalNames: Set<String>
     ): String {
         val factory = XmlPullParserFactory.newInstance().apply { isNamespaceAware = true }
         val parser = factory.newPullParser()
@@ -152,6 +158,7 @@ internal object KnowledgeExtractors {
                             if (sb.isNotEmpty() && !sb.endsWith("\n\n")) sb.append("\n\n")
                         }
                         name in tabLocalNames -> sb.append('\t')
+                        name in breakLocalNames -> sb.append('\n')
                         textLocalNames.isNotEmpty() && name in textLocalNames -> inText = true
                     }
                 }
@@ -453,7 +460,8 @@ internal object KnowledgeExtractors {
 
     /** CSV ingestion. Parses RFC 4180-ish (handles quoted fields with
      *  embedded commas / newlines / escaped quotes), auto-detects
-     *  comma-vs-semicolon delimiter, and emits rows tab-separated.
+     *  comma / semicolon / tab delimiter (.tsv files come through this
+     *  path too), and emits rows tab-separated.
      *  When the first row looks like a header (every cell non-blank,
      *  at least one non-numeric), it's repeated at the top of every
      *  10-row block so RAG retrieval lands on chunks that still know
@@ -483,14 +491,17 @@ internal object KnowledgeExtractors {
                 val sample = CharArray(1024)
                 val sampleLen = br.read(sample, 0, sample.size).coerceAtLeast(0)
                 val sampleStr = String(sample, 0, sampleLen)
-                val delim = if (sampleStr.count { it == ';' } > sampleStr.count { it == ',' }) ';' else ','
+                // Most frequent of comma / semicolon / tab; comma wins ties.
+                // Tab was never considered, so a .tsv (mapped to CSV) was
+                // split on stray commas instead of its columns.
+                val delim = listOf(',', ';', '\t').maxBy { d -> sampleStr.count { it == d } }
                 br.reset()
                 parseCsvStream(br, delim) { row ->
                     if (firstRow == null) {
                         firstRow = row
                         val hasHeader = row.isNotEmpty() &&
                             row.all { it.isNotBlank() } &&
-                            row.any { it.toDoubleOrNull() == null }
+                            row.any { !looksNumeric(it) }
                         if (hasHeader) header = row else dataBuffer += row
                     } else {
                         dataBuffer += row
@@ -501,6 +512,19 @@ internal object KnowledgeExtractors {
         }
         flushBlock()
         return sb.toString().normalised()
+    }
+
+    /** Whether a CSV cell is a number, in either decimal convention —
+     *  toDoubleOrNull() alone rejected "1,5" / "1.234,5", so a headerless
+     *  semicolon CSV with comma decimals had its first data row taken as
+     *  the header. Pure parsing; no locale formatting round-trip. */
+    private fun looksNumeric(cell: String): Boolean {
+        val t = cell.trim()
+        if (t.isEmpty()) return false
+        return t.toDoubleOrNull() != null ||
+            t.replace(',', '.').toDoubleOrNull() != null ||          // 1,5
+            t.replace(".", "").replace(',', '.').toDoubleOrNull() != null || // 1.234,5
+            t.replace(",", "").toDoubleOrNull() != null               // 1,234.5
     }
 
     /** Tab-join a row, scrubbing embedded newlines (legitimate inside
@@ -546,7 +570,12 @@ internal object KnowledgeExtractors {
                 } else cell.append(c)
             } else {
                 when (c) {
-                    '"' -> inQuote = true
+                    // A quote only opens a quoted field at the field's
+                    // start (leading blanks allowed); mid-field (5" screen)
+                    // it's literal —
+                    // treating it as an opener swallowed the rest of the
+                    // file into one cell.
+                    '"' -> if (cell.isBlank()) inQuote = true else cell.append(c)
                     delim -> { row.add(cell.toString()); cell.clear() }
                     '\n' -> finishRow()
                     '\r' -> {
@@ -578,7 +607,38 @@ internal object KnowledgeExtractors {
         // Drop nav / footer / aside boilerplate when present —
         // doesn't catch every site but cleans up the easy cases.
         doc.select("script, style, noscript, nav, footer, aside, header").forEach { it.remove() }
-        return doc.body().text().orEmpty().normalised()
+        return blockText(doc.body()).normalised()
+    }
+
+    /** Visible text of [root] with a paragraph break around every block
+     *  element, a line break per <br> / table row and a space between
+     *  table cells. Jsoup's text() flattened the whole page onto one
+     *  line, leaving the paragraph chunker nothing but hard char cuts. */
+    private fun blockText(root: org.jsoup.nodes.Element): String {
+        val sb = StringBuilder()
+        fun inlineBreak(name: String) = name == "br" || name == "tr" || name == "td" || name == "th"
+        root.traverse(object : org.jsoup.select.NodeVisitor {
+            override fun head(node: org.jsoup.nodes.Node, depth: Int) {
+                if (node is org.jsoup.nodes.TextNode) {
+                    sb.append(node.text()) // whitespace-normalised run
+                    return
+                }
+                val el = node as? org.jsoup.nodes.Element ?: return
+                when (el.normalName()) {
+                    "br", "tr" -> sb.append('\n')
+                    "td", "th" -> sb.append(' ')
+                    else -> if (el.isBlock) sb.append("\n\n")
+                }
+            }
+
+            override fun tail(node: org.jsoup.nodes.Node, depth: Int) {
+                val el = node as? org.jsoup.nodes.Element ?: return
+                if (el.isBlock && !inlineBreak(el.normalName())) sb.append("\n\n")
+            }
+        })
+        return sb.toString()
+            .replace(Regex("[ \\t\\u00A0]+"), " ")
+            .replace(Regex(" ?\\n ?"), "\n")
     }
 
     private fun String.normalised(): String =
