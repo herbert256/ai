@@ -241,7 +241,12 @@ never answered without it:
 
 Because injection keys off the stored `knowledgeBaseIds`, an
 already-attached KB keeps feeding context even when the
-Experimental-features toggle has hidden every attach button.
+Experimental-features toggle has hidden every attach button (the chat
+chip and the report's Attach button stay visible while anything is
+attached, so it can be detached). `KnowledgeAttachDialog` lists an
+attached id whose KB was deleted as an "Unavailable knowledge base"
+row that can be unticked — a dead id otherwise stayed attached and
+failed every turn.
 (Per-report export bundles strip `knowledgeBaseIds` to empty on
 export — the KB blobs are not packed; see
 [backup-restore.md](backup-restore.md).)

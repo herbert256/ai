@@ -692,6 +692,14 @@ fun KnowledgeAttachDialog(
         knowledgeBases.firstOrNull { it.id in selected.value }
             ?.let { it.embedderProviderId to it.embedderModel }
     }
+    // Attached ids no listed KB answers to (deleted since they were
+    // attached). They get their own rows so they can be unticked — with
+    // no row a dead id stayed attached and failed every chat turn /
+    // report with no way to detach it here. Taken from the initial
+    // selection so an unticked row stays visible (and re-tickable).
+    val missingIds = remember(selectedKey, knowledgeBases) {
+        initialSelectedIds.filter { id -> knowledgeBases.none { it.id == id } }.sorted()
+    }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Attach knowledge") },
@@ -733,6 +741,29 @@ fun KnowledgeAttachDialog(
                                 Text("embedder mismatch — clear selection to enable",
                                     fontSize = 10.sp, color = AppColors.TextDisabled)
                             }
+                        }
+                    }
+                }
+                missingIds.forEach { id ->
+                    val isOn = id in selected.value
+                    Row(
+                        modifier = Modifier.fillMaxWidth().clickable {
+                            selected.value = if (isOn) selected.value - id else selected.value + id
+                        },
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Checkbox(
+                            checked = isOn,
+                            onCheckedChange = { v ->
+                                selected.value = if (v) selected.value + id else selected.value - id
+                            }
+                        )
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Unavailable knowledge base",
+                                fontSize = 14.sp, color = AppColors.DangerAccent,
+                                maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text("deleted — untick to detach",
+                                fontSize = 11.sp, color = AppColors.TextTertiary)
                         }
                     }
                 }

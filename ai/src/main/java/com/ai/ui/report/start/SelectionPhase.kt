@@ -308,7 +308,10 @@ internal fun ColumnScope.SelectionPhase(
     var showKbDialog by remember { mutableStateOf(false) }
     val kbRefreshTick = com.ai.ui.shared.resumeRefreshTick()
     val allKbs = remember(kbRefreshTick) { com.ai.data.KnowledgeStore.listKnowledgeBases(ctx) }
-    if (experimentalFeatures && allKbs.isNotEmpty()) {
+    // Also while something is attached (like the chat chip): with every
+    // attached KB deleted the button vanished, and the dead ids could not
+    // be detached.
+    if ((experimentalFeatures && allKbs.isNotEmpty()) || attachedKnowledgeBaseIds.isNotEmpty()) {
         OutlinedButton(
             onClick = { showKbDialog = true },
             modifier = Modifier.fillMaxWidth(),
