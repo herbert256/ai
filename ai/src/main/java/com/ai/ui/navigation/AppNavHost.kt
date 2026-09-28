@@ -111,6 +111,13 @@ fun AppNavHost(
     val navigateHome: () -> Unit = {
         navController.navigate(NavRoutes.AI) { popUpTo(NavRoutes.AI) { inclusive = true } }
     }
+    // Destination picked on one of the launch overlays below (share chooser,
+    // external-request confirmation / prompt picker). Those overlays are drawn
+    // INSTEAD of the NavHost, so on a cold start straight into ACTION_SEND /
+    // ACTION_NEW_REPORT the graph was never set and navigate() threw "Navigation
+    // graph has not been set for NavController". The overlay stores the route
+    // here; the effect placed after NavHost(...) navigates once the graph exists.
+    var deferredRootRoute by remember { mutableStateOf<String?>(null) }
 
     // Handle external intent.
     //
@@ -131,9 +138,8 @@ fun AppNavHost(
     // ever a `system` extra the user accepted on the confirmation screen.
     val openExternalPrefill: (String, String, String?) -> Unit = { title, prompt, system ->
         appViewModel.setExternalInstructions(closeHtml = null, email = null, systemPrompt = system, title = title)
-        navController.navigate(NavRoutes.aiNewReportWithParams(title, prompt, external = true)) {
-            popUpTo(NavRoutes.AI) { inclusive = false }
-        }
+        // Deferred: on a cold start the NavHost graph isn't set yet.
+        deferredRootRoute = NavRoutes.aiNewReportWithParams(title, prompt, external = true)
     }
     LaunchedEffect(externalPrompt) {
         if (externalPrompt != null) {
@@ -209,7 +215,7 @@ fun AppNavHost(
                 // skipped its prompt step and generated with THIS request's
                 // prompt, title, system prompt and parameters.
                 reportViewModel.dismissGenericAgentSelection()
-                navController.navigate(NavRoutes.aiReports()) { popUpTo(NavRoutes.AI) { inclusive = false } }
+                deferredRootRoute = NavRoutes.aiReports()
                 pendingExternalReport.value = null
             }
         )
@@ -231,13 +237,13 @@ fun AppNavHost(
             onCancel = onSharedContentHandled,
             onSendToReport = {
                 scope.launch {
-                    routeShareToReport(context, appViewModel, navController, sharedContent)
+                    deferredRootRoute = routeShareToReport(context, appViewModel, sharedContent)
                     onSharedContentHandled()
                 }
             },
             onSendToChat = {
                 scope.launch {
-                    routeShareToChat(context, appViewModel, navController, sharedContent)
+                    deferredRootRoute = routeShareToChat(context, appViewModel, sharedContent)
                     onSharedContentHandled()
                 }
             },
@@ -253,9 +259,7 @@ fun AppNavHost(
                 val urlText = sharedContent.firstUrl.orEmpty()
                 val queue = sharedContent.uris + listOfNotNull(urlText.takeIf { it.isNotBlank() })
                 appViewModel.updateUiState { it.copy(pendingKnowledgeUris = queue) }
-                navController.navigate(NavRoutes.AI_KNOWLEDGE) {
-                    popUpTo(NavRoutes.AI) { inclusive = false }
-                }
+                deferredRootRoute = NavRoutes.AI_KNOWLEDGE
                 onSharedContentHandled()
             }
         ) }
@@ -524,6 +528,13 @@ fun AppNavHost(
         developerRoutes(navController, appViewModel, reportViewModel, chatViewModel, safePopBack, navigateHome)
         chatRoutes(navController, appViewModel, reportViewModel, chatViewModel, safePopBack, navigateHome)
     }
+    // Runs after NavHost(...) above has set the graph in this composition —
+    // see deferredRootRoute.
+    LaunchedEffect(deferredRootRoute) {
+        val route = deferredRootRoute ?: return@LaunchedEffect
+        deferredRootRoute = null
+        navController.navigate(route) { popUpTo(NavRoutes.AI) { inclusive = false } }
+    }
     // Hide the bar on the home Hub — that screen has no TitleBar
     // (it's the centered "AI" logo) so the bar would just show
     // the bare Home + Help fallback. The Hub already routes home /
@@ -704,13 +715,13 @@ fun SetupScreenNav(
 
 /** Route a share-target payload to New Chat. Text becomes the input
  *  draft and the first image URI, when present, becomes the first
- *  turn's staged vision attachment. */
+ *  turn's staged vision attachment. Returns the route to open — the
+ *  caller navigates once the NavHost graph exists (see deferredRootRoute). */
 private suspend fun routeShareToChat(
     context: android.content.Context,
     appViewModel: AppViewModel,
-    navController: androidx.navigation.NavHostController,
     shared: com.ai.data.SharedContent
-) {
+): String {
     fun mimeOf(uri: String): String? =
         runCatching { context.contentResolver.getType(android.net.Uri.parse(uri)) }.getOrNull()
             ?: shared.mime
@@ -732,22 +743,20 @@ private suspend fun routeShareToChat(
     // Land on the configure-on-the-fly provider picker so the user
     // picks model/parameters; staged text/image follow into
     // ChatSessionScreen via UiState.
-    navController.navigate(NavRoutes.AI_CHAT_PROVIDER) {
-        popUpTo(NavRoutes.AI) { inclusive = false }
-    }
+    return NavRoutes.AI_CHAT_PROVIDER
 }
 
 /** Route a SharedContent payload onto the New Report flow. Text /
  *  subject become title + prompt; the first image attachment (if
  *  any) becomes the report's vision attachment via base64; non-image
  *  attachments queue for one-tap knowledge-base auto-attach on the
- *  New Report screen. */
+ *  New Report screen. Returns the route to open (navigated by the caller
+ *  once the graph exists). */
 private suspend fun routeShareToReport(
     context: android.content.Context,
     appViewModel: AppViewModel,
-    navController: androidx.navigation.NavHostController,
     shared: com.ai.data.SharedContent
-) {
+): String {
     val title = shared.subject?.takeIf { it.isNotBlank() } ?: ""
     val prompt = shared.text?.takeIf { it.isNotBlank() } ?: ""
     // Partition URIs by mime — first image-typed one becomes the
@@ -777,9 +786,7 @@ private suspend fun routeShareToReport(
             pendingReportKnowledgeUris = nonImageUris
         )
     }
-    navController.navigate(NavRoutes.aiNewReportWithParams(title, prompt, share = true)) {
-        popUpTo(NavRoutes.AI) { inclusive = false }
-    }
+    return NavRoutes.aiNewReportWithParams(title, prompt, share = true)
 }
 
 /** Build a fresh ChatSession seeded with the report's prompt as the

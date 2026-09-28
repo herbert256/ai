@@ -92,6 +92,11 @@ internal fun NavGraphBuilder.reportRoutes(
                     val latestId = withContext(Dispatchers.IO) {
                         ReportStorage.getReportHeaders(hubContext).maxByOrNull { it.timestamp }?.id
                     }
+                    // Something already navigated past this redirect root while
+                    // the disk read ran (a share / external request picked on a
+                    // cold start — AppNavHost's deferredRootRoute): popping up to
+                    // AI now would wipe that destination off the stack.
+                    if (navController.currentDestination?.route != NavRoutes.AI) return@LaunchedEffect
                     if (latestId == null) {
                         // No reports: an already-configured user (has API keys)
                         // goes to the Reports hub; only an unconfigured one to

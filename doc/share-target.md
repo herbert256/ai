@@ -170,6 +170,19 @@ state survives. A `BackHandler` inside `ShareChooserScreen` routes the
 hardware back button to `onCancel`, which clears the share state
 (`onSharedContentHandled`) and reveals the screen underneath.
 
+Because the overlay is drawn **instead of** the `NavHost`, the chooser
+handlers never call `navigate()` themselves: on a cold start straight
+into `ACTION_SEND` the graph has not been set yet (the `NavHost` has
+never composed) and `navigate()` throws "Navigation graph has not been
+set for NavController". Each handler stores its destination in
+`AppNavHost`'s `deferredRootRoute` and clears the share; the
+`LaunchedEffect` placed right after `NavHost(...)` navigates
+(`popUpTo(AI)`) once the graph exists. The external-request
+confirmation and saved-prompt picker (see
+[custom-intent.md](custom-intent.md)) use the same deferral. In Home
+bar mode the `AI` start destination's redirect to the latest report
+skips itself when such a destination was already opened.
+
 `TitleBar` on the chooser uses `title = "Share"` (subtitle "Turn shared
 content into a report/chat") with the dedicated help topic
 `share_target` (defined in `DeveloperHelp.kt`).
@@ -207,7 +220,7 @@ Report and Chat appear; sharing still works.
 
 ### Report — `routeShareToReport`
 
-`routeShareToReport(context, appViewModel, navController, shared)` is a
+`routeShareToReport(context, appViewModel, shared)` is a
 suspend helper:
 
 1. Title comes from the shared subject, prompt from the shared text
@@ -226,7 +239,7 @@ suspend helper:
      home, so the New Report screen surfaces a banner offering to
      auto-create a one-shot knowledge base from those files and attach
      it — rather than silently dropping the docs.
-3. Navigate to the New Report editor via
+3. Return the New Report editor route (opened via `deferredRootRoute`),
    `aiNewReportWithParams(title, prompt)` (route `AI_NEW_REPORT_WITH_PARAMS`),
    `popUpTo(AI)`. The user still picks models and taps Generate — no
    API credits move automatically. The title and prompt are staged in
@@ -239,7 +252,7 @@ suspend helper:
 
 ### Chat — `routeShareToChat`
 
-`routeShareToChat(context, appViewModel, navController, shared)` is a
+`routeShareToChat(context, appViewModel, shared)` is a
 suspend helper:
 
 1. Stage `chatStarterText = shared.text` in `UiState`.
@@ -252,7 +265,7 @@ suspend helper:
    attachment. These are the same two UiState fields the AI Chat hub's
    "📸 Start with photo" entry writes — the share chooser is no longer
    text-only. Non-image attachments are ignored on the chat route.
-3. Navigate to `AI_CHAT_PROVIDER` — the configure-on-the-fly provider
+3. Return `AI_CHAT_PROVIDER` (opened via `deferredRootRoute`) — the configure-on-the-fly provider
    picker — so the user chooses model / parameters before chatting,
    `popUpTo(AI)`.
 
