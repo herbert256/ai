@@ -100,6 +100,12 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
      *  Activity recreation. See [PendingLaunchState]. */
     val pendingLaunch = PendingLaunchState()
 
+    /** Random id of this instance. Saved UI state stamped with it can tell a
+     *  restore into a FRESH AppViewModel (process death — in-memory state such
+     *  as [UiState.currentReportId] is gone) from the same instance after a
+     *  mere rotation. Used by the AI_REPORTS route's open-report restore. */
+    val instanceToken: String = java.util.UUID.randomUUID().toString()
+
     /** True once the zero-grace startup finalize has run for this
      *  AppViewModel. It survives Activity config changes (it's `viewModel()`-
      *  scoped) but not process death — so a false value means a genuine

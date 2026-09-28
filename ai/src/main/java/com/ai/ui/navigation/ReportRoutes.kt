@@ -7,6 +7,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -424,6 +426,13 @@ internal fun NavGraphBuilder.reportRoutes(
                 }
             )
         ) { entry ->
+            // After a process death this entry came back as an empty "Report -
+            // select models": the open report's id lived only in AppViewModel
+            // memory. Blank while the saved one is re-opened (a single disk read).
+            if (rememberOpenReportRestore(entry.savedStateHandle, appViewModel, reportViewModel)) {
+                androidx.compose.foundation.layout.Box(Modifier.fillMaxSize())
+                return@composable
+            }
             val context = LocalContext.current
             val scope = rememberCoroutineScope()
             // Query-flag seeded by the per-row 👁 View icon on every
@@ -896,6 +905,49 @@ internal fun NavGraphBuilder.reportRoutes(
                 }
             }
         }
+}
+
+private const val KEY_OPEN_REPORT_ID = "openReportId"
+private const val KEY_OPEN_REPORT_OWNER = "openReportOwner"
+
+/** Keeps the AI_REPORTS entry's open report across a process death. Mirrors
+ *  [com.ai.viewmodel.UiState.currentReportId] into the entry's [handle]
+ *  (saved with the back stack), stamped with [AppViewModel.instanceToken].
+ *  When the entry composes into a DIFFERENT AppViewModel with no current
+ *  report — the process died and the back stack was restored — the saved
+ *  report is re-opened. Same instance (rotation, back from another route) →
+ *  a null current report is genuine (new-report selection) and is left
+ *  alone. Returns true while that restore is still loading. */
+@Composable
+private fun rememberOpenReportRestore(
+    handle: androidx.lifecycle.SavedStateHandle,
+    appViewModel: AppViewModel,
+    reportViewModel: ReportViewModel
+): Boolean {
+    val context = LocalContext.current
+    val currentId by remember(appViewModel) {
+        appViewModel.uiState.map { it.currentReportId }.distinctUntilChanged()
+    }.collectAsState(appViewModel.uiState.value.currentReportId)
+    // Decided once per composition of the entry.
+    val restoreId = remember {
+        handle.get<String>(KEY_OPEN_REPORT_ID)?.takeIf {
+            appViewModel.uiState.value.currentReportId == null &&
+                handle.get<String>(KEY_OPEN_REPORT_OWNER) != appViewModel.instanceToken
+        }
+    }
+    var restoring by remember { mutableStateOf(restoreId != null) }
+    LaunchedEffect(restoreId) {
+        if (restoreId == null) return@LaunchedEffect
+        try { reportViewModel.restoreCompletedReport(context, restoreId) } finally { restoring = false }
+    }
+    LaunchedEffect(currentId, restoring) {
+        // Don't overwrite the saved id with the fresh instance's null before
+        // the restore above has run.
+        if (restoring) return@LaunchedEffect
+        handle[KEY_OPEN_REPORT_ID] = currentId
+        handle[KEY_OPEN_REPORT_OWNER] = appViewModel.instanceToken
+    }
+    return restoring
 }
 
 /** Once per New Report nav entry that did NOT come from the share target:
