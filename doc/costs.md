@@ -240,7 +240,9 @@ empty lists (`[]`). It does not delete them: a missing
 `usage-report-stats.json` means "never built", and the Spend & usage load
 then rebuilds every report's row from its ledger — which used to bring the
 whole pre-clear history back on the Reports tab. That rebuild now only runs
-as a first-time migration (file absent).
+as a first-time migration (file absent); it flushes the journal before
+reading the ledgers and swaps the rebuilt map in under the statistics lock,
+keeping calls counted into the live map while the ledgers were read.
 
 ## Per-report API-call cost ledger
 
@@ -269,7 +271,9 @@ recomputes `totalCost`. That reconcile runs lazily — from the Spend &
 usage screen (`reconcileReportCostLedgers`,
 `data/preferences/SettingsPreferences.kt`) and from the per-report cost views — so a
 report's displayed types are always the structured ones once it has
-been reconciled. `reconcileReportCostLedgers` folds each repaired report's
+been reconciled. `reconcileReportCostLedgers` first flushes the pending-cost
+journal (a record that cannot be flushed stays journaled and does not block
+the repair), then folds each repaired report's
 ledger change (new rows minus the ledger as it was before the repair) into
 that report's `UsageReportStats` row; it no longer rebuilds every
 per-report row from every report, so a repair after **Clear all

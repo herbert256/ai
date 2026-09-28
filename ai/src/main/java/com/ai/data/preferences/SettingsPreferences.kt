@@ -627,6 +627,12 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
     }
 
     fun reconcileReportCostLedgers(context: android.content.Context): Boolean {
+        // Land pending journal records in their ledgers first, so a repair
+        // reads (and its statistics reflect) every completed call. A record
+        // that cannot be flushed stays journaled for the next retry; it must
+        // not block the repair.
+        runCatching { ReportCostJournal.flush(filesDir) }
+            .onFailure { AppLog.d("ReportAccounting", "Pending call costs kept for retry: ${it.message}") }
         val pending = ReportStorage.reportIdsNeedingLedgerRepair(context)
         AppLog.d("ReportAccounting", "${pending.size} reports need ledger repair")
         val deltas = pending.mapNotNull { ReportStorage.reconcileApiCallCostLedger(context, it) }
@@ -649,7 +655,6 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             deltas.forEach { adjustReportStatsForLedgerDelta(reports, it) }
             saveUsageReportStats(HashMap(reports))
         }
-        flushUsageStats()
         return true
     }
 
@@ -1001,6 +1006,9 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
     }
 
     private fun rebuildUsageReportStatsFromReports(context: android.content.Context) {
+        // Flush pending journal records first so the ledgers read below
+        // include every completed call.
+        runCatching { ReportCostJournal.flush(filesDir) }
         val rebuilt = java.util.concurrent.ConcurrentHashMap<String, UsageReportStats>()
         ReportStorage.getAllReports(context).forEach { report ->
             val currentReport = if (!report.apiCallCostsComplete &&
@@ -1024,8 +1032,18 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
                 outputCost = calls.sumOf { it.outputCost }
             )
         }
-        usageReportStatsCache = rebuilt
-        saveUsageReportStats(rebuilt)
+        synchronized(usageStatsLock) {
+            // Calls that completed while the ledgers were being read were
+            // counted into the live map; keep them rather than losing them
+            // in the swap.
+            usageReportStatsCache?.forEach { (id, live) ->
+                rebuilt.compute(id) { _, fromLedger ->
+                    if (fromLedger == null) live else mergeUsageReportStats(live, fromLedger)
+                }
+            }
+            usageReportStatsCache = rebuilt
+            saveUsageReportStats(HashMap(rebuilt))
+        }
     }
 
     private fun scheduleUsageStatsFlush() {
