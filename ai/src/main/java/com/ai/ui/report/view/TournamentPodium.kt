@@ -57,6 +57,7 @@ import com.ai.data.applyTournamentMethod
 import com.ai.data.barTitle
 import com.ai.data.decodeTournamentMatrix
 import com.ai.data.rankFor
+import com.ai.data.tieAwarePositions
 import com.ai.data.parseMatchVerdict
 import com.ai.ui.helpers.SwipeDirection
 import com.ai.ui.helpers.formatRerankScore
@@ -942,11 +943,13 @@ private fun TournamentTotalTable(matrixJson: String?, rankings: List<TournamentR
         rankings.mapNotNull { it.agent }.associate { it.rankId to it.label }
     }
     // For each method, rankId -> position. Recomputed locally from the
-    // persisted win matrix so no method needs a DB round-trip.
-    val perMethod: Map<TournamentMethod, Map<Int, Int>> = remember(matrixJson) {
+    // persisted win matrix so no method needs a DB round-trip. Tie-aware
+    // (equal scores share the mean of their ranks), like Value view's
+    // Tournament Total — the raw ranks break ties by report position.
+    val perMethod: Map<TournamentMethod, Map<Int, Double>> = remember(matrixJson) {
         val matrix = decodeTournamentMatrix(matrixJson)?.first
         if (matrix == null) emptyMap()
-        else methods.associateWith { m -> rankFor(m, matrix).associate { it.id to it.rank } }
+        else methods.associateWith { m -> tieAwarePositions(rankFor(m, matrix)) }
     }
     if (perMethod.isEmpty() || labelById.isEmpty()) {
         Text("No completed matches yet to rank.", color = AppColors.TextTertiary, fontSize = 13.sp,
@@ -955,7 +958,7 @@ private fun TournamentTotalTable(matrixJson: String?, rankings: List<TournamentR
     }
     // One row per model, sorted by average position across the methods
     // that placed it (lower = better).
-    data class Row(val label: String, val positions: List<Int?>, val avg: Double)
+    data class Row(val label: String, val positions: List<Double?>, val avg: Double)
     val rows = labelById.entries.map { (id, label) ->
         val positions = methods.map { m -> perMethod[m]?.get(id) }
         val present = positions.filterNotNull()
@@ -982,7 +985,10 @@ private fun TournamentTotalTable(matrixJson: String?, rankings: List<TournamentR
                 Text(r.label, fontSize = 13.sp, color = AppColors.TextPrimary, maxLines = 1,
                     overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, modifier = Modifier.width(cModel))
                 r.positions.forEach { pos ->
-                    Text(pos?.toString() ?: "–", fontSize = 13.sp, color = AppColors.TextSecondary,
+                    val posText = pos?.let {
+                        if (it % 1.0 == 0.0) it.toInt().toString() else String.format(java.util.Locale.US, "%.1f", it)
+                    } ?: "–"
+                    Text(posText, fontSize = 13.sp, color = AppColors.TextSecondary,
                         textAlign = TextAlign.Center, modifier = Modifier.width(cCol))
                 }
                 Text(

@@ -178,7 +178,7 @@ would crash on a comma-decimal locale).
 
 `assignRanks` sorts by score descending with an id-ascending tiebreak and
 assigns ranks 1..N. Because that tiebreak is arbitrary, Value view's
-Tournament Total averages **tie-aware** positions (`tieAwarePositions`: equal
+Tournament Total and the Tournament podium's Total grid both use **tie-aware** positions (`tieAwarePositions`: equal
 scores share the mean of their ranks) rather than the raw ranks.
 
 Manage-side drill-in:
