@@ -280,7 +280,6 @@ captured crash report — the message is the `report` string, not a literal.
 
 - **L218** `"Backup"` — "Backup skipped $filesSkipped unreadable file(s); see earlier warnings for paths"
 - **L344** `"Backup"` — "Skipping zip entry that escapes filesDir: $name"
-- **L426** `"Backup"` — "Skipping prefs entry not in allowlist: $prefsName"
 - `"Backup"` — "Could not delete stale backup export ${it.name}"
 - **L574** `"Backup"` — "applyPrefs($name): unknown type tag '$tag' for key '$k' — entry skipped"
 - **L596** `"Backup"` — "Skipping unreadable directory during backup: ${dir.absolutePath}"
@@ -794,7 +793,7 @@ captured crash report — the message is the `report` string, not a literal.
 - **L187** `"Backup"` — "manifest written"
 - **L193** `"Backup"` — "prefs section written (${PREFS_TO_BACKUP.size} files)"
 - **L202** `"Backup"` — "filesDir mirrored — $filesWritten entries, skipped=${summary.skipped}"
-- **L256** `"Backup"` — "manifest version=$version, staged ${staged.size} entries (${staged.values.sumOf { it.size }} bytes)"
+- **L256** `"Backup"` — "manifest version=$version, validated ${validated.prefs.size} prefs + ${validated.fileEntries.size} files (${validated.totalBytes} bytes)"
 - **L274** `"Backup"` — "prefs applied: $prefsRestored file(s)"
 - **L282** `"Backup"` — "filesDir wiped (except excludes)"
 - **L288** `"Backup"` — "cacheDir wiped (preserving ${tempZip.name})"

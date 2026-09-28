@@ -239,8 +239,8 @@ never destroys them.
 
 `restore(context, input): RestoreSummary` is deliberately ordered
 so that a crash at any point leaves a re-restorable state, never a
-half-wiped install. The safety design is **stage everything in
-memory first, destroy second**:
+half-wiped install. The safety design is **verify everything
+first, destroy second**:
 
 1. **Copy** the SAF input stream into a temp file
    `ai-restore-<…>.zip` in `cacheDir`.
@@ -255,12 +255,17 @@ memory first, destroy second**:
    - `version > MANIFEST_VERSION` → `IllegalStateException`
      ("Backup is from a newer app version (*N*). Please update the
      app.").
-3. **Validate** — `readAllEntriesValidated` walks every kept zip
-   entry, decompresses it into memory (subject to the per-entry /
-   total caps and the path-traversal check), and stages it in a
-   `LinkedHashMap<String, ByteArray>`. Any IOException or
-   truncation throws **here**, before the destructive wipe.
-4. **Sanity floor** — if the staged map contains **no `files/`
+3. **Validate** — `validateBackup` walks every kept zip entry of
+   the local temp zip and decompresses it once (subject to the
+   per-entry / total caps and the path-traversal check;
+   `ZipInputStream` verifies each entry's CRC). File bytes are
+   **discarded** — only the entry names are kept — so a large
+   backup never has to fit in the heap. Every `prefs/<name>.json`
+   is **parsed here** (cap 64 MB each) and kept as rows, so a
+   malformed settings file aborts before any prefs file is
+   cleared. Any IOException, truncation, CRC mismatch or parse
+   error throws **here**, before anything destructive.
+4. **Sanity floor** — if validation found **no `files/`
    entry at all**, restore throws `IllegalStateException`
    ("Backup contains no data files — refusing to restore; your
    current data is untouched.") *before* any prefs apply or wipe.
@@ -269,9 +274,10 @@ memory first, destroy second**:
    a structurally-valid backup that happens to carry zero data
    files would otherwise wipe the device's reports / chats / KBs
    and write nothing back.
-5. **Apply prefs** — `applyPrefsOnly` commits every
-   `prefs/<name>.json` entry into its SharedPreferences file via
-   `edit().clear()...commit()` (synchronous, atomic per file).
+5. **Apply prefs** — `applyPrefsOnly` commits every parsed
+   prefs file into its SharedPreferences file via
+   `edit().clear()...commit()` (synchronous, atomic per file; a
+   failed `commit()` throws).
    Prefs go first so a process death between this step and the
    file pass leaves prefs valid + `filesDir` empty (re-restorable),
    rather than the inverse where `filesDir` is partly written but
@@ -282,17 +288,17 @@ memory first, destroy second**:
 7. **Wipe `cacheDir`** — `clearCacheDirForRestore(preserve =
    {tempZip.name})` deletes everything except the in-flight
    restore zip (nothing in `cacheDir` is restored).
-8. **Apply files** — `applyFilesOnly` writes every staged
-   `files/` entry to disk. Each file is
+8. **Apply files** — `applyFilesOnly` streams every validated
+   `files/` entry from the temp zip straight to disk. Each file is
    **fsync'd** (`FileDescriptor.sync()`) before returning, because
    `HousekeepingScreen` kills the process immediately afterward
    and SAF/close doesn't fsync — otherwise a restored file could
    surface partial/empty content on the next launch.
 
-Steps 6–8 are the destructive phase — the wipe has already begun,
-so any exception there is caught and rethrown as
+Steps 5–8 are the destructive phase — prefs are cleared and the
+wipe begins, so any exception there is caught and rethrown as
 `RestoreAfterWipeException` instead of propagating raw. The UI
-uses that type to decide its message: a failure in steps 1–5 gets
+uses that type to decide its message: a failure in steps 1–4 gets
 "existing data left unchanged", while `RestoreAfterWipeException`
 gets "your data may be incomplete — re-run restore from the same
 backup file", since the wipe already ran.
@@ -319,9 +325,9 @@ by restore. (Earlier drafts of this doc described a
 `mergeMissingProvidersFromSetup` step and a
 `RestoreSummary.newProviders` field — neither exists in the code.)
 
-Memory cost: the full uncompressed payload is held during the
-staging pass. Acceptable because backups are typically 10–50 MB
-and the SAF copy already held that much in `cacheDir`.
+Memory cost: only the parsed prefs files. File entries are read
+twice from the local temp zip (validate, then apply) instead of
+being held in the heap; the caps above bound the disk use.
 
 ## Manifest version
 

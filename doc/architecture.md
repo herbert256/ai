@@ -730,7 +730,7 @@ Other concurrency notes:
   `/` or `\`) and apply canonical-containment checks before any file op,
   so a malformed or restored id can't escape its directory.
 - Backup restore caps per-entry (256 MB) and total (1 GB) bytes before
-  writing into `filesDir` / `cacheDir` from the zip.
+  writing into `filesDir` from the zip.
 
 ## Streaming
 
@@ -876,11 +876,12 @@ the app-log dir join the two on-device model dirs). The same four are
 preserved through `clearFilesDirForRestore`.
 
 Restore is **validate-then-write**: copy the input to a temp zip, check
-the manifest version (accepted range is exactly 1), read the whole
-archive into memory with per-entry (256 MB) and total (1 GB) byte caps
-and path-traversal checks **before** anything destructive, commit all
-prefs, wipe `filesDir` (minus the excludes), then write the staged files
-with `fsync`. Prefs are committed before `filesDir` is wiped, so a crash
+the manifest version (accepted range is exactly 1), read every entry
+once with per-entry (256 MB) and total (1 GB) byte caps, CRC and
+path-traversal checks, and parse every prefs file **before** anything
+destructive, commit all prefs, wipe `filesDir` (minus the excludes), then
+stream the files from the temp zip to disk with `fsync` (file bytes are
+never held in the heap). Prefs are committed before `filesDir` is wiped, so a crash
 mid-restore leaves a re-restorable state rather than an inconsistent one.
 The process is killed and relaunched afterward (restore does not
 live-reload). Per-report export/import (`ReportBundle`,

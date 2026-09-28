@@ -67,9 +67,15 @@ object BackupManager {
 
     /** Per-entry uncompressed cap during restore. Embeddings-heavy
      *  knowledge-base files are the realistic worst case; 256 MB is
-     *  well above a fully populated KB but bails before a single
-     *  oversized entry can blow the heap. */
+     *  well above a fully populated KB but refuses a zip-bomb entry
+     *  before it fills the disk. File entries stream to disk, never
+     *  into the heap. */
     private const val MAX_RESTORE_ENTRY_BYTES: Long = 256L * 1024L * 1024L
+
+    /** Cap for a prefs/<name>.json entry — the only entries held in
+     *  memory (they're parsed during validation). Real ones are well
+     *  under a few MB even with inlined provider catalogs. */
+    private const val MAX_RESTORE_PREFS_BYTES: Long = 64L * 1024L * 1024L
 
     /** Total uncompressed cap across all kept entries. Backups are
      *  typically 10–50 MB; 1 GB is generous enough for users with a
@@ -235,51 +241,49 @@ object BackupManager {
             if (version > MANIFEST_VERSION) {
                 throw IllegalStateException("Backup is from a newer app version ($version). Please update the app.")
             }
-            // Validate-then-write. Walk the zip once into memory,
-            // catching any read/truncation failure BEFORE we touch
-            // filesDir. The previous flow cleared filesDir as soon as
-            // the manifest version checked out — any subsequent
-            // failure (zip corruption, partial entry, IOException
-            // mid-stream) wiped the user's reports / chats / KBs and
-            // left a half-empty install with no way back. Now: bytes
-            // first, destroy second.
-            val staged = readAllEntriesValidated(context, tempZip)
-            AppLog.d("Backup", "manifest version=$version, staged ${staged.size} entries (${staged.values.sumOf { it.size }} bytes)")
+            // Validate-then-write. Read every entry of the local temp zip
+            // once (path checks, size caps, CRC check, every prefs file
+            // parsed), catching any read/truncation/parse failure BEFORE we
+            // touch prefs or filesDir. File bytes are not kept: the apply
+            // pass below streams them again from the same, already verified
+            // temp zip, so a large backup never has to fit in the heap.
+            val validated = validateBackup(context, tempZip)
+            AppLog.d("Backup", "manifest version=$version, validated ${validated.prefs.size} prefs + ${validated.fileEntries.size} files (${validated.totalBytes} bytes)")
             // Sanity floor before the destructive wipe: a structurally-valid
             // backup with ZERO files/ entries (the historical "0 files" /
             // symlink-skip regression) would otherwise wipe the device's
             // reports / chats / KBs and write nothing back. Refuse here, before
             // any prefs apply or wipe, so the current data stays untouched.
-            if (staged.keys.none { it.startsWith("files/") }) {
+            if (validated.fileEntries.isEmpty()) {
                 throw IllegalStateException("Backup contains no data files — refusing to restore; your current data is untouched.")
             }
-            // Commit prefs first — SharedPreferences.commit() is
-            // synchronous and atomic per file, so once this returns
-            // every restored prefs file is durable on disk. A process
-            // kill between this step and the file-writing step below
-            // leaves prefs valid + filesDir empty (re-restorable),
-            // whereas the previous flow wiped filesDir BEFORE
-            // committing prefs and would leave an inconsistent
-            // half-restored state pointing at nothing.
-            val prefsRestored = applyPrefsOnly(context, staged)
-            AppLog.d("Backup", "prefs applied: $prefsRestored file(s)")
-            // Everything from here is post-wipe and destructive: any failure
-            // means data is gone / half-restored, so re-throw as
-            // RestoreAfterWipeException and let the UI drop the "data left
-            // unchanged" reassurance. Staging + the zero-files floor above
-            // already caught the recoverable cases before this point.
+            // Everything from here is destructive — the prefs apply clears
+            // each prefs file before writing it — so any failure means data
+            // is gone / half-restored: re-throw as RestoreAfterWipeException
+            // and let the UI drop the "data left unchanged" reassurance.
+            // Validation + the zero-files floor above already caught the
+            // recoverable cases (including a malformed prefs file) before
+            // this point.
             try {
+                // Commit prefs first — SharedPreferences.commit() is
+                // synchronous and atomic per file, so once this returns
+                // every restored prefs file is durable on disk. A process
+                // kill between this step and the file-writing step below
+                // leaves prefs valid + filesDir empty (re-restorable),
+                // whereas wiping filesDir BEFORE committing prefs would
+                // leave an inconsistent half-restored state pointing at
+                // nothing.
+                val prefsRestored = applyPrefsOnly(context, validated)
+                AppLog.d("Backup", "prefs applied: $prefsRestored file(s)")
                 clearFilesDirForRestore(context.filesDir)
                 AppLog.d("Backup", "filesDir wiped (except excludes)")
                 // Wipe cacheDir too (nothing in it is restored — it only
                 // holds transient exports / staging from the old state),
-                // but preserve the temp zip we're currently restoring from —
-                // deleting it mid-restore would be safe (we've already read
-                // its bytes into [staged]) but preserving it keeps the
-                // finally below well-defined.
+                // but preserve the temp zip we're restoring from: the file
+                // pass below still streams its entries.
                 clearCacheDirForRestore(context.cacheDir, preserve = setOf(tempZip.name))
                 AppLog.d("Backup", "cacheDir wiped (preserving ${tempZip.name})")
-                val filesRestored = applyFilesOnly(context, staged)
+                val filesRestored = applyFilesOnly(context, tempZip, validated)
                 AppLog.d("Backup", "files applied: $filesRestored entries")
                 AppLog.i("Backup", "← restore done in ${System.currentTimeMillis() - t0}ms (prefs=$prefsRestored files=$filesRestored)")
                 RestoreSummary(version = version, prefsFiles = prefsRestored, dataFiles = filesRestored)
@@ -292,22 +296,31 @@ object BackupManager {
         }
     }
 
-    /** Walk every entry in the zip, decompress + readBytes each one
-     *  into memory, and return the staged map. Any IOException /
-     *  truncation throws here, BEFORE the destructive
-     *  clearFilesDirForRestore step in [restore]. Memory cost: full
-     *  uncompressed payload — acceptable since backups are typically
-     *  10–50 MB and the device already had to load that much during
-     *  the SAF copy into the temp file.
+    /** What [validateBackup] found: every prefs file already parsed (so a
+     *  malformed one aborts before anything is changed) and the files/
+     *  entry names that passed the path + size checks. File bytes are NOT
+     *  held in memory — [applyFilesOnly] streams them from the same local
+     *  temp zip, which the validation pass has fully read and CRC-checked
+     *  (ZipInputStream verifies each entry's CRC and size at its end). */
+    private class ValidatedBackup(
+        val prefs: Map<String, List<Map<String, Any?>>>,
+        val fileEntries: Set<String>,
+        val totalBytes: Long
+    )
+
+    /** Walk every entry in the zip and decompress it once without keeping
+     *  file bytes. Any IOException / truncation / CRC mismatch / malformed
+     *  prefs file throws here, BEFORE the destructive steps in [restore].
+     *  Only the (small) prefs files are held in memory, as parsed rows.
      *
-     *  A maliciously-crafted or just unusually-large backup could
-     *  otherwise OOM the app. Enforce a per-entry and total
-     *  uncompressed cap — generous enough for real backups (an
-     *  embeddings-heavy KB can be tens of MB), tight enough to
-     *  bail before the heap blows. Cap is enforced during the read
-     *  by counting bytes against a cumulative budget. */
-    private fun readAllEntriesValidated(context: Context, zipFile: File): Map<String, ByteArray> {
-        val out = LinkedHashMap<String, ByteArray>()
+     *  A maliciously-crafted or just unusually-large backup is refused by
+     *  a per-entry and total uncompressed cap — generous enough for real
+     *  backups (an embeddings-heavy KB can be tens of MB), tight enough to
+     *  refuse a zip bomb. Cap is enforced during the read by counting
+     *  bytes against a cumulative budget. */
+    private fun validateBackup(context: Context, zipFile: File): ValidatedBackup {
+        val prefs = LinkedHashMap<String, List<Map<String, Any?>>>()
+        val fileEntries = LinkedHashSet<String>()
         var totalBytes = 0L
         ZipInputStream(zipFile.inputStream()).use { zip ->
             while (true) {
@@ -341,24 +354,37 @@ object BackupManager {
                     }
                 }
                 val remaining = MAX_RESTORE_TOTAL_BYTES - totalBytes
-                val capped = readBytesCapped(zip, MAX_RESTORE_ENTRY_BYTES, remaining, name)
-                totalBytes += capped.size
-                out[name] = capped
+                if (name.startsWith("prefs/")) {
+                    // The allowlist was applied by `keep` above: a crafted
+                    // name with a path separator would make
+                    // getSharedPreferences throw mid-apply, and an arbitrary
+                    // one would create a junk shared_prefs file.
+                    val buf = java.io.ByteArrayOutputStream()
+                    totalBytes += copyCapped(zip, MAX_RESTORE_PREFS_BYTES, remaining, name, buf)
+                    val prefsName = name.removePrefix("prefs/").removeSuffix(".json")
+                    parsePrefs(prefsName, buf.toByteArray())?.let { prefs[prefsName] = it }
+                } else {
+                    // manifest.json / files/: read to the end (size caps +
+                    // CRC check) and discard.
+                    totalBytes += copyCapped(zip, MAX_RESTORE_ENTRY_BYTES, remaining, name, null)
+                    if (name.startsWith("files/")) fileEntries += name
+                }
                 zip.closeEntry()
             }
         }
-        return out
+        return ValidatedBackup(prefs, fileEntries, totalBytes)
     }
 
-    /** Read up to [perEntryCap] bytes (or [remainingTotal], whichever
-     *  is lower) from [zip] for the current entry. Throws if the entry
-     *  exceeds either cap, so the destructive clearFilesDirForRestore
-     *  step never runs against an oversized payload. */
-    private fun readBytesCapped(zip: ZipInputStream, perEntryCap: Long, remainingTotal: Long, name: String): ByteArray {
+    /** Copy the current entry of [zip] into [sink] (null = discard),
+     *  allowing up to [perEntryCap] bytes (or [remainingTotal], whichever
+     *  is lower). Throws if the entry exceeds either cap, so the
+     *  destructive restore steps never run against an oversized payload.
+     *  Returns the entry's uncompressed size. */
+    private fun copyCapped(zip: ZipInputStream, perEntryCap: Long, remainingTotal: Long, name: String,
+                           sink: OutputStream?): Long {
         val cap = minOf(perEntryCap, remainingTotal)
         if (cap <= 0L) throw IllegalStateException(
             "Backup exceeds total cap (${MAX_RESTORE_TOTAL_BYTES / (1024L * 1024L)} MB) at entry $name")
-        val buf = java.io.ByteArrayOutputStream()
         val chunk = ByteArray(64 * 1024)
         var total = 0L
         while (true) {
@@ -370,63 +396,68 @@ object BackupManager {
                     "Backup entry $name exceeds cap " +
                         "(${if (cap == perEntryCap) "per-entry" else "remaining total"} = $cap bytes)")
             }
-            buf.write(chunk, 0, n)
+            sink?.write(chunk, 0, n)
         }
-        return buf.toByteArray()
+        return total
     }
 
-    /** Write [bytes] to [target] and fsync the file descriptor before
-     *  returning so a process kill (HousekeepingScreen kills the
-     *  process right after restore() returns to force a fresh launch)
-     *  can't surface partial / empty / pre-write content. SAF OutputStream
-     *  close doesn't fsync, hence the explicit FileDescriptor.sync(). */
-    private fun writeBytesFsync(target: File, bytes: ByteArray) {
+    /** Parse a prefs/<name>.json entry into its {k, t, v} rows. Runs in
+     *  the validation pass so a malformed later file aborts the restore
+     *  BEFORE an earlier prefs file (e.g. eval_prefs) has been cleared —
+     *  parsing only at apply time left the user with half-replaced
+     *  settings while being told nothing changed. Null = empty entry
+     *  (nothing to apply; that prefs file is left as it is). */
+    @Suppress("UNCHECKED_CAST")
+    private fun parsePrefs(name: String, json: ByteArray): List<Map<String, Any?>>? {
+        val parsed: List<*> = (try {
+            gson.fromJson(json.toString(Charsets.UTF_8), List::class.java)
+        } catch (e: com.google.gson.JsonParseException) {
+            throw IllegalStateException("Backup settings file $name is malformed: ${e.message}", e)
+        }) ?: return null
+        return parsed.mapNotNull { it as? Map<String, Any?> }
+    }
+
+    /** Stream the current entry of [zip] to [target] and fsync the file
+     *  descriptor before returning so a process kill (HousekeepingScreen
+     *  kills the process right after restore() returns to force a fresh
+     *  launch) can't surface partial / empty / pre-write content. SAF
+     *  OutputStream close doesn't fsync, hence the explicit
+     *  FileDescriptor.sync(). Returns the bytes written. */
+    private fun writeEntryFsync(zip: ZipInputStream, target: File, name: String, remainingTotal: Long): Long =
         java.io.FileOutputStream(target).use { fos ->
-            fos.write(bytes)
+            val written = copyCapped(zip, MAX_RESTORE_ENTRY_BYTES, remainingTotal, name, fos)
             fos.flush()
             try { fos.fd.sync() } catch (_: java.io.IOException) { /* best effort */ }
+            written
         }
-    }
 
-    /** First apply pass — commit every prefs/<name>.json entry into
-     *  its SharedPreferences file. Each commit() call is synchronous +
+    /** First apply pass — commit every validated prefs file into its
+     *  SharedPreferences file. Each commit() call is synchronous +
      *  atomic per file. Splitting prefs out of the file pass lets the
      *  restore() caller commit prefs BEFORE wiping filesDir, so a
      *  crash mid-restore can't leave us with empty filesDir + stale
      *  prefs pointing at nothing. */
-    private fun applyPrefsOnly(context: Context, staged: Map<String, ByteArray>): Int {
-        var prefsRestored = 0
-        for ((name, bytes) in staged) {
-            if (name.startsWith("prefs/") && name.endsWith(".json")) {
-                val prefsName = name.removePrefix("prefs/").removeSuffix(".json")
-                // Allowlist guard: only commit known prefs files. A crafted
-                // entry with a path separator would make getSharedPreferences
-                // throw mid-apply (after earlier prefs were already cleared),
-                // and an arbitrary name would create a junk shared_prefs file.
-                if (prefsName in PREFS_TO_BACKUP) {
-                    applyPrefs(context, prefsName, bytes); prefsRestored++
-                } else if (prefsName.isNotBlank()) {
-                    AppLog.w("Backup", "Skipping prefs entry not in allowlist: $prefsName")
-                }
-            }
-        }
-        return prefsRestored
+    private fun applyPrefsOnly(context: Context, validated: ValidatedBackup): Int {
+        for ((prefsName, rows) in validated.prefs) applyPrefs(context, prefsName, rows)
+        return validated.prefs.size
     }
 
-    /** Second apply pass — write every files/ entry to disk. Caller
-     *  should already have wiped filesDir; this just lays down the
-     *  staged bytes. */
-    private fun applyFilesOnly(context: Context, staged: Map<String, ByteArray>): Int {
+    /** Second apply pass — stream every validated files/ entry from
+     *  [zipFile] to disk. Caller should already have wiped filesDir. */
+    private fun applyFilesOnly(context: Context, zipFile: File, validated: ValidatedBackup): Int {
         var filesRestored = 0
-        for ((name, bytes) in staged) {
-            if (name.startsWith("files/")) {
-                val rel = name.removePrefix("files/")
-                if (rel.isNotBlank()) {
-                    val target = File(context.filesDir, rel)
+        var totalBytes = 0L
+        ZipInputStream(zipFile.inputStream()).use { zip ->
+            while (true) {
+                val entry = zip.nextEntry ?: break
+                val name = entry.name
+                if (!entry.isDirectory && name in validated.fileEntries) {
+                    val target = File(context.filesDir, name.removePrefix("files/"))
                     target.parentFile?.mkdirs()
-                    writeBytesFsync(target, bytes)
+                    totalBytes += writeEntryFsync(zip, target, name, MAX_RESTORE_TOTAL_BYTES - totalBytes)
                     filesRestored++
                 }
+                zip.closeEntry()
             }
         }
         // The backup carries the user's provider_registry prefs in
@@ -526,13 +557,12 @@ object BackupManager {
         return gson.toJson(out).toByteArray()
     }
 
-    private fun applyPrefs(context: Context, name: String, json: ByteArray) {
-        val parsed = gson.fromJson(json.toString(Charsets.UTF_8), List::class.java) ?: return
+    /** Replace prefs file [name] with [rows] (already parsed by
+     *  [parsePrefs] during validation). */
+    private fun applyPrefs(context: Context, name: String, rows: List<Map<String, Any?>>) {
         val prefs = context.getSharedPreferences(name, Context.MODE_PRIVATE)
-        prefs.edit().clear().also { editor ->
-            for (raw in parsed) {
-                @Suppress("UNCHECKED_CAST")
-                val m = raw as? Map<String, Any?> ?: continue
+        val committed = prefs.edit().clear().also { editor ->
+            for (m in rows) {
                 val k = m["k"] as? String ?: continue
                 when (val tag = m["t"] as? String) {
                     // putString(k, null) REMOVES the key rather than storing
@@ -550,6 +580,7 @@ object BackupManager {
                 }
             }
         }.commit()
+        if (!committed) throw java.io.IOException("Could not save restored settings file $name")
     }
 
     // ===== Zip helpers =====

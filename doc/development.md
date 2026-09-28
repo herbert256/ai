@@ -684,9 +684,10 @@ unit tests verify code correctness, not feature correctness here.
   transient exports, including earlier backup zips, and the reset
   flow's plaintext `reset_keys_` temp). A new prefs file
   won't survive a restore unless added to `PREFS_TO_BACKUP`. Restore
-  is **validate-then-write**: read the whole zip into memory
-  (zip-bomb caps: 256 MB/entry, 1 GB total), commit prefs, *then*
-  wipe + rewrite `filesDir`/`cacheDir`, so a crash mid-restore
+  is **validate-then-write**: read + CRC-check every entry and parse
+  every prefs file (zip-bomb caps: 256 MB/entry, 1 GB total; file bytes
+  are streamed, not held in memory), commit prefs, *then*
+  wipe + rewrite `filesDir`, so a crash mid-restore
   leaves a re-restorable state. See
   [backup-restore.md](backup-restore.md).
 - **Manifest version is `1`.** `BackupManager.MANIFEST_VERSION = 1`;
