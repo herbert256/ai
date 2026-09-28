@@ -219,7 +219,7 @@ class MainActivity : ComponentActivity() {
                 externalInstructions.value = intent.getStringExtra("instructions")
             }
             Intent.ACTION_SEND -> {
-                val uri = uriExtra(intent, Intent.EXTRA_STREAM)
+                val uri = uriExtra(intent, Intent.EXTRA_STREAM)?.takeIf { isAcceptableSharedUri(it) }
                 sharedContent.value = SharedContent(
                     text = charSequenceExtra(intent, Intent.EXTRA_TEXT),
                     subject = charSequenceExtra(intent, Intent.EXTRA_SUBJECT),
@@ -228,7 +228,7 @@ class MainActivity : ComponentActivity() {
                 )
             }
             Intent.ACTION_SEND_MULTIPLE -> {
-                val uris = uriListExtra(intent, Intent.EXTRA_STREAM)
+                val uris = uriListExtra(intent, Intent.EXTRA_STREAM).filter { isAcceptableSharedUri(it) }
                 sharedContent.value = SharedContent(
                     text = charSequenceExtra(intent, Intent.EXTRA_TEXT),
                     subject = charSequenceExtra(intent, Intent.EXTRA_SUBJECT),
@@ -237,6 +237,18 @@ class MainActivity : ComponentActivity() {
                 )
             }
         }
+    }
+
+    /** Shared EXTRA_STREAM entries must be content:// URIs owned by ANOTHER
+     *  app. A file:// URI — or one naming this app's own FileProvider — would
+     *  have the app open its own private files (prefs with API keys, reports)
+     *  on the sender's behalf and hand them to a model or knowledge base. */
+    private fun isAcceptableSharedUri(uri: Uri): Boolean {
+        val ok = uri.scheme.equals(android.content.ContentResolver.SCHEME_CONTENT, ignoreCase = true) &&
+            uri.authority != null &&
+            !uri.authority.equals("$packageName.fileprovider", ignoreCase = true)
+        if (!ok) android.util.Log.w("Share", "Ignored shared stream ${uri.scheme}://${uri.authority}")
+        return ok
     }
 
     /** EXTRA_TEXT / EXTRA_SUBJECT as plain text. Senders may put a styled

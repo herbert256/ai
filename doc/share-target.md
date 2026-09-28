@@ -117,6 +117,13 @@ data class SharedContent(
   `uris` list (`listOfNotNull(uri?.toString())`).
 - `ACTION_SEND_MULTIPLE` reads the Uri `ArrayList` and maps each to a
   string.
+- Every `EXTRA_STREAM` Uri must be a `content://` Uri owned by another
+  app (`isAcceptableSharedUri`): `file://` Uris and Uris naming the
+  app's own FileProvider (`<applicationId>.fileprovider`) are dropped
+  before anything opens them. Otherwise a sender could make the app read
+  its own private files (prefs with API keys, reports) and hand them to
+  a model or knowledge base. A share left with no text and no usable Uri
+  is empty and shows no chooser.
 - Both branches also pull `EXTRA_TEXT`, `EXTRA_SUBJECT`, and
   `intent.type`. Text and subject are read with
   `getCharSequenceExtra(...)?.toString()`, not `getStringExtra`: a
