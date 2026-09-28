@@ -58,8 +58,10 @@ import java.util.concurrent.ConcurrentHashMap
  *
  * Unlike [FanOutEngine] there's no report and no [com.ai.data
  * .SecondaryResult] disk rows — the whole run is persisted as one
- * JSON document via [ModelTestRunStore], flushed on each item
- * completion (crash-safe partial results) and once on run end.
+ * JSON document via [ModelTestRunStore]: item completions are coalesced
+ * into at most one save every [PERSIST_DEBOUNCE_MS] (crash-safe partial
+ * results without re-serialising the whole run per probe), plus an
+ * immediate save on run end and cancel.
  *
  * The probe is the provider-screen test: `analyze(..., TEST_PROMPT,
  * ...)` — called directly (not the thin `testModel` wrapper) so the
@@ -78,6 +80,8 @@ class ModelTestEngine internal constructor(
 
     private val itemJobs = ConcurrentHashMap<String, Job>()
     @Volatile private var runJob: Job? = null
+    /** True while a coalesced trailing save is scheduled ([schedulePersist]). */
+    private val persistPending = java.util.concurrent.atomic.AtomicBoolean(false)
 
     /** True while a fresh run is in flight — drives the L1 button's
      *  enabled state. */
@@ -342,7 +346,10 @@ class ModelTestEngine internal constructor(
      *  list), [resumeRun] (unfinished items) and [rerunErrors] (reset
      *  FAILs). */
     private fun dispatch(context: Context, keys: List<ModelTestKey>) {
-        val outer = appViewModel.viewModelScope.launch(Dispatchers.IO) {
+        // LAZY: runJob is set before the body can run, so its finally can
+        // tell whether it still owns runJob.
+        val outer = appViewModel.viewModelScope.launch(Dispatchers.IO, start = CoroutineStart.LAZY) {
+            val self = coroutineContext[Job]
             try {
                 withTracerTags(reportId = null, category = "Test all models", runId = _run.value?.runId) {
                     _run.value?.let { ModelTestRunStore.save(context, it) }
@@ -381,12 +388,17 @@ class ModelTestEngine internal constructor(
                     appViewModel.flushAiSettingsToDisk()
                 }
             } finally {
-                _throttledKeys.value = emptySet()
-                runJob = null
+                // A cancelled run's cleanup can land after Stop + a new run
+                // started: only clear the state if this job is still the run.
+                if (runJob === self) {
+                    _throttledKeys.value = emptySet()
+                    runJob = null
+                }
                 _run.value?.let { ModelTestRunStore.save(context, it) }
             }
         }
         runJob = outer
+        outer.start()
     }
 
     private fun cancelItemJobs() {
@@ -399,6 +411,9 @@ class ModelTestEngine internal constructor(
          *  existing `in NON_TESTABLE_TYPES` call sites in this file stay
          *  legible. Single source of truth lives in [ModelType]. */
         private val NON_TESTABLE_TYPES: Set<String> = ModelType.NON_TESTABLE_TYPES
+
+        /** Window for coalescing per-item run saves. */
+        const val PERSIST_DEBOUNCE_MS = 2_000L
     }
 
     /** Active providers with a non-blank API key, each paired with its
@@ -542,7 +557,7 @@ class ModelTestEngine internal constructor(
             _run.value?.items?.get(key)?.let { appViewModel.applyTestItemIncrement(it) }
         } finally {
             _throttledKeys.update { it - key }
-            persist(context)
+            schedulePersist(context)
         }
     }
 
@@ -667,6 +682,18 @@ class ModelTestEngine internal constructor(
             val cur = r.items[key] ?: return@update run
             val next = update(cur)
             if (next == cur) r else r.copy(items = r.items + (key to next))
+        }
+    }
+
+    /** Coalesced per-item save: a big sweep used to serialise and rewrite
+     *  the whole run JSON after every probe. At most one trailing save is
+     *  pending; it writes the latest snapshot, so every completion reaches
+     *  disk within [PERSIST_DEBOUNCE_MS]. */
+    private fun schedulePersist(context: Context) {
+        if (!persistPending.compareAndSet(false, true)) return
+        appViewModel.viewModelScope.launch(Dispatchers.IO) {
+            try { kotlinx.coroutines.delay(PERSIST_DEBOUNCE_MS) } finally { persistPending.set(false) }
+            _run.value?.let { ModelTestRunStore.save(context, it) }
         }
     }
 

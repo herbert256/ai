@@ -515,8 +515,10 @@ The last uncaught-exception trace, written by `CrashReporter.init`
 The single most-recent "Test all models" run (Housekeeping → Test →
 Test all models). One JSON document — `ModelTestRunState` with a
 per-`(provider, model)` `ModelTestState` map (`ModelTestRunStore`,
-`FILE = "test_run.json"`). `ModelTestEngine` flushes it on each item
-completion (crash-safe partial results) and once on run end. A fresh
+`FILE = "test_run.json"`). `ModelTestEngine` coalesces item completions
+into at most one save every 2 s (crash-safe partial results without
+rewriting the whole run per probe) and saves at once on run end and
+cancel. A fresh
 run overwrites it; Housekeeping → Manage data → Runtime data → Clear
 drops it. Not in `FILES_DIR_BACKUP_EXCLUDES`, so it round-trips
 through backup/restore.
