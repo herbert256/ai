@@ -542,30 +542,13 @@ object ApiTracer {
 
     /** Delete every trace tagged with [reportId], except the filenames in
      *  [keep] (traces another report — e.g. a duplicate — still links to). */
-    fun deleteTracesForReport(reportId: String, keep: Set<String> = emptySet()): Int = lock.withLock {
-        val dir = traceDir ?: return 0
-        if (!dir.exists()) return 0
-        var count = 0
-        val deletedNames = mutableSetOf<String>()
-        dir.listFiles()?.forEach { file ->
-            if (file.extension == "json" && file.name !in keep) {
-                try {
-                    val info = parseTraceFileInfoStreaming(file)
-                    if (info?.reportId == reportId && file.delete()) {
-                        count++
-                        deletedNames += file.name
-                    }
-                } catch (_: Exception) {}
-            }
-        }
-        cachedTraceFiles?.let { current ->
-            cachedTraceFiles = current.filterNot { it.filename in deletedNames }
-        }
-        if (count > 0) {
-            deletedNames.forEach { cachedPruneCandidates?.remove(it) }
-            directoryVersion++; bumpTraceVersionNow()
-        }
-        count
+    fun deleteTracesForReport(reportId: String, keep: Set<String> = emptySet()): Int {
+        // Victims from the cached / metadata-indexed listing — this used to
+        // re-parse every trace file under the writer lock per call, so a bulk
+        // delete of N reports streamed the whole trace dir N times.
+        val victims = getTraceFilesForReport(reportId).map { it.filename }.filter { it !in keep }
+        if (victims.isEmpty()) return 0
+        return deleteTraceFilesLocked(victims)
     }
 
     fun deleteTracesOlderThan(cutoffTimestamp: Long): Int {

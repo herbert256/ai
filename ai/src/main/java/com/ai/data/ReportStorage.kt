@@ -680,7 +680,10 @@ object ReportStorage {
         init(context)
         return lastLoadFailures
     }
-    fun deleteReport(context: Context, reportId: String) {
+    /** [survivingTraceRefs]: a bulk delete's shared, lazily built set of the
+     *  trace files linked from reports OUTSIDE the batch
+     *  ([traceFilesReferencedOutside]) — null scans the other reports here. */
+    fun deleteReport(context: Context, reportId: String, survivingTraceRefs: Lazy<Set<String>>? = null) {
         init(context)
         // loadReport rejects traversal markers, but loadAllReports trusts
         // the on-disk JSON's embedded id and surfaces it to UI delete
@@ -710,7 +713,7 @@ object ReportStorage {
         // A duplicate ([copyReport]) keeps its source's 🐞 trace links, so
         // traces another report still points at survive the source's delete.
         val stillLinked = if (ApiTracer.getTraceFilesForReport(reportId).isEmpty()) emptySet()
-            else traceFilesReferencedByOtherReports(dir, reportId)
+            else survivingTraceRefs?.value ?: traceFilesReferencedByOtherReports(dir, setOf(reportId))
         ApiTracer.deleteTracesForReport(reportId, keep = stillLinked)
         // Audit retention: the report's JSON is gone, but the audit trail is
         // kept (a trailing line records the deletion). The Monitor → Audit
@@ -739,13 +742,24 @@ object ReportStorage {
 
     private val tracePointer = Regex("\"[A-Za-z]*[Tt]raceFile\"\\s*:\\s*\"([^\"\\\\]+)\"")
 
-    /** Trace filenames that reports other than [excludingReportId] link to
+    /** Trace filenames linked from every report NOT in [excludingReportIds]
+     *  — built once per bulk delete and handed to each [deleteReport], which
+     *  otherwise re-reads every other report per deleted report
+     *  (O(selected × total)). Excluding the whole batch also lets a trace
+     *  shared only by batch members (a report and its duplicate) go. */
+    fun traceFilesReferencedOutside(context: Context, excludingReportIds: Set<String>): Set<String> {
+        init(context)
+        val dir = reportsDir ?: return emptySet()
+        return traceFilesReferencedByOtherReports(dir, excludingReportIds)
+    }
+
+    /** Trace filenames that reports other than [excludingReportIds] link to
      *  (any `…traceFile` / `…TraceFile` field). Scans the parent JSON text —
      *  trace pointers are never packed into report_content — instead of
      *  hydrating every report. */
-    private fun traceFilesReferencedByOtherReports(dir: File, excludingReportId: String): Set<String> {
+    private fun traceFilesReferencedByOtherReports(dir: File, excludingReportIds: Set<String>): Set<String> {
         val out = HashSet<String>()
-        dir.listFiles { f -> f.extension == "json" && f.nameWithoutExtension != excludingReportId }?.forEach { f ->
+        dir.listFiles { f -> f.extension == "json" && f.nameWithoutExtension !in excludingReportIds }?.forEach { f ->
             runCatching { tracePointer.findAll(f.readText()).forEach { out += it.groupValues[1] } }
         }
         return out

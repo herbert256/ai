@@ -2964,9 +2964,14 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         val ids = reportIds.distinct().filter { it.isNotBlank() }
         ids.forEach { cancelReportOwnedWorkBeforeDelete(it, context) }
         return appViewModel.viewModelScope.launch(Dispatchers.IO + com.ai.data.CrashReporter.coroutineHandler) {
+            // One scan of the surviving reports' 🐞 trace links for the whole
+            // batch, built on the first deleted report that has traces —
+            // each delete used to re-read every other report.
+            val idSet = ids.toSet()
+            val survivingTraceRefs = lazy { ReportStorage.traceFilesReferencedOutside(context, idSet) }
             try {
                 ids.forEachIndexed { index, reportId ->
-                    ReportStorage.deleteReport(context, reportId)
+                    ReportStorage.deleteReport(context, reportId, survivingTraceRefs)
                     if (onProgress != null) {
                         withContext(Dispatchers.Main) { onProgress(index + 1, ids.size) }
                     }
