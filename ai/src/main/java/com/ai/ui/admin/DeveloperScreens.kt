@@ -32,6 +32,41 @@ private object ApiTestDraftSecrets {
     var apiKey: String = ""
 }
 
+/** Raw request body staged for the Edit Request screen by a trace's
+ *  Edit / 🔄 (up to the 8 MiB trace cap). Held in memory plus a file
+ *  under filesDir — not in eval_prefs, which is loaded at every startup
+ *  and rewritten on every setting change. The file write runs off the
+ *  calling (main) thread; the in-memory copy serves this process. */
+internal object ApiTestRawRequestDraft {
+    private const val FILE_NAME = "api_test_raw_request.json"
+    private const val LEGACY_PREFS_KEY = "last_test_raw_json"
+    private class Staged(val body: String?)
+    // null = nothing staged in this process yet; fall back to the file.
+    @Volatile private var current: Staged? = null
+    private val writer = java.util.concurrent.Executors.newSingleThreadExecutor { r ->
+        Thread(r, "api-test-draft").apply { isDaemon = true }
+    }
+
+    fun stage(context: Context, body: String?) {
+        val file = java.io.File(context.filesDir, FILE_NAME)
+        val value = body?.takeIf { it.isNotBlank() }
+        current = Staged(value)
+        context.getSharedPreferences("eval_prefs", Context.MODE_PRIVATE).edit().remove(LEGACY_PREFS_KEY).apply()
+        writer.execute { if (value == null) file.delete() else file.writeTextAtomic(value) }
+    }
+
+    fun clear(context: Context) = stage(context, null)
+
+    fun load(context: Context): String? {
+        current?.let { return it.body }
+        val body = runCatching {
+            java.io.File(context.filesDir, FILE_NAME).takeIf { it.exists() }?.readText()
+        }.getOrNull()?.takeIf { it.isNotBlank() }
+        current = Staged(body)
+        return body
+    }
+}
+
 @Composable
 fun ApiTestScreen(
     onBackClick: () -> Unit,
@@ -265,8 +300,8 @@ fun ApiTestScreen(
                 putString("last_test_system_prompt", systemPrompt)
                 putString("last_test_temperature", temperature)
                 putString("last_test_max_tokens", maxTokens)
-                remove("last_test_raw_json") // clear any previous raw JSON
             }.apply()
+            ApiTestRawRequestDraft.clear(context) // clear any previous raw JSON
             onNavigateToEditRequest()
         }, modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedButtonColors()
         ) { Text("Build Request", maxLines = 1, softWrap = false) }
@@ -293,7 +328,7 @@ fun EditApiRequestScreen(
 
     // Build or load JSON
     val initialJson = remember {
-        val rawJson = prefs.getString("last_test_raw_json", null)
+        val rawJson = ApiTestRawRequestDraft.load(context)
         if (!rawJson.isNullOrBlank()) rawJson
         else {
             val prompt = prefs.getString("last_test_prompt", "") ?: ""

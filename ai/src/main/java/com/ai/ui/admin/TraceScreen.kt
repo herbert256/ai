@@ -895,9 +895,9 @@ fun TraceDetailScreen(
             // Same plumbing the bottom-row Edit button uses.
             onReload = if (t != null) {
                 {
+                    ApiTestRawRequestDraft.stage(context, t.request.body)
                     val prefs = context.getSharedPreferences("eval_prefs", Context.MODE_PRIVATE)
                     prefs.edit().apply {
-                        putString("last_test_raw_json", t.request.body)
                         putString("last_test_api_url", com.ai.ui.helpers.redactUrl(t.request.url))
                         putString("last_test_model", t.model ?: "")
                     }.apply()
@@ -1121,9 +1121,9 @@ fun TraceDetailScreen(
                 // intended. The request body is JSON without auth (auth
                 // lives in headers); pass it through untouched.
                 t?.let { trace ->
+                        ApiTestRawRequestDraft.stage(context, trace.request.body)
                         val prefs = context.getSharedPreferences("eval_prefs", Context.MODE_PRIVATE)
                         prefs.edit().apply {
-                            putString("last_test_raw_json", trace.request.body)
                             putString("last_test_api_url", com.ai.ui.helpers.redactUrl(trace.request.url))
                             putString("last_test_model", trace.model ?: "")
                         }.apply()

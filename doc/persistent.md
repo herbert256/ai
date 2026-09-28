@@ -189,7 +189,7 @@ definition (`AppService.defaultModel` / `defaultModelSource`), so
 | `last_ai_report_title` | String | most recent report title (used by external-intent flows) |
 | `last_ai_report_prompt` | String | most recent report prompt |
 | `recent_target_languages` | String (newline-separated) | last **3** translation target languages (`RecentTargetLanguages`), each `"name\|native"`, most-recent first |
-| `last_test_provider` / `last_test_api_url` / `last_test_model` / `last_test_prompt` / `last_test_system_prompt` / `last_test_temperature` / `last_test_max_tokens` / `last_test_raw_json` | String | sticky form state for the Developer → **Test API** screen (also pre-filled by "open in Test API" from a trace). The API key is **never** stored (`last_test_api_key` is explicitly removed). These live in `eval_prefs`, so they ride along in backups |
+| `last_test_provider` / `last_test_api_url` / `last_test_model` / `last_test_prompt` / `last_test_system_prompt` / `last_test_temperature` / `last_test_max_tokens` | String | sticky form state for the Developer → **Test API** screen (also pre-filled by "open in Test API" from a trace). The API key is **never** stored (`last_test_api_key` is explicitly removed). These live in `eval_prefs`, so they ride along in backups. The staged raw request body is **not** a prefs key any more — see `api_test_raw_request.json` below; the old `last_test_raw_json` key is removed the next time a body is staged |
 
 ### `provider_registry`
 The full provider registry, serialised by `ProviderRegistry`. Note
@@ -519,6 +519,15 @@ completion (crash-safe partial results) and once on run end. A fresh
 run overwrites it; Housekeeping → Manage data → Runtime data → Clear
 drops it. Not in `FILES_DIR_BACKUP_EXCLUDES`, so it round-trips
 through backup/restore.
+
+### `api_test_raw_request.json`
+The raw request body a trace's **Edit** / 🔄 stages for the Edit Request
+screen (`ApiTestRawRequestDraft`, `ui/admin/DeveloperScreens.kt`) — up to
+the 8 MiB trace body cap. It used to live in `eval_prefs`
+(`last_test_raw_json`), which is loaded at every startup and rewritten on
+every setting change. Written off the main thread; the in-memory copy
+serves the current process and the file survives a process restart.
+**Build Request** on the Test API screen deletes it.
 
 ### `prompt-history.json`
 Up to 100 most-recently-used report prompts
