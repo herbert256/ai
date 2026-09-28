@@ -298,6 +298,11 @@ The cell prompt substitutes `@RESPONSE@` (the answer body) and
 which accepts the labelled `percentage:` form, JSON with
 `percentage`/`percent`/`score`, or a first-number fallback, clamped to 0..100.
 
+The run's saved inputs (`ReportEvidenceStore.saveRun`) carry the answers,
+question and **only the chosen meta items' bodies** — so the run turns
+"historical" (and leaves Value view) only when one of those changes, not on an
+unrelated secondary edit such as switching the tournament podium method.
+
 Stored rows:
 
 | Row | `SecondaryKind` | Sentinel provider/model | Key fields |

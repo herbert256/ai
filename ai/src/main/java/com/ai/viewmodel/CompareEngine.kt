@@ -241,8 +241,13 @@ class CompareEngine internal constructor(
                 return@launchRun
             }
             AuditLog.append(reportId, "Start Compare with meta — ${successful.size} answers × ${metaRows.size} meta items")
+            // Save only the CHOSEN meta items' bodies as the run's reference
+            // inputs — the only secondaries the cells score against. Saving
+            // every row's content made the run "historical" (and dropped it
+            // from Value view) on any unrelated change, e.g. switching the
+            // tournament podium method rewrites the aggregate row.
             com.ai.data.ReportEvidenceStore.saveRun(context, report, runId, prompt, secondaryBodies =
-                SecondaryResultStorage.listForReport(context, reportId).filter { !it.content.isNullOrBlank() }.associate { it.id to it.content!! })
+                metaRows.associate { it.id to it.content!! })
             val scopeEncoded = SecondaryScope.AllReports.encode()
 
             val pending = mutableListOf<PendingCell>()
