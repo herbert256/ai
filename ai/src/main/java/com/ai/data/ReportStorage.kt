@@ -1188,10 +1188,17 @@ object ReportStorage {
      *  Clears any prior [Report.titleErrorMessage] so a successful
      *  retry overwrites a previous failure. Bumps the timestamp so
      *  screens that key on it pick up the change. Mirrors
-     *  [updateReportIcon]. */
+     *  [updateReportIcon].
+     *
+     *  [titlesAtStart] = the (title, titleLong) the report had when the
+     *  calls started. If either changed since (a manual rename or a
+     *  Find-alt pick landed while the calls were in flight) the texts are
+     *  NOT overwritten — only the spend / trace / provenance is recorded.
+     *  Returns true only when the new title was written. */
     fun updateReportTitleFromAi(
         context: Context, reportId: String, newTitle: String,
         titleLong: String? = null,
+        titlesAtStart: Pair<String, String?>? = null,
         promptUsed: String? = null,
         // SHORT call (≤25, drives Report.title) → title* fields.
         shortInputTokens: Int = 0, shortOutputTokens: Int = 0,
@@ -1205,13 +1212,20 @@ object ReportStorage {
         init(context)
         return lock.withLock {
             val report = loadReport(reportId) ?: return@withLock false
+            // Compare-and-set against the titles the calls started from: an
+            // unconditional write let a slow AI title overwrite the user's
+            // rename made meanwhile.
+            val apply = titlesAtStart == null ||
+                (report.title == titlesAtStart.first && report.titleLong == titlesAtStart.second)
             val updated = report.copy(
                 // titleLong falls back to the existing value on null/blank so a
                 // transient failure of just the long-title half of this call
                 // (the short + long worker calls fire concurrently) doesn't
                 // clobber a previously-good long title — mirrors
                 // updateReportLanguageIcon's languageIconModel fallback.
-                title = newTitle, titleLong = titleLong ?: report.titleLong, titleErrorMessage = null,
+                title = if (apply) newTitle else report.title,
+                titleLong = if (apply) (titleLong ?: report.titleLong) else report.titleLong,
+                titleErrorMessage = null,
                 titleInputTokens = report.titleInputTokens + shortInputTokens,
                 titleOutputTokens = report.titleOutputTokens + shortOutputTokens,
                 titleInputCost = report.titleInputCost + shortInputCost,
@@ -1231,8 +1245,10 @@ object ReportStorage {
             )
             updated.totalCost = computeReportTotalCost(updated)
             saveReport(updated)
-            AuditLog.append(reportId, "Title '$newTitle' found for report")
-            true
+            AuditLog.append(reportId,
+                if (apply) "Title '$newTitle' found for report"
+                else "Title '$newTitle' found for report — not applied, the title was changed meanwhile")
+            apply
         }
     }
 

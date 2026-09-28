@@ -623,6 +623,9 @@ class IconGenerationManager(
             // both title prompts' configured chains. Usability pre-flights
             // run on the EFFECTIVE prompts.
             val titleReport = ReportStorage.getReport(context, reportId)
+            // The titles these calls may replace — a rename (or Find-alt pick)
+            // while they're in flight must win over the late AI result.
+            val titlesAtStart = titleReport?.let { it.title to it.titleLong }
             val shortPrompt = basShortPrompt?.withReportInfoWorkers(titleReport)
             val longPrompt = basLongPrompt?.withReportInfoWorkers(titleReport)
             val originalPrompt = titleReport?.prompt ?: promptText
@@ -648,9 +651,10 @@ class IconGenerationManager(
                 // Persist each call's spend into its own cost/token block so
                 // the cost table shows two rows: report/title-short and
                 // report/title-long.
-                ReportStorage.updateReportTitleFromAi(
+                val applied = ReportStorage.updateReportTitleFromAi(
                     context, reportId, shortTitle,
                     titleLong = longTitle?.takeIf { it.isNotBlank() },
+                    titlesAtStart = titlesAtStart,
                     promptUsed = "report_title",
                     shortInputTokens = short?.inputTokens ?: 0,
                     shortOutputTokens = short?.outputTokens ?: 0,
@@ -668,8 +672,9 @@ class IconGenerationManager(
                     longDurationMs = long?.durationMs,
                 )
                 // Keep the in-memory UiState in sync so the title row on
-                // Manage report updates the moment the calls return.
-                appViewModel.updateUiState { st ->
+                // Manage report updates the moment the calls return (not when
+                // the title was changed meanwhile and kept).
+                if (applied) appViewModel.updateUiState { st ->
                     if (st.currentReportId == reportId) {
                         st.copy(genericPromptTitle = shortTitle, genericPromptTitleLong = longTitle.orEmpty())
                     } else st
