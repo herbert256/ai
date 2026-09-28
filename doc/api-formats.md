@@ -249,12 +249,23 @@ Claude's `/v1/messages` API has its own request/response shape.
   (Claude 3.5+ / 3.7 / 4.x).
 - **Thinking / reasoning**: when `reasoningEffort` is set and the model
   passes `isReasoningCapableForDispatch`, `claudeReasoningBundle`
-  attaches a `thinking` block with a `budget_tokens` translated from
-  effort (`low=1024`, `medium=4096`, `high=16384`). Two shapes exist:
-  the `budget_tokens` form `{type: enabled, budget_tokens: N}` for
-  Claude 3.7 / 4.x, and the adaptive form `{type: adaptive}` +
-  top-level `output_config.effort` for Claude Opus 4.7+, gated by
-  `provider.adaptiveThinkingPatterns`.
+  attaches a `thinking` block. Two shapes exist:
+  - **Adaptive** `{type: adaptive}` + top-level `output_config.effort`
+    for Claude 4.6+ (`claudeAcceptsAdaptiveThinking`). The 4.7+ surface
+    (Opus 4.7 / 4.8, Opus 5 / 5.5, Sonnet 5, Fable 5 / 5.1) takes
+    `low`/`medium`/`high`/`xhigh`/`max`; Opus / Sonnet 4.6 take the same
+    minus `xhigh`. The 4.7+ surface (`claudeUsesAdaptiveThinking`:
+    `provider.adaptiveThinkingPatterns`, or a parsed
+    `claude-<family>-<major>-<minor>` version of 4.7 or newer, so a new
+    generation never gets the rejected budget shape) also rejects
+    `temperature` / `top_p` / `top_k`: preflight refuses non-default
+    values and dispatch omits the fields.
+  - **Budget** `{type: enabled, budget_tokens: N}` for Claude 3.7 and
+    4.0–4.5 (incl. Haiku 4.5), translated from effort (`low=1024`,
+    `medium=4096`, `high=16384`).
+  An effort the model's shape can't carry (e.g. `max` on a budget
+  model, `xhigh` on 4.6) is a preflight error rather than a silently
+  dropped thinking block.
 - **PDF-input capability flag**: `ModelCapabilities.supportsPdfInput`
   (from Anthropic `capabilities.pdf_input.supported`) records that a
   model *can* accept a `document` content block with raw PDF bytes

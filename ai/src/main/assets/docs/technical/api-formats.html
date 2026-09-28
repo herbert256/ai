@@ -350,13 +350,18 @@ gated by <code>provider.webSearchModelPatterns</code> (Claude 3.5+ /
 <dd>When <code>reasoningEffort</code> is set and the model passes
 <code>isReasoningCapableForDispatch</code>,
 <code>claudeReasoningBundle</code> attaches a <code>thinking</code>
-block with <code>budget_tokens</code> translated from effort
-(<code>low=1024</code>, <code>medium=4096</code>,
-<code>high=16384</code>). Two shapes: the <code>budget_tokens</code>
-form <code>{type: enabled, budget_tokens: N}</code> for Claude 3.7 /
-4.x, and the adaptive form <code>{type: adaptive}</code> + top-level
-<code>output_config.effort</code> for Claude Opus 4.7+, gated by
-<code>provider.adaptiveThinkingPatterns</code>.</dd></div>
+block. Claude 4.6+ get the adaptive form <code>{type: adaptive}</code> +
+top-level <code>output_config.effort</code>
+(<code>low</code>/<code>medium</code>/<code>high</code>/<code>xhigh</code>/<code>max</code>;
+no <code>xhigh</code> on 4.6). The 4.7+ surface (Opus 4.7 / 4.8, Opus 5 /
+5.5, Sonnet 5, Fable 5 / 5.1: <code>provider.adaptiveThinkingPatterns</code>
+or a parsed model version of 4.7 or newer) also rejects
+<code>temperature</code> / <code>top_p</code> / <code>top_k</code>: preflight
+refuses non-default values and dispatch omits them. Claude 3.7 and
+4.0–4.5 keep <code>{type: enabled, budget_tokens: N}</code>
+(<code>low=1024</code>, <code>medium=4096</code>, <code>high=16384</code>).
+An effort the shape can't carry is a preflight error, not a silently
+dropped thinking block.</dd></div>
 <div><dt>PDF-input capability flag</dt>
 <dd><code>ModelCapabilities.supportsPdfInput</code> (from Anthropic
 <code>capabilities.pdf_input.supported</code>) records that a model

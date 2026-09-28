@@ -145,7 +145,7 @@ internal suspend fun AnalysisRepository.streamAnthropicReport(
         tools = if (params?.webSearchTool == true) anthropicWebSearchTool() else null,
         thinking = bundle.thinking,
         output_config = bundle.outputConfig
-    )
+    ).withoutRejectedSampling(service)
     val response = api.createMessageStream(apiKey, request = request)
     var finishReason: String? = null
     val result = collectStreamResponse(

@@ -61,6 +61,13 @@ internal fun AnalysisRepository.reportParameterError(service: AppService, model:
         if (claudeUsesAdaptiveThinking(service, model) && (p.temperature != null && p.temperature != 1f || p.topP != null && p.topP < 0.99f || p.topK != null)) {
             errors += "this model does not support adjustable sampling controls"
         }
+        // An effort the model's thinking shape can't carry used to drop thinking
+        // silently (e.g. "max" on a budget_tokens model); say so instead.
+        val effort = p.reasoningEffort?.takeIf { it.isNotBlank() }?.lowercase()
+        if (effort != null && isReasoningCapableForDispatch(service, model)) {
+            val levels = claudeEffortLevels(service, model)
+            if (effort !in levels) errors += "reasoning effort must be ${levels.joinToString(", ")} on this model"
+        }
         val thinking = anthropicThinkingField(service, model, p.reasoningEffort)
         if (thinking != null) {
             if (p.temperature != null && p.temperature != 1f || p.topK != null) errors += "temperature/top K cannot be combined with extended thinking"

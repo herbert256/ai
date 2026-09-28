@@ -1484,7 +1484,7 @@ fun ProviderSettingsScreen(
 
                 Text("Adaptive thinking patterns", fontSize = 12.sp, color = AppColors.InfoAccent, fontWeight = FontWeight.SemiBold)
                 Text(
-                    "Anthropic-only — Claude builds requiring the newer `thinking.type:adaptive` + `output_config.effort` request shape (Claude Opus 4.7+). Older 3.7 / 4.x models still use the budget_tokens shape and should not appear here. Example: [{\"contains\":\"claude-opus-4-7\"}]",
+                    "Anthropic-only — Claude builds on the 4.7+ surface: adaptive thinking only (`thinking.type:adaptive` + `output_config.effort`) and no temperature / top P / top K. A parsed version of 4.7+ counts even when unlisted. 4.6 uses adaptive thinking but keeps sampling, so it should not appear here; nor should 3.7 / 4.0–4.5 (budget_tokens). Example: [{\"contains\":\"claude-opus-4-7\"}]",
                     fontSize = 11.sp, color = AppColors.TextTertiary
                 )
                 OutlinedTextField(

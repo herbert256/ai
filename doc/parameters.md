@@ -93,6 +93,11 @@ Chat's reasoning control distinguishes **Default** (omit the hint) from explicit
 **None** where supported. Gemini 2.5 Flash maps `none` to
 `generationConfig.thinkingConfig.thinkingBudget=0`; omitting this field leaves the
 provider default active. Models that cannot disable thinking reject `none`.
+Claude 4.6+ send effort as `output_config.effort` (`xhigh` from 4.7; `max`
+from 4.6); older Claude models map low/medium/high to a thinking budget, and
+an effort a model can't carry is rejected before dispatch. Claude 4.7+
+(Opus 4.7 / 4.8, Opus 5 / 5.5, Sonnet 5, Fable 5 / 5.1) reject non-default
+temperature / top P / top K the same way.
 Even temperature zero or a seed does not guarantee identical outputs.
 
 Token limits can include hidden reasoning. Explicit caps are preserved; Claude

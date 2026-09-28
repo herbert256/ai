@@ -246,12 +246,48 @@ internal fun ChatMessage.toClaudeMessage(): ClaudeMessage {
 internal fun isReasoningCapableForDispatch(service: AppService, model: String): Boolean =
     ModelCapabilityResolver.acceptsReasoningEffortParam(service, model)
 
-/** True when [model] requires the adaptive-thinking request shape
- *  (`thinking.type:"adaptive"` + `output_config.effort`) per the
- *  provider's [AppService.adaptiveThinkingPatterns]. Older models
- *  still use the budget_tokens shape. */
+/** `claude-<family>-<major>[-<minor>]` → major*100+minor (Opus 4.7 → 407,
+ *  Sonnet 5 → 500, Fable 5.1 → 501). A trailing 8-digit snapshot date is
+ *  not a minor version (`claude-opus-4-20250514` → 400). Null for the
+ *  legacy `claude-3-x-<family>` naming and anything else unrecognised. */
+private val CLAUDE_VERSION_REGEX = Regex("claude-([a-z]+)-(\\d{1,2})(?:-(\\d{1,2}))?(?!\\d)")
+
+internal fun claudeModelVersion(model: String): Int? {
+    val m = CLAUDE_VERSION_REGEX.find(model.lowercase()) ?: return null
+    val major = m.groupValues[2].toIntOrNull() ?: return null
+    val minor = m.groupValues[3].toIntOrNull() ?: 0
+    return major * 100 + minor
+}
+
+/** True when [model] is on the Claude 4.7+ request surface: adaptive
+ *  thinking (`thinking.type:"adaptive"` + `output_config.effort`) is the
+ *  only thinking mode — `budget_tokens` is a 400 — and temperature /
+ *  top_p / top_k are rejected. Opus 4.7 / 4.8, Opus 5 / 5.5, Sonnet 5 and
+ *  Fable 5 / 5.1 today. The provider's [AppService.adaptiveThinkingPatterns]
+ *  list stays authoritative for ids the version parser can't read; the
+ *  version fallback keeps a newly released generation off the rejected
+ *  budget shape until the bundled patterns catch up. */
 internal fun claudeUsesAdaptiveThinking(service: AppService, model: String): Boolean =
-    service.adaptiveThinkingPatterns.anyMatches(model)
+    service.adaptiveThinkingPatterns.anyMatches(model) || (claudeModelVersion(model) ?: 0) >= 407
+
+/** Opus / Sonnet 4.6 accept adaptive thinking next to the deprecated
+ *  `budget_tokens` shape (and keep their sampling controls). Adaptive is
+ *  the recommended mode and the only one that can carry `max` effort, so
+ *  dispatch uses it from 4.6 on. Haiku 4.5, Opus / Sonnet 4.5 and older
+ *  stay on `budget_tokens`. */
+internal fun claudeAcceptsAdaptiveThinking(service: AppService, model: String): Boolean =
+    claudeUsesAdaptiveThinking(service, model) || (claudeModelVersion(model) ?: 0) >= 406
+
+/** Effort values the Claude thinking shape for [model] can carry. The
+ *  4.7+ surface takes all five `output_config.effort` levels; 4.6 has no
+ *  `xhigh`; the budget shape only maps low / medium / high (see
+ *  [budgetForEffort]). Preflight rejects anything else instead of letting
+ *  dispatch silently drop thinking. */
+internal fun claudeEffortLevels(service: AppService, model: String): List<String> = when {
+    claudeUsesAdaptiveThinking(service, model) -> listOf("low", "medium", "high", "xhigh", "max")
+    claudeAcceptsAdaptiveThinking(service, model) -> listOf("low", "medium", "high", "max")
+    else -> listOf("low", "medium", "high")
+}
 
 /** Build the OpenAI Responses-API `reasoning` field — `{effort: <value>}` —
  *  or null when the agent didn't set an effort, OR the layered
@@ -274,28 +310,39 @@ internal fun budgetForEffort(effort: String?): Int? = when (effort?.lowercase())
 
 /** Anthropic extended-thinking block. Only attached when the layered
  *  capability lookup confirms the model accepts thinking. Two shapes:
- *  Claude 3.7 / 4.x (pre-4.7) take `{type:"enabled", budget_tokens:N}`;
- *  Claude Opus 4.7+ takes `{type:"adaptive"}` and reads effort from
- *  the request's top-level `output_config` instead — see
- *  [anthropicOutputConfigField]. Returns null otherwise. */
+ *  Claude 3.7 / 4.0–4.5 take `{type:"enabled", budget_tokens:N}`;
+ *  Claude 4.6+ take `{type:"adaptive"}` and read effort from the
+ *  request's top-level `output_config` instead — see
+ *  [anthropicOutputConfigField]. Returns null otherwise, including for an
+ *  effort the shape can't carry (preflight reports that one). */
 internal fun anthropicThinkingField(service: AppService, model: String, effort: String?): Map<String, Any>? {
     if (effort.isNullOrBlank()) return null
     if (!isReasoningCapableForDispatch(service, model)) return null
-    if (claudeUsesAdaptiveThinking(service, model)) return mapOf("type" to "adaptive")
+    if (claudeAcceptsAdaptiveThinking(service, model)) {
+        return if (effort.lowercase() in claudeEffortLevels(service, model)) mapOf("type" to "adaptive") else null
+    }
     val budget = budgetForEffort(effort) ?: return null
     return mapOf("type" to "enabled", "budget_tokens" to budget)
 }
 
 /** Top-level `output_config.effort` companion to [anthropicThinkingField]
- *  for Claude Opus 4.7+. Returns null on older Claude builds (which
- *  carry the budget on the thinking block instead) and on non-thinking
- *  models. */
+ *  for Claude 4.6+. Returns null on older Claude builds (which carry the
+ *  budget on the thinking block instead) and on non-thinking models. */
 internal fun anthropicOutputConfigField(service: AppService, model: String, effort: String?): Map<String, Any>? {
     if (effort.isNullOrBlank()) return null
     if (!isReasoningCapableForDispatch(service, model)) return null
-    if (!claudeUsesAdaptiveThinking(service, model)) return null
-    return mapOf("effort" to effort)
+    if (!claudeAcceptsAdaptiveThinking(service, model)) return null
+    val level = effort.lowercase()
+    if (level !in claudeEffortLevels(service, model)) return null
+    return mapOf("effort" to level)
 }
+
+/** The 4.7+ surface rejects temperature / top_p / top_k (400). Preflight
+ *  only lets their default values through, so dropping them from the wire
+ *  changes nothing about the run while keeping a default-valued preset
+ *  from tripping the rejection. */
+internal fun ClaudeRequest.withoutRejectedSampling(service: AppService): ClaudeRequest =
+    if (claudeUsesAdaptiveThinking(service, model)) copy(temperature = null, top_p = null, top_k = null) else this
 
 /** Bundle [anthropicThinkingField] / [anthropicOutputConfigField] /
  *  the matching `max_tokens` value into one helper so every Claude

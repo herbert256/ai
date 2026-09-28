@@ -715,7 +715,7 @@ per-provider table.
 | reasoningModelPatterns | `List<ModelPattern>` | gates the 🧠 reasoning badge + thinking dispatch |
 | reasoningEffortAcceptPatterns | `List<ModelPattern>?` | narrower subset that actually accepts `reasoning_effort`. Null = use `reasoningModelPatterns`; xAI sets a narrower list because its always-on variants reject the parameter |
 | webSearchModelPatterns | `List<ModelPattern>` | gates the 🌐 web-search tool descriptor |
-| adaptiveThinkingPatterns | `List<ModelPattern>` | opts in to Anthropic's adaptive-thinking shape (`claude-opus-4-7`+); older Claude 3.7 / 4.x use the `budget_tokens` shape |
+| adaptiveThinkingPatterns | `List<ModelPattern>` | marks the Claude 4.7+ surface (adaptive thinking only, no sampling controls); a parsed version of 4.7+ counts too. 4.6 uses adaptive thinking but keeps sampling; 3.7 / 4.0–4.5 use the `budget_tokens` shape |
 | maxTokensDefaults | `List<MaxTokensRule>` | per-family default `max_tokens` (Anthropic). First match wins, default 4096 |
 | builtInEndpoints | `List<Endpoint>` | bundled alternate endpoints (DeepSeek main + reasoner; Mistral chat + Codestral; Z.AI mainland + international). User can pick between them on the provider edit screen |
 | maxCallsPerProviderPerMinute | `Int?` | per-provider override for `GeneralSettings.maxCallsPerProviderPerMinute`. Null → inherit. Read by `ProviderThrottle.acquire` when this provider's hostname matches. See [throttle.md](throttle.md) |

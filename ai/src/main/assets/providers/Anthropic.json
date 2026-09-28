@@ -21,6 +21,21 @@
     },
     {
       "contains": "opus-4-7"
+    },
+    {
+      "contains": "opus-4-8"
+    },
+    {
+      "contains": "opus-5"
+    },
+    {
+      "contains": "sonnet-5"
+    },
+    {
+      "contains": "fable-5"
+    },
+    {
+      "contains": "mythos-5"
     }
   ],
   "id": "Anthropic",
@@ -76,6 +91,18 @@
     },
     {
       "contains": "haiku-4"
+    },
+    {
+      "contains": "opus-5"
+    },
+    {
+      "contains": "sonnet-5"
+    },
+    {
+      "contains": "fable-5"
+    },
+    {
+      "contains": "mythos-5"
     }
   ],
   "retryBackoffMs529": 5000,

@@ -250,6 +250,7 @@ internal suspend fun AnalysisRepository.fetchModelsAnthropic(service: AppService
             if (effort.low?.supported == true) add("low")
             if (effort.medium?.supported == true) add("medium")
             if (effort.high?.supported == true) add("high")
+            if (effort.xhigh?.supported == true) add("xhigh")
             if (effort.max?.supported == true) add("max")
         }.takeIf { it.isNotEmpty() } else null
         val cap = ModelCapabilities(

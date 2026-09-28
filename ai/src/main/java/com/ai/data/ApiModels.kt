@@ -361,15 +361,15 @@ data class ClaudeRequest(
     val search: Boolean? = null,
     val tools: List<Any>? = null,
     /** Anthropic extended-thinking block: `{type: "enabled",
-     *  budget_tokens: N}` for Claude 3.7 / 4.x (pre-4.7), or
-     *  `{type: "adaptive"}` for Claude Opus 4.7+ (which carries effort
-     *  on the [output_config] field instead). Only attached when the
-     *  chosen model supports it; mapped from the unified low/medium/
-     *  high effort levels by [com.ai.data.anthropicThinkingField]. */
+     *  budget_tokens: N}` for Claude 3.7 / 4.0–4.5, or
+     *  `{type: "adaptive"}` for Claude 4.6+ (which carries effort on the
+     *  [output_config] field instead). Only attached when the chosen
+     *  model supports it; built by [com.ai.data.anthropicThinkingField]. */
     val thinking: Map<String, Any>? = null,
-    /** Top-level effort companion to [thinking] for Claude Opus 4.7+:
-     *  `{effort: "low|medium|high"}`. Older Claude builds ignore this
-     *  field — the budget rides on the thinking block. */
+    /** Top-level effort companion to [thinking] for Claude 4.6+:
+     *  `{effort: "low|medium|high|xhigh|max"}` (no `xhigh` on 4.6). Not
+     *  sent to older Claude builds — the budget rides on the thinking
+     *  block there. */
     val output_config: Map<String, Any>? = null
 )
 
@@ -733,7 +733,7 @@ data class ClaudeModelCapabilities(
     /** Hard guarantee for response_format=json_schema. */
     val structured_outputs: ClaudeModelSupportFlag? = null,
     /** Per-effort-level support — Claude 3.7+ exposes which of
-     *  low/medium/high/max it accepts on the reasoning_effort param.
+     *  low/medium/high/xhigh/max it accepts as `output_config.effort`.
      *  See ClaudeModelEffort. */
     val effort: ClaudeModelEffort? = null
 )
@@ -762,6 +762,8 @@ data class ClaudeModelEffort(
     val low: ClaudeModelSupportFlag? = null,
     val medium: ClaudeModelSupportFlag? = null,
     val high: ClaudeModelSupportFlag? = null,
+    /** Between high and max; Claude 4.7+ only. */
+    val xhigh: ClaudeModelSupportFlag? = null,
     val max: ClaudeModelSupportFlag? = null
 )
 

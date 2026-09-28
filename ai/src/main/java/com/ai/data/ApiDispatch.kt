@@ -522,7 +522,7 @@ private suspend fun AnalysisRepository.analyzeAnthropic(
         tools = if (params?.webSearchTool == true) anthropicWebSearchTool() else null,
         thinking = bundle.thinking,
         output_config = bundle.outputConfig
-    )
+    ).withoutRejectedSampling(service)
     val response = api.createMessage(apiKey, request = request)
     val headers = formatHeaders(response.headers())
     val statusCode = response.code()
@@ -779,7 +779,7 @@ private suspend fun AnalysisRepository.chatAnthropicResponse(
         tools = if (params.webSearchTool) anthropicWebSearchTool() else null,
         thinking = bundle.thinking,
         output_config = bundle.outputConfig
-    )
+    ).withoutRejectedSampling(service)
     val response = api.chatAt(nativeChatUrl(service, baseUrl, model), apiKey, request)
     val headers = formatHeaders(response.headers())
     val statusCode = response.code()

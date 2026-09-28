@@ -327,9 +327,9 @@ data class ModelCapabilities(
      *  the field — the lookup chain then falls through to LiteLLM /
      *  models.dev / the [ModelType.inferReasoning] heuristic. */
     val supportsReasoning: Boolean? = null,
-    /** Subset of "low", "medium", "high", "max" the model accepts
+    /** Subset of "low", "medium", "high", "xhigh", "max" the model accepts
      *  on the reasoning_effort parameter. Currently populated from
-     *  Anthropic's `capabilities.effort.{low,medium,high,max}` —
+     *  Anthropic's `capabilities.effort.{low,medium,high,xhigh,max}` —
      *  Claude 3.7 / 4.x report different sets per tier. Empty / null
      *  means "no per-level info; the 🧠 dropdown falls back to all
      *  four options". */

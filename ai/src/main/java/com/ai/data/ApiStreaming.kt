@@ -463,7 +463,7 @@ private fun AnalysisRepository.streamAnthropic(
         tools = if (params.webSearchTool) anthropicWebSearchTool() else null,
         thinking = bundle.thinking,
         output_config = bundle.outputConfig
-    )
+    ).withoutRejectedSampling(service)
     val response = withApiCallTimeout(streamingOpen = true) { withContext(Dispatchers.IO) { api.chatStreamAt(nativeChatUrl(service, baseUrl, model, streaming = true), apiKey, request) } }
     if (response.isSuccessful) {
         response.body()?.let { body ->
