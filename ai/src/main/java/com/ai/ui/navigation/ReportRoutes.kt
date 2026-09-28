@@ -385,13 +385,18 @@ internal fun NavGraphBuilder.reportRoutes(
                 LaunchedEffect(Unit) { appViewModel.clearUnclaimedExternalInstructions() }
             }
             if (entry.arguments?.getBoolean("share") != true) DropStaleShareStaging(appViewModel)
-            // Navigation Compose already decodes path-segment arguments once
-            // (NavDeepLink.getMatchingPathArguments calls Uri.decode() before
-            // populating this Bundle) — decoding again here double-decoded a
-            // literal '%' in the title/prompt and threw, silently swallowed
-            // into an empty string by the catch below.
-            val title = entry.arguments?.getString("title") ?: ""
-            val prompt = entry.arguments?.getString("prompt") ?: ""
+            // The route carries only a staging key (a long prompt in the route
+            // overflowed the saved back stack): take the text once, keep it
+            // for this entry's lifetime.
+            val prefill: NewReportPrefillHolder = viewModel()
+            if (!prefill.taken) {
+                prefill.taken = true
+                entry.arguments?.getString("prefill")?.let { NewReportPrefill.take(it) }?.let { (t, p) ->
+                    prefill.title = t; prefill.prompt = p
+                }
+            }
+            val title = prefill.title
+            val prompt = prefill.prompt
             NewReportScreen(viewModel = appViewModel, reportViewModel = reportViewModel,
                 onNavigateBack = safePopBack, onNavigateHome = navigateHome,
                 onNavigateToReports = { navController.navigate(NavRoutes.aiReports()) },

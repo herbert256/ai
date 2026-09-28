@@ -220,7 +220,13 @@ suspend helper:
 3. Navigate to the New Report editor via
    `aiNewReportWithParams(title, prompt)` (route `AI_NEW_REPORT_WITH_PARAMS`),
    `popUpTo(AI)`. The user still picks models and taps Generate — no
-   API credits move automatically.
+   API credits move automatically. The title and prompt are staged in
+   `NewReportPrefill` and only a key rides in the route: a long shared
+   text as a route argument (and again in New Report's saved state)
+   crashed the app with `TransactionTooLargeException` when it went to
+   the background. New Report keeps text over 20,000 characters out of
+   its saved-state bundle too (`BoundedTextSaver`); an entry-scoped
+   holder carries it across Help / trace hops instead.
 
 ### Chat — `routeShareToChat`
 

@@ -61,7 +61,7 @@ object NavRoutes {
     /** [ext] = true only for an external ACTION_NEW_REPORT prefill: every
      *  other entry (share, prompt history, examples) clears a leftover
      *  external request on arrival — see the route's composable. */
-    const val AI_NEW_REPORT_WITH_PARAMS = "ai_new_report/{title}/{prompt}?ext={ext}&share={share}"
+    const val AI_NEW_REPORT_WITH_PARAMS = "ai_new_report/{prefill}?ext={ext}&share={share}"
     const val AI_PROMPT_HISTORY = "ai_prompt_history"
     const val AI_EXAMPLE_PROMPT_PICKER = "ai_example_prompt_picker"
     /** Pattern carries an optional `initialView` query-param consumed
@@ -234,8 +234,35 @@ object NavRoutes {
     fun aiChatParams(provider: String, model: String) = "ai_chat_params/$provider/${encode(model)}"
     fun aiChatSession(provider: String, model: String) = "ai_chat_session/$provider/${encode(model)}"
     /** [external]: an ACTION_NEW_REPORT prefill (may carry its system prompt /
-     *  context). [share]: the share-target staged an image / files for it. */
+     *  context). [share]: the share-target staged an image / files for it.
+     *  Title + prompt are staged in [NewReportPrefill]; only its key rides in
+     *  the route. */
     fun aiNewReportWithParams(title: String, prompt: String, external: Boolean = false, share: Boolean = false) =
-        "ai_new_report/${encode(title)}/${encode(prompt)}?ext=$external&share=$share"
+        "ai_new_report/${NewReportPrefill.stage(title, prompt)}?ext=$external&share=$share"
     fun helpForTopic(topicId: String) = "help/${encode(topicId)}"
+}
+
+/** Title + prompt for a New Report prefill (share, external request, prompt
+ *  history, examples), staged in the process; only a key rides in the route.
+ *  The text used to be route arguments — part of the saved back stack — so a
+ *  long shared or prefilled prompt crashed the app with
+ *  TransactionTooLargeException when it went to the background. The route's
+ *  composable [take]s it once into its entry-scoped [NewReportPrefillHolder]. */
+internal object NewReportPrefill {
+    private val staged = java.util.concurrent.ConcurrentHashMap<String, Pair<String, String>>()
+
+    fun stage(title: String, prompt: String): String =
+        java.util.UUID.randomUUID().toString().also { staged[it] = title to prompt }
+
+    fun take(key: String): Pair<String, String>? = staged.remove(key)
+}
+
+/** The prefill of one New Report back-stack entry, taken from
+ *  [NewReportPrefill] on its first composition; lives as long as the entry
+ *  (forward hops and rotation included). Empty after process death — the
+ *  screen's own saved state restores what fits there. */
+class NewReportPrefillHolder : androidx.lifecycle.ViewModel() {
+    var taken = false
+    var title = ""
+    var prompt = ""
 }

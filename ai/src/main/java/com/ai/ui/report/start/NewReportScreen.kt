@@ -96,6 +96,26 @@ class NewReportImageHolder : androidx.lifecycle.ViewModel() {
     var seeded = false
 }
 
+/** The screen's current title / prompt / <user> block for the lifetime of
+ *  its back-stack entry — the copy that survives a forward hop when the text
+ *  is too long for the saved-state bundle ([BoundedTextSaver]). */
+class NewReportTextHolder : androidx.lifecycle.ViewModel() {
+    var title: String? = null
+    var prompt: String? = null
+    var userTagBlock: String? = null
+}
+
+/** Longest text New Report keeps in its saved-state bundle. A longer prompt
+ *  (a big share or external prefill) overflowed the Binder transaction when
+ *  the app went to the background (TransactionTooLargeException); it then
+ *  survives forward hops in [NewReportTextHolder] only. */
+private const val MAX_SAVED_TEXT_CHARS = 20_000
+
+private val BoundedTextSaver = Saver<MutableState<String>, String>(
+    save = { state -> state.value.takeIf { it.length <= MAX_SAVED_TEXT_CHARS } },
+    restore = { mutableStateOf(it) }
+)
+
 @Composable
 fun NewReportScreen(
     viewModel: AppViewModel,
@@ -126,8 +146,11 @@ fun NewReportScreen(
     // (the same hop manage/Savers.kt documents). With plain remember the
     // typed prompt/title reverted to the prefs snapshot of the PREVIOUS
     // report and the moderation pick + flagged dialog vanished on return.
-    var title by rememberSaveable {
-        mutableStateOf(initialTitle.ifEmpty {
+    // Text too long for the bundle isn't saved there (BoundedTextSaver); the
+    // entry-scoped holder re-seeds it after such a hop instead.
+    val textHolder: NewReportTextHolder = androidx.lifecycle.viewmodel.compose.viewModel()
+    var title by rememberSaveable(saver = BoundedTextSaver) {
+        mutableStateOf(textHolder.title ?: initialTitle.ifEmpty {
             if (restoreDraft && !aiTitleMode) prefs.getString(SettingsPreferences.KEY_LAST_AI_REPORT_TITLE, "") ?: "" else ""
         })
     }
@@ -136,13 +159,22 @@ fun NewReportScreen(
             if (restoreDraft) prefs.getString(SettingsPreferences.KEY_LAST_AI_REPORT_PROMPT, "") ?: "" else ""
         }
     }
-    var userTagBlock by rememberSaveable { mutableStateOf(userTagRegex.find(rawPrompt)?.value ?: "") }
+    var userTagBlock by rememberSaveable(saver = BoundedTextSaver) {
+        mutableStateOf(textHolder.userTagBlock ?: userTagRegex.find(rawPrompt)?.value ?: "")
+    }
     val hasWorkerDefaultPrompt = uiState.aiSettings.run {
         agents.any { resolveDefaultPrompt(it.id) != null } ||
             flocks.any { resolveDefaultPrompt(null, "flock", it.id) != null } ||
             swarms.any { resolveDefaultPrompt(null, "swarm", it.id) != null }
     }
-    var prompt by rememberSaveable { mutableStateOf(rawPrompt.replace(userTagRegex, "").trim()) }
+    var prompt by rememberSaveable(saver = BoundedTextSaver) {
+        mutableStateOf(textHolder.prompt ?: rawPrompt.replace(userTagRegex, "").trim())
+    }
+    SideEffect {
+        textHolder.title = title
+        textHolder.prompt = prompt
+        textHolder.userTagBlock = userTagBlock
+    }
     // Draft autosave — the fields used to persist only inside the Next
     // handler, so backing out (or process death) lost a long draft and a
     // return showed the PREVIOUS submitted prompt. Debounced writes to the
