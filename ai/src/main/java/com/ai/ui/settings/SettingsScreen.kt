@@ -637,7 +637,7 @@ fun SettingsScreen(
                 onSave = { saved ->
                     val updated = if (agent != null) aiSettings.copy(agents = aiSettings.agents.map { if (it.id == agent.id) saved else it })
                     else aiSettings.copy(agents = aiSettings.agents + saved)
-                    onSaveAi(updated); goBack()
+                    onSaveAi(updated)   // the form's Save then calls onBack (= goBack) itself — a second goBack here popped two screens
                 },
                 onAddEndpoint = { provider, ep ->
                     val current = aiSettings.getEndpointsForProvider(provider)
@@ -666,7 +666,7 @@ fun SettingsScreen(
                 onSave = { saved ->
                     val updated = if (flock != null) aiSettings.copy(flocks = aiSettings.flocks.map { if (it.id == flock.id) saved else it })
                     else aiSettings.copy(flocks = aiSettings.flocks + saved)
-                    onSaveAi(updated); goBack()
+                    onSaveAi(updated)   // the form's Save then calls onBack (= goBack) itself — a second goBack here popped two screens
                 },
                 onBack = goBack, onNavigateHome = onNavigateHome,
                 onOpenView = flock?.id?.let { fid ->
@@ -688,7 +688,7 @@ fun SettingsScreen(
                 onSave = { saved ->
                     val updated = if (swarm != null) aiSettings.copy(swarms = aiSettings.swarms.map { if (it.id == swarm.id) saved else it })
                     else aiSettings.copy(swarms = aiSettings.swarms + saved)
-                    onSaveAi(updated); goBack()
+                    onSaveAi(updated)   // the form's Save then calls onBack (= goBack) itself — a second goBack here popped two screens
                 },
                 onBack = goBack, onNavigateHome = onNavigateHome,
                 onOpenView = swarm?.id?.let { sid ->
@@ -722,7 +722,7 @@ fun SettingsScreen(
                 onSave = { saved ->
                     val updated = if (sp != null) aiSettings.copy(systemPrompts = aiSettings.systemPrompts.map { if (it.id == sp.id) saved else it })
                     else aiSettings.copy(systemPrompts = aiSettings.systemPrompts + saved)
-                    onSaveAi(updated); goBack()
+                    onSaveAi(updated)   // the form's Save then calls onBack (= goBack) itself — a second goBack here popped two screens
                 },
                 onBack = goBack, onNavigateHome = onNavigateHome
             )
@@ -750,7 +750,7 @@ fun SettingsScreen(
                     onSave = { saved ->
                         val updated = if (ep != null) aiSettings.copy(examplePrompts = aiSettings.examplePrompts.map { if (it.id == ep.id) saved else it })
                         else aiSettings.copy(examplePrompts = aiSettings.examplePrompts + saved)
-                        onSaveAi(updated); goBack()
+                        onSaveAi(updated)   // the form's Save then calls onBack (= goBack) itself — a second goBack here popped two screens
                     },
                     onBack = goBack, onNavigateHome = onNavigateHome
                 )
@@ -797,7 +797,7 @@ fun SettingsScreen(
                         onSave = { saved ->
                             val updated = if (ip != null) aiSettings.copy(internalPrompts = aiSettings.internalPrompts.map { if (it.id == ip.id) saved else it })
                             else aiSettings.copy(internalPrompts = aiSettings.internalPrompts + saved)
-                            onSaveAi(updated); goBack()
+                            onSaveAi(updated)   // the form's Save then calls onBack (= goBack) itself — a second goBack here popped two screens
                         },
                         onBack = goBack, onNavigateHome = onNavigateHome
                     )
