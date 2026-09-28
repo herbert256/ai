@@ -47,6 +47,7 @@ import com.ai.viewmodel.ReportViewModel
 import com.ai.viewmodel.UiState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
@@ -180,14 +181,21 @@ fun ReportsScreenNav(
     // Prev / next AI-report navigation for the chevron icons on the
     // result page's action row. Sorted newest-first like the hub —
     // "<" picks the report one step UP (newer), ">" picks the one
-    // below (older). Re-derived on every iconRefreshTick bump too,
-    // since deleting a report (or creating one in the background)
-    // changes the list. Cheap — one disk read per re-derivation, and
-    // only when the current report id actually changes.
+    // below (older). Only ids + timestamps are needed, so read the
+    // cached header index — this used to fully parse every report on
+    // every iconRefreshTick bump (icon / title work, ~36 sites). Re-listed
+    // when any report is written / created / deleted (ReportDataVersion),
+    // after a short settle so a generating report's write burst costs one
+    // re-list, not one per write.
     var reportIdsNewestFirst by remember { mutableStateOf<List<String>>(emptyList()) }
-    LaunchedEffect(uiState.currentReportId, uiState.iconRefreshTick) {
-        reportIdsNewestFirst = withContext(Dispatchers.IO) {
-            com.ai.data.ReportStorage.getAllReports(context).map { it.id }
+    LaunchedEffect(uiState.currentReportId) {
+        var first = true
+        ReportDataVersion.version.collectLatest {
+            if (!first) delay(500L)
+            first = false
+            reportIdsNewestFirst = withContext(Dispatchers.IO) {
+                ReportStorage.getReportHeaders(context).sortedByDescending { it.timestamp }.map { it.id }
+            }
         }
     }
     val currentIdx = reportIdsNewestFirst.indexOf(uiState.currentReportId)
