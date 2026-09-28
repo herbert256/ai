@@ -133,6 +133,12 @@
     },
     {
       "contains": "haiku-4"
+    },
+    {
+      "contains": "opus-5"
+    },
+    {
+      "contains": "sonnet-5"
     }
   ]
 }

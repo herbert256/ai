@@ -214,7 +214,7 @@ object ModelType {
      *  per ApiFormat in ApiDispatch.kt:
      *
      *   - ANTHROPIC: web_search_20250305 was introduced for Claude 3.5/3.7
-     *     and the 4.x family.
+     *     and the 4.x family; Opus 5 / Sonnet 5 support it too.
      *   - GOOGLE: google_search tool works on Gemini 1.5+ and 2.x.
      *   - OPENAI_COMPATIBLE: only the Responses-API models (gpt-5, o-series,
      *     gpt-4.1) get a web_search_preview tool — Chat Completions skips.
