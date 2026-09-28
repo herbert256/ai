@@ -618,11 +618,7 @@ fun SettingsScreen(
                     onFetchModels = onFetchModels,
                     loadingModelsFor = loadingModelsFor,
                     fetchModelsErrors = fetchModelsErrors,
-                    onNavigateToTrace = onNavigateToTrace,
-                    onAddEndpoint = { provider, ep ->
-                        val current = aiSettings.getEndpointsForProvider(provider)
-                        onSaveAi(aiSettings.withEndpoints(provider, current + ep))
-                    }
+                    onNavigateToTrace = onNavigateToTrace
                 )
             )
         }
@@ -634,14 +630,12 @@ fun SettingsScreen(
                 agent = agent, aiSettings = aiSettings,
                 existingNames = aiSettings.agents.filter { it.id != (agent?.id ?: "") }.map { it.name.lowercase(java.util.Locale.ROOT) }.toSet(),
                 onTestAiModel = onTestAiModel, onFetchModels = onFetchModels,
-                onSave = { saved ->
-                    val updated = if (agent != null) aiSettings.copy(agents = aiSettings.agents.map { if (it.id == agent.id) saved else it })
-                    else aiSettings.copy(agents = aiSettings.agents + saved)
+                onSave = { saved, pendingEndpoint ->
+                    // Agent + its picked LiteLLM endpoint in ONE write.
+                    val base = aiSettings.withAddedEndpoint(pendingEndpoint)
+                    val updated = if (agent != null) base.copy(agents = base.agents.map { if (it.id == agent.id) saved else it })
+                    else base.copy(agents = base.agents + saved)
                     onSaveAi(updated)   // the form's Save then calls onBack (= goBack) itself — a second goBack here popped two screens
-                },
-                onAddEndpoint = { provider, ep ->
-                    val current = aiSettings.getEndpointsForProvider(provider)
-                    onSaveAi(aiSettings.withEndpoints(provider, current + ep))
                 },
                 onBack = goBack, onNavigateHome = onNavigateHome,
                 loadingModelsFor = loadingModelsFor,

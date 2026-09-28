@@ -9,14 +9,13 @@ import com.ai.ui.settings.AgentEditScreen
 import java.util.Locale
 
 /** Dependencies the rich agent form needs (provider/model fetch, test,
- *  endpoint persistence, trace links). Threaded from the host. */
+ *  trace links). Threaded from the host. */
 class AgentEditDeps(
     val onTestAiModel: suspend (AppService, String, String) -> String?,
     val onFetchModels: (AppService, String) -> Unit,
     val loadingModelsFor: Set<AppService>,
     val fetchModelsErrors: Map<String, com.ai.viewmodel.FetchModelsError>,
-    val onNavigateToTrace: ((String) -> Unit)?,
-    val onAddEndpoint: (AppService, Endpoint) -> Unit
+    val onNavigateToTrace: ((String) -> Unit)?
 )
 
 @Composable
@@ -24,20 +23,21 @@ internal fun AgentEdit(
     agent: Agent,
     aiSettings: Settings,
     deps: AgentEditDeps,
-    onSaved: (Agent) -> Unit,
+    onSaved: (Agent, Pair<AppService, Endpoint>?) -> Unit,
     onBack: () -> Unit,
     onNavigateHome: () -> Unit,
     onDelete: (() -> Unit)? = null
 ) = AgentEditForm(agent, aiSettings, deps, onSaved, onBack, onNavigateHome, onDelete)
 
 /** Reuses the existing rich [AgentEditScreen] for both add and edit;
- *  [agent] null = add. */
+ *  [agent] null = add. [onSaved] also carries the not-yet-persisted
+ *  LiteLLM endpoint the agent picked (null when none). */
 @Composable
 internal fun AgentEditForm(
     agent: Agent?,
     aiSettings: Settings,
     deps: AgentEditDeps,
-    onSaved: (Agent) -> Unit,
+    onSaved: (Agent, Pair<AppService, Endpoint>?) -> Unit,
     onBack: () -> Unit,
     onNavigateHome: () -> Unit,
     onDelete: (() -> Unit)? = null
@@ -56,7 +56,6 @@ internal fun AgentEditForm(
         loadingModelsFor = deps.loadingModelsFor,
         fetchModelsErrors = deps.fetchModelsErrors,
         onNavigateToTrace = deps.onNavigateToTrace,
-        onAddEndpoint = deps.onAddEndpoint,
         onOpenView = null,
         onDelete = onDelete
     )

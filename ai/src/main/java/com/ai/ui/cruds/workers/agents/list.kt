@@ -8,7 +8,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import com.ai.data.AppService
 import com.ai.model.Agent
+import com.ai.model.Endpoint
 import com.ai.model.Settings
 import com.ai.ui.cruds.framework.CrudListPage
 
@@ -34,11 +36,14 @@ fun AgentsCrud(
     var mode by remember { mutableStateOf<Mode>(Mode.List) }
     var confirmDelete by remember { mutableStateOf<Agent?>(null) }
     val toList = { mode = Mode.List }
-    val upsert: (Agent) -> Unit = { saved ->
-        val list = aiSettings.agents
+    // One settings write for the agent AND its picked LiteLLM endpoint —
+    // two writes from the same snapshot let the agent save drop the endpoint.
+    val upsert: (Agent, Pair<AppService, Endpoint>?) -> Unit = { saved, pendingEndpoint ->
+        val base = aiSettings.withAddedEndpoint(pendingEndpoint)
+        val list = base.agents
         val updated = if (list.any { it.id == saved.id }) list.map { if (it.id == saved.id) saved else it }
                       else list + saved
-        onSave(aiSettings.copy(agents = updated))
+        onSave(base.copy(agents = updated))
     }
 
     when (val m = mode) {
@@ -62,13 +67,13 @@ fun AgentsCrud(
         )
         is Mode.Edit -> AgentEdit(
             agent = m.item, aiSettings = aiSettings, deps = deps,
-            onSaved = { saved -> upsert(saved) },
+            onSaved = { saved, ep -> upsert(saved, ep) },
             onDelete = { confirmDelete = m.item },
             onBack = toList, onNavigateHome = onNavigateHome
         )
         Mode.Add -> AgentAdd(
             aiSettings = aiSettings, deps = deps,
-            onSaved = { saved -> upsert(saved) },
+            onSaved = { saved, ep -> upsert(saved, ep) },
             onBack = toList, onNavigateHome = onNavigateHome
         )
     }

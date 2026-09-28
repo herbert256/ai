@@ -26,18 +26,17 @@ fun AgentEditScreen(
     existingNames: Set<String>,
     onTestAiModel: suspend (AppService, String, String) -> String?,
     onFetchModels: (AppService, String) -> Unit,
-    onSave: (Agent) -> Unit,
+    /** Persist the agent. The second argument is the LiteLLM-listed endpoint
+     *  the agent picked that isn't yet in the provider's configured endpoints
+     *  (null when none) — the parent must append it (see
+     *  [Settings.withAddedEndpoint]) in the SAME settings update as the agent,
+     *  or the agent's endpointId points at nothing. */
+    onSave: (Agent, Pair<AppService, com.ai.model.Endpoint>?) -> Unit,
     onBack: () -> Unit,
     onNavigateHome: () -> Unit,
     loadingModelsFor: Set<AppService> = emptySet(),
     fetchModelsErrors: Map<String, com.ai.viewmodel.FetchModelsError> = emptyMap(),
     onNavigateToTrace: ((String) -> Unit)? = null,
-    /** Optional callback fired when the agent picks a LiteLLM-listed
-     *  endpoint that isn't yet in the provider's configured endpoints —
-     *  the parent should append it to aiSettings.endpoints. Without this
-     *  the LiteLLM choices are still selectable but won't persist beyond
-     *  this edit session. */
-    onAddEndpoint: (AppService, com.ai.model.Endpoint) -> Unit = { _, _ -> },
     /** Optional 👁 view-screen hook. AppNavHost wires it to
      *  navController.navigate(NavRoutes.aiAgentView(agentId)); back
      *  pops back to this Edit screen via Jetpack Nav. */
@@ -159,10 +158,9 @@ fun AgentEditScreen(
         }
     }
 
-    fun persistSelectedEndpoint() {
-        pendingEndpoints.firstOrNull { it.second.id == selectedEndpointId }
-            ?.let { (provider, ep) -> onAddEndpoint(provider, ep) }
-    }
+    // The not-yet-persisted LiteLLM endpoint the agent ends up on, if any —
+    // handed to onSave so the parent writes it together with the agent.
+    fun selectedPendingEndpoint() = pendingEndpoints.firstOrNull { it.second.id == selectedEndpointId }
     BackHandler { back() }
 
     Column(
@@ -189,7 +187,7 @@ fun AgentEditScreen(
         // enough to push a bottom button out of reach. Both persist + close.
         Spacer(modifier = Modifier.height(8.dp))
         OutlinedButton(
-            onClick = { persistSelectedEndpoint(); onSave(current!!); onBack() },
+            onClick = { onSave(current!!, selectedPendingEndpoint()); onBack() },
             enabled = current != null,
             modifier = Modifier.fillMaxWidth(),
             colors = AppColors.outlinedButtonColors()
@@ -219,7 +217,7 @@ fun AgentEditScreen(
             // Endpoint — combines configured per-provider endpoints with
             // any extra paths LiteLLM lists in `supported_endpoints` for
             // the selected model. Picking a LiteLLM-derived option
-            // materializes a real Endpoint via onAddEndpoint so it persists
+            // materializes a real Endpoint, saved with the agent, so it persists
             // on the provider's endpoint list.
             // Persisted endpoints plus any not-yet-saved LiteLLM picks for
             // THIS provider so the just-picked option stays selectable.

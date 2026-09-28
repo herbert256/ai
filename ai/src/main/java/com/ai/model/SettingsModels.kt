@@ -943,6 +943,13 @@ data class Settings(
 
     fun withEndpoints(provider: AppService, newEndpoints: List<Endpoint>) = copy(endpoints = endpoints + (provider to newEndpoints))
 
+    /** Append the LiteLLM-derived endpoint an agent edit picked ([pending],
+     *  null → unchanged) to its provider. Applied in the SAME update as the
+     *  agent save: two separate saves built from one snapshot let the second
+     *  (the agent) silently drop the first (the endpoint). */
+    fun withAddedEndpoint(pending: Pair<AppService, Endpoint>?): Settings =
+        pending?.let { (provider, ep) -> withEndpoints(provider, getEndpointsForProvider(provider) + ep) } ?: this
+
     fun removeProvider(service: AppService): Settings {
         val removedAgentIds = agents.filter { it.provider.id == service.id }.map { it.id }.toSet()
         return copy(

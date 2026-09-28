@@ -491,6 +491,11 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     val restartLockActive: StateFlow<Boolean> = _restartLockActive.asStateFlow()
     fun engageRestartLock() { _restartLockActive.value = true }
 
+    /** Serialises [persistLatestSettings]. Declared above `init` — the
+     *  bootstrap coroutine launched there may save before later property
+     *  initialisers have run. */
+    private val settingsSaveMutex = Mutex()
+
     init {
         // The logging master switch defaults OFF, so until the bootstrap
         // below loads the persisted GeneralSettings, record nothing — a
@@ -1399,7 +1404,18 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun updateSettings(settings: Settings) {
         _uiState.update { it.copy(aiSettings = settings) }
         syncTestModelPrompt(settings)
-        viewModelScope.launch(Dispatchers.IO) { settingsPrefs.saveSettings(settings) }
+        persistLatestSettings()
+    }
+
+    /** Persist the in-memory Settings off the main thread. Saves are
+     *  serialised and each writes the LATEST snapshot (read under the
+     *  lock), so two quick updates can't reach disk out of order —
+     *  unordered IO launches of per-call snapshots let an older one
+     *  land last and silently undo the newer edit. */
+    private fun persistLatestSettings() {
+        viewModelScope.launch(Dispatchers.IO) {
+            settingsSaveMutex.withLock { settingsPrefs.saveSettings(_uiState.value.aiSettings) }
+        }
     }
 
     private var infoProviderRecomputeJob: kotlinx.coroutines.Job? = null
@@ -1552,11 +1568,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             current.copy(aiSettings = updated)
         }
         // Save the latest post-update snapshot — picks up any peer
-        // updates that landed in the same window. Last writer wins on
-        // the persistence layer too, but every concurrent caller's
-        // change is in the snapshot we save.
-        val final = _uiState.value.aiSettings
-        viewModelScope.launch(Dispatchers.IO) { settingsPrefs.saveSettings(final) }
+        // updates that landed in the same window, serialised with every
+        // other settings save so an older snapshot can't land last.
+        persistLatestSettings()
     }
 
     /** Called by the per-provider Test button when the test passes:
@@ -1591,8 +1605,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             )
             current.copy(aiSettings = pruned.ensureDefaultAgentInFlock(service, defaultModel))
         }
-        val final = _uiState.value.aiSettings
-        viewModelScope.launch(Dispatchers.IO) { settingsPrefs.saveSettings(final) }
+        persistLatestSettings()
     }
 
     fun markProviderTestedOk(service: AppService, defaultModel: String, fetchAfter: Boolean = true) {
@@ -1604,8 +1617,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 .ensureDefaultAgentInFlock(service, defaultModel)
             current.copy(aiSettings = updated)
         }
-        val final = _uiState.value.aiSettings
-        viewModelScope.launch(Dispatchers.IO) { settingsPrefs.saveSettings(final) }
+        persistLatestSettings()
         // Background model-list fetch with API-source flip on success.
         // The activation flow pre-fetches synchronously and passes
         // [fetchAfter] = false to avoid a duplicate request.

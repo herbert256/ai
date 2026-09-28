@@ -276,13 +276,11 @@ fun ModelInfoScreen(
             existingNames = aiSettings.agents.map { it.name.lowercase() }.toSet(),
             onTestAiModel = onTestAiModel,
             onFetchModels = onFetchModels,
-            onSave = { agent ->
-                onSaveSettings(aiSettings.copy(agents = aiSettings.agents + agent))
+            onSave = { agent, pendingEndpoint ->
+                // Agent + its picked LiteLLM endpoint in ONE write.
+                val base = aiSettings.withAddedEndpoint(pendingEndpoint)
+                onSaveSettings(base.copy(agents = base.agents + agent))
                 showAgentEdit = false
-            },
-            onAddEndpoint = { p, ep ->
-                val current = aiSettings.getEndpointsForProvider(p)
-                onSaveSettings(aiSettings.withEndpoints(p, current + ep))
             },
             onBack = { showAgentEdit = false },
             onNavigateHome = onNavigateHome
