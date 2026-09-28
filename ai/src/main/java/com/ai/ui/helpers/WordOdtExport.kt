@@ -414,7 +414,14 @@ private fun escXml(s: String): String {
         '>' -> out.append("&gt;")
         '"' -> out.append("&quot;")
         '\'' -> out.append("&apos;")
-        else -> out.append(c)
+        // XML 1.0 forbids C0 controls other than tab / LF / CR (and
+        // U+FFFE / U+FFFF), even as character references — Word and
+        // LibreOffice refuse the whole file when a model answer
+        // carries one (stray \u0000, form feeds, ANSI escapes).
+        // Drop them.
+        '\t', '\n', '\r' -> out.append(c)
+        '￾', '￿' -> Unit
+        else -> if (c < ' ') Unit else out.append(c)
     }
     return out.toString()
 }
