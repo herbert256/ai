@@ -517,9 +517,14 @@ internal fun NavGraphBuilder.developerRoutes(
         composable(NavRoutes.AI_RESET_RUNTIME) {
             val ctx = LocalContext.current
             com.ai.ui.admin.ResetRuntimeDataScreen(
-                onClearRuntimeData = {
-                    appViewModel.clearAllRuntimeData(ctx).also {
-                        reportViewModel.modelTestEngine.clearRun()
+                onClearRuntimeData = { onDone ->
+                    // Stop every report's in-flight work first (the wipe
+                    // deletes them all), then wipe off the main thread.
+                    reportViewModel.cancelAllReportOwnedWork(ctx) {
+                        appViewModel.runHousekeepingWipe("Clear runtime data", { appViewModel.clearAllRuntimeData(ctx) }) { result ->
+                            if (result.isSuccess) reportViewModel.modelTestEngine.clearRun()
+                            onDone(result.getOrNull())
+                        }
                     }
                 },
                 onBack = { navController.popBackStack() },
@@ -529,7 +534,11 @@ internal fun NavGraphBuilder.developerRoutes(
         composable(NavRoutes.AI_RESET_INFO_PROVIDERS) {
             val ctx = LocalContext.current
             com.ai.ui.admin.ResetInfoProvidersScreen(
-                onClearInfoProviders = { appViewModel.clearInfoProviderCaches(ctx) },
+                onClearInfoProviders = { onDone ->
+                    appViewModel.runHousekeepingWipe("Clear Info-provider caches", { appViewModel.clearInfoProviderCaches(ctx) }) {
+                        onDone(it.isSuccess)
+                    }
+                },
                 onBack = { navController.popBackStack() },
                 onNavigateHome = navigateHome
             )
@@ -537,7 +546,11 @@ internal fun NavGraphBuilder.developerRoutes(
         composable(NavRoutes.AI_RESET_CONFIGURATION) {
             val ctx = LocalContext.current
             com.ai.ui.admin.ResetConfigurationScreen(
-                onClearConfiguration = { appViewModel.clearAllConfiguration(ctx) },
+                onClearConfiguration = { onDone ->
+                    appViewModel.runHousekeepingWipe("Clear all configuration", { appViewModel.clearAllConfiguration(ctx) }) {
+                        onDone(it.getOrNull())
+                    }
+                },
                 onBack = { navController.popBackStack() },
                 onNavigateHome = navigateHome
             )
@@ -558,7 +571,11 @@ internal fun NavGraphBuilder.developerRoutes(
         composable(NavRoutes.AI_RESET_APPLICATION) {
             val ctx = LocalContext.current
             com.ai.ui.admin.ResetApplicationScreen(
-                onResetApplication = { onComplete -> appViewModel.resetApplication(ctx, onComplete) },
+                onResetApplication = { onComplete ->
+                    // Reset wipes every report too — stop their in-flight
+                    // work before the (already off-Main) reset cascade.
+                    reportViewModel.cancelAllReportOwnedWork(ctx) { appViewModel.resetApplication(ctx, onComplete) }
+                },
                 onBack = { navController.popBackStack() },
                 onNavigateHome = navigateHome,
                 onStartRefreshAll = {

@@ -858,7 +858,10 @@ its own help topic.
 - **Clear all runtime data** (the "Runtime data" card's Clear) —
   wipes app log, traces, chats, reports, prompt history, and usage
   stats. Configuration, knowledge bases, and every cache (Info
-  providers, model lists, embeddings) stay put.
+  providers, model lists, embeddings) stay put. Anything still
+  running on a report is stopped first (Reset application does the
+  same); this wipe and the two Clears below run in the background
+  behind a progress dialog.
 - **Clear Info providers** (the "Info providers" card's Clear) —
   wipes the cached pricing/capability tiers and their timestamps.
   Manual cost overrides and any provider's self-reported pricing

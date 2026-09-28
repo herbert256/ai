@@ -1170,6 +1170,20 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     )
     data class ConfigWipeResult(val localLlms: Int, val embedders: Int)
 
+    /** Run one of the Housekeeping wipes below off the main thread — they
+     *  used to run inside the confirm tap, and thousands of file deletes
+     *  ANR'd — and hand the outcome back on Main. On [viewModelScope], so
+     *  leaving the screen mid-wipe doesn't abandon it half-done. */
+    fun <T> runHousekeepingWipe(label: String, wipe: () -> T, onComplete: (Result<T>) -> Unit) {
+        viewModelScope.launch {
+            val result = withContext(Dispatchers.IO) {
+                try { Result.success(wipe()) } catch (e: Exception) { Result.failure<T>(e) }
+            }
+            result.exceptionOrNull()?.let { AppLog.e("Housekeeping", "← $label FAILED", it) }
+            onComplete(result)
+        }
+    }
+
     /** Wipe the activity / personal-history surface the user almost
      *  always wants gone together: app logs, chat sessions, API
      *  traces, usage statistics, AI reports (incl. cascaded

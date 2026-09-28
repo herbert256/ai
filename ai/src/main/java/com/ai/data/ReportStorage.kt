@@ -705,15 +705,7 @@ object ReportStorage {
             AppLog.w("ReportStorage", "Failed to delete report file for $reportId; skipping cascade")
             return
         }
-        // Cascade: drop any rerank/summary meta-results associated with the
-        // report so /files/secondary/<reportId>/ doesn't accumulate orphans.
-        SecondaryResultStorage.deleteAllForReport(context, reportId)
-        ReportEvidenceStore.delete(reportId)
-        ReportContentStore.delete(context.filesDir, reportId)
-        ReportCostJournal.deleteForReport(context.filesDir, reportId)
-        // Remove obsolete work-review settings when deleting an older report.
-        File(context.filesDir, "report_work_limits/$reportId.json").delete()
-        RegenerateBatchStorage.delete(context, reportId)
+        deleteReportSideFiles(context, reportId)
         ApiTracer.init(context)
         // A duplicate ([copyReport]) keeps its source's 🐞 trace links, so
         // traces another report still points at survive the source's delete.
@@ -726,6 +718,25 @@ object ReportStorage {
         AuditLog.append(reportId, "Report deleted")
         ReportDataVersion.bump(reportId)
     }
+
+    /** Everything a report owns outside reports/<id>.json (traces aside).
+     *  Shared by [deleteReport] and [deleteAllReports] so the runtime wipe
+     *  can't orphan what a single delete removes — it used to skip the
+     *  report_work_limits file and the pending cost journal. */
+    private fun deleteReportSideFiles(context: Context, reportId: String) {
+        // Cascade: drop any rerank/summary meta-results associated with the
+        // report so /files/secondary/<reportId>/ doesn't accumulate orphans.
+        SecondaryResultStorage.deleteAllForReport(context, reportId)
+        ReportEvidenceStore.delete(reportId)
+        ReportContentStore.delete(context.filesDir, reportId)
+        // The journal only accepts [A-Za-z0-9_-] ids (and throws on others),
+        // so an id it rejects can't own a journal directory to remove.
+        runCatching { ReportCostJournal.deleteForReport(context.filesDir, reportId) }
+        // Remove obsolete work-review settings when deleting an older report.
+        File(context.filesDir, "report_work_limits/$reportId.json").delete()
+        RegenerateBatchStorage.delete(context, reportId)
+    }
+
     private val tracePointer = Regex("\"[A-Za-z]*[Tt]raceFile\"\\s*:\\s*\"([^\"\\\\]+)\"")
 
     /** Trace filenames that reports other than [excludingReportId] link to
@@ -749,12 +760,9 @@ object ReportStorage {
             }
             reportsDir?.let(headerIndex::clear)
         }
+        ApiTracer.init(context)
         deletedIds.forEach { reportId ->
-            SecondaryResultStorage.deleteAllForReport(context, reportId)
-            RegenerateBatchStorage.delete(context, reportId)
-            ReportEvidenceStore.delete(reportId)
-            ReportContentStore.delete(context.filesDir, reportId)
-            ApiTracer.init(context)
+            deleteReportSideFiles(context, reportId)
             ApiTracer.deleteTracesForReport(reportId)
         }
         if (deletedIds.isNotEmpty()) ReportDataVersion.bump()

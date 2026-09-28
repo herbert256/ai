@@ -20,32 +20,54 @@ import com.ai.viewmodel.AppViewModel
 // The former ResetScreen hub is gone — its five leaf screens below are now
 // reached directly from the merged Manage-data hub (see ManageDataScreen.kt).
 
+/** Non-dismissable progress dialog shown while a wipe runs in the
+ *  background (the wipes used to run inside the confirm tap and ANR'd). */
+@Composable
+private fun WipeBusyDialog(title: String) {
+    AlertDialog(
+        onDismissRequest = {},
+        title = { Text(title) },
+        text = { LinearProgressIndicator(modifier = Modifier.fillMaxWidth()) },
+        confirmButton = {}
+    )
+}
+
 @Composable
 fun ResetRuntimeDataScreen(
-    onClearRuntimeData: () -> AppViewModel.RuntimeWipeResult,
+    /** Starts the wipe; the callback fires on Main with the counts, or null
+     *  when the wipe failed. */
+    onClearRuntimeData: (onDone: (AppViewModel.RuntimeWipeResult?) -> Unit) -> Unit,
     onBack: () -> Unit,
     onNavigateHome: () -> Unit
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
     var showConfirm by remember { mutableStateOf(false) }
+    var busy by remember { mutableStateOf(false) }
+
+    if (busy) WipeBusyDialog("Clearing runtime data…")
 
     if (showConfirm) {
         AlertDialog(
             onDismissRequest = { showConfirm = false },
             title = { Text("Clear runtime data?") },
-            text = { Text("This permanently deletes the app logs, chat history, API traces, AI reports, per-report audit logs, prompt history, usage statistics, and the last \"Test all models\" run. Configuration (providers, agents, flocks, swarms, parameters, system + internal + example prompts, API keys), knowledge bases, the eleven Info-provider caches, the per-provider model-list cache, and the local semantic-search embedding cache are all kept.") },
+            text = { Text("This permanently deletes the app logs, chat history, API traces, AI reports, per-report audit logs, prompt history, usage statistics, and the last \"Test all models\" run. Anything still running on a report (generation, fan-out, tournament, translation, …) is stopped first. Configuration (providers, agents, flocks, swarms, parameters, system + internal + example prompts, API keys), knowledge bases, the eleven Info-provider caches, the per-provider model-list cache, and the local semantic-search embedding cache are all kept.") },
             confirmButton = {
                 OutlinedButton(
                     onClick = {
-                        val r = onClearRuntimeData()
                         showConfirm = false
-                        Toast.makeText(
-                            context,
-                            "Cleared ${r.logs} log files, ${r.chats} chats, ${r.traces} traces, ${r.reports} reports, ${r.audit} audit logs, ${r.prompts} prompt entries, ${r.testModels} test results, usage statistics",
-                            Toast.LENGTH_LONG
-                        ).show()
+                        busy = true
+                        onClearRuntimeData { r ->
+                            busy = false
+                            Toast.makeText(
+                                context,
+                                if (r == null) "Clear runtime data failed — see the app log"
+                                else "Cleared ${r.logs} log files, ${r.chats} chats, ${r.traces} traces, ${r.reports} reports, ${r.audit} audit logs, ${r.prompts} prompt entries, ${r.testModels} test results, usage statistics",
+                                Toast.LENGTH_LONG
+                            ).show()
+                        }
                     },
+                    enabled = !busy,
                     colors = AppColors.outlinedButtonColors()
                 ) { Text("Clear", maxLines = 1, softWrap = false) }
             },
@@ -63,6 +85,7 @@ fun ResetRuntimeDataScreen(
             )
             OutlinedButton(
                 onClick = { showConfirm = true },
+                enabled = !busy,
                 modifier = Modifier.fillMaxWidth(),
                 colors = AppColors.outlinedButtonColors()
             ) { Text("Clear runtime data", maxLines = 1, softWrap = false) }
@@ -72,13 +95,17 @@ fun ResetRuntimeDataScreen(
 
 @Composable
 fun ResetInfoProvidersScreen(
-    onClearInfoProviders: () -> Unit,
+    /** Starts the wipe; the callback fires on Main with success / failure. */
+    onClearInfoProviders: (onDone: (Boolean) -> Unit) -> Unit,
     onBack: () -> Unit,
     onNavigateHome: () -> Unit
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
     var showConfirm by remember { mutableStateOf(false) }
+    var busy by remember { mutableStateOf(false) }
+
+    if (busy) WipeBusyDialog("Clearing Info providers…")
 
     if (showConfirm) {
         AlertDialog(
@@ -88,10 +115,18 @@ fun ResetInfoProvidersScreen(
             confirmButton = {
                 OutlinedButton(
                     onClick = {
-                        onClearInfoProviders()
                         showConfirm = false
-                        Toast.makeText(context, "Info-provider caches cleared", Toast.LENGTH_SHORT).show()
+                        busy = true
+                        onClearInfoProviders { ok ->
+                            busy = false
+                            Toast.makeText(
+                                context,
+                                if (ok) "Info-provider caches cleared" else "Clear Info providers failed — see the app log",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        }
                     },
+                    enabled = !busy,
                     colors = AppColors.outlinedButtonColors()
                 ) { Text("Clear", maxLines = 1, softWrap = false) }
             },
@@ -109,6 +144,7 @@ fun ResetInfoProvidersScreen(
             )
             OutlinedButton(
                 onClick = { showConfirm = true },
+                enabled = !busy,
                 modifier = Modifier.fillMaxWidth(),
                 colors = AppColors.outlinedButtonColors()
             ) { Text("Clear Info providers", maxLines = 1, softWrap = false) }
@@ -118,13 +154,18 @@ fun ResetInfoProvidersScreen(
 
 @Composable
 fun ResetConfigurationScreen(
-    onClearConfiguration: () -> AppViewModel.ConfigWipeResult,
+    /** Starts the wipe; the callback fires on Main with the counts, or null
+     *  when the wipe failed. */
+    onClearConfiguration: (onDone: (AppViewModel.ConfigWipeResult?) -> Unit) -> Unit,
     onBack: () -> Unit,
     onNavigateHome: () -> Unit
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
     var showConfirm by remember { mutableStateOf(false) }
+    var busy by remember { mutableStateOf(false) }
+
+    if (busy) WipeBusyDialog("Clearing configuration…")
 
     if (showConfirm) {
         AlertDialog(
@@ -134,14 +175,19 @@ fun ResetConfigurationScreen(
             confirmButton = {
                 OutlinedButton(
                     onClick = {
-                        val r = onClearConfiguration()
                         showConfirm = false
-                        Toast.makeText(
-                            context,
-                            "Configuration cleared, ${r.localLlms} local LLM${if (r.localLlms == 1) "" else "s"} and ${r.embedders} LiteRT model${if (r.embedders == 1) "" else "s"} removed",
-                            Toast.LENGTH_LONG
-                        ).show()
+                        busy = true
+                        onClearConfiguration { r ->
+                            busy = false
+                            Toast.makeText(
+                                context,
+                                if (r == null) "Clear all configuration failed — see the app log"
+                                else "Configuration cleared, ${r.localLlms} local LLM${if (r.localLlms == 1) "" else "s"} and ${r.embedders} LiteRT model${if (r.embedders == 1) "" else "s"} removed",
+                                Toast.LENGTH_LONG
+                            ).show()
+                        }
                     },
+                    enabled = !busy,
                     colors = AppColors.outlinedButtonColors()
                 ) { Text("Clear all", maxLines = 1, softWrap = false) }
             },
@@ -159,6 +205,7 @@ fun ResetConfigurationScreen(
             )
             OutlinedButton(
                 onClick = { showConfirm = true },
+                enabled = !busy,
                 modifier = Modifier.fillMaxWidth(),
                 colors = AppColors.outlinedButtonColors()
             ) { Text("Clear all configuration", maxLines = 1, softWrap = false) }

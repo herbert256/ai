@@ -742,7 +742,7 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
     "reset_runtime" to HelpContent(
         title = "Help - Clear runtime data",
         cards = listOf(
-            HelpCard("Overview", "Wipes the activity + personal-history surface that accumulates while the app is in use. The wipe completes immediately after confirmation; a Toast reports the per-bucket counts."),
+            HelpCard("Overview", "Wipes the activity + personal-history surface that accumulates while the app is in use. On confirmation, anything still running on a report (generation, fan-out, tournament, translation, …) is stopped first, then the wipe runs in the background behind a progress dialog; a Toast reports the per-bucket counts when done."),
             HelpCard("What it wipes", "Rolling app logs under <filesDir>/applog/, every chat session, every API trace file, every AI report (the report JSON + its cascaded SecondaryResult rows for rerank / summary / fan-out etc.), per-report audit logs, the prompt-history file, the usage-statistics ledger, and the last \"Test all models\" run."),
             HelpCard("What it keeps", "Knowledge bases, the local semantic-search embedding cache, the eleven Info-provider pricing caches, and the per-provider model-list cache. Configuration (providers, agents, flocks, swarms, system / internal / example prompts, parameters, API keys, External Services keys) is fully preserved."),
             HelpCard("When to use", "Privacy-driven cleanup — chats, traces, reports and prompt history contain copies of your prompts and the model responses. Also useful when you want to start a clean activity baseline without losing any setup."),

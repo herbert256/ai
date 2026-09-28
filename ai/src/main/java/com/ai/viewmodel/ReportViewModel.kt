@@ -2971,6 +2971,30 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         }
     }
 
+    /** Housekeeping wipes that remove every report (Clear runtime data,
+     *  Reset application) run the same in-flight-work teardown a single
+     *  delete does, for every report on disk, BEFORE wiping — they used to
+     *  skip it, so a running generation / fan-out / tournament / translation
+     *  kept making billed calls against the wiped reports and its late saves
+     *  could recreate their storage. Also drops a Generate still before its
+     *  report exists, which would otherwise create a report after the wipe.
+     *  Ids come from the cheap header index, read off Main; the cancels run
+     *  on Main like every other delete path; then [then] runs on Main. */
+    fun cancelAllReportOwnedWork(context: Context, then: () -> Unit): Job =
+        appViewModel.viewModelScope.launch(com.ai.data.CrashReporter.coroutineHandler) {
+            val ids = try {
+                withContext(Dispatchers.IO) { ReportStorage.getReportHeaders(context).map { it.id } }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                AppLog.w("Housekeeping", "report id scan before wipe failed: ${e.message}")
+                emptyList()
+            }
+            uncommittedGenerations.toList().forEach { it.cancel() }
+            (ids + generationJobs.keys).distinct().forEach { cancelReportOwnedWorkBeforeDelete(it, context) }
+            then()
+        }
+
     /** Toggle the persisted pinned flag for [reportId]. Pinned reports
      *  surface as their own section on the AI Reports hub. */
     fun toggleReportPinned(context: Context, reportId: String, scope: kotlinx.coroutines.CoroutineScope) {
