@@ -667,7 +667,9 @@ fun NewReportScreen(
 private sealed class SharedKbBannerState {
     object Idle : SharedKbBannerState()
     data class Working(val message: String) : SharedKbBannerState()
-    data class Done(val kbId: String, val kbName: String, val sources: Int, val chunks: Int) : SharedKbBannerState()
+    /** [failures] = one "name: reason" per shared file that was not indexed. */
+    data class Done(val kbId: String, val kbName: String, val sources: Int, val chunks: Int,
+                    val failures: List<String> = emptyList()) : SharedKbBannerState()
     data class Failed(val message: String) : SharedKbBannerState()
     object Skipped : SharedKbBannerState()
 }
@@ -711,10 +713,16 @@ private fun SharedKbBanner(
             )
             when (state) {
                 is SharedKbBannerState.Working -> Text(state.message, fontSize = 12.sp, color = AppColors.TextSecondary)
-                is SharedKbBannerState.Done -> Text(
-                    "Indexed ${state.sources} source(s), ${state.chunks} chunk(s). Attached as ${com.ai.data.MetadataIconsHolder.current.library}.",
-                    fontSize = 12.sp, color = AppColors.SuccessAccent
-                )
+                is SharedKbBannerState.Done -> {
+                    Text(
+                        "Indexed ${state.sources} source(s), ${state.chunks} chunk(s). Attached as ${com.ai.data.MetadataIconsHolder.current.library}.",
+                        fontSize = 12.sp, color = AppColors.SuccessAccent
+                    )
+                    if (state.failures.isNotEmpty()) Text(
+                        "Not indexed (${state.failures.size}): ${state.failures.joinToString("; ")}",
+                        fontSize = 12.sp, color = AppColors.DangerAccent
+                    )
+                }
                 is SharedKbBannerState.Failed -> Text("Failed: ${state.message}", fontSize = 12.sp, color = AppColors.DangerAccent)
                 else -> { /* Idle — nothing extra */ }
             }
@@ -768,6 +776,9 @@ private suspend fun ingestSharedKb(
     }.getOrElse { return@withContext SharedKbBannerState.Failed(it.message ?: "Could not create KB") }
     var totalChunks = 0
     var sourcesIndexed = 0
+    // Per-file "name: reason" for every shared file that wasn't indexed —
+    // failures used to vanish, leaving only the success count.
+    val failures = mutableListOf<String>()
     suspend fun emitProgress(message: String) {
         withContext(Dispatchers.Main) { onProgress(message) }
     }
@@ -782,6 +793,7 @@ private suspend fun ingestSharedKb(
             if (trimmed.isBlank()) return@forEachIndexed
             val isHttp = trimmed.startsWith("http://", true) || trimmed.startsWith("https://", true)
             emitProgress("Ingesting ${idx + 1}/${uris.size}…")
+            var label = trimmed
             val result = if (isHttp) {
                 KnowledgeService.indexUrl(context, repository, aiSettings, kb.id, trimmed) { msg, _, _ ->
                     emitProgress("(${idx + 1}/${uris.size}) $msg")
@@ -789,8 +801,10 @@ private suspend fun ingestSharedKb(
             } else {
                 val u = android.net.Uri.parse(trimmed)
                 val displayName = displayNameForUri(context, u) ?: "shared_${System.currentTimeMillis()}"
+                label = displayName
                 val type = pickTypeForUri(context, u) ?: run {
                     emitProgress("Skipping unsupported source: $displayName")
+                    failures += "$displayName: unsupported file type"
                     return@forEachIndexed
                 }
                 KnowledgeService.indexFile(context, repository, aiSettings, kb.id, type, u, displayName) { msg, _, _ ->
@@ -800,6 +814,8 @@ private suspend fun ingestSharedKb(
             result.onSuccess { src ->
                 totalChunks += src.chunkCount
                 sourcesIndexed++
+            }.onFailure { e ->
+                failures += "$label: ${e.message ?: e.javaClass.simpleName}"
             }
         }
     } catch (e: kotlinx.coroutines.CancellationException) {
@@ -813,8 +829,10 @@ private suspend fun ingestSharedKb(
     return@withContext if (sourcesIndexed == 0) {
         // Drop the empty KB so it doesn't leak into the user's list.
         KnowledgeStore.deleteKnowledgeBase(context, kb.id)
-        SharedKbBannerState.Failed("Nothing indexed.")
+        SharedKbBannerState.Failed(
+            if (failures.isEmpty()) "Nothing indexed." else "Nothing indexed. ${failures.joinToString("; ")}"
+        )
     } else {
-        SharedKbBannerState.Done(kb.id, kbName, sourcesIndexed, totalChunks)
+        SharedKbBannerState.Done(kb.id, kbName, sourcesIndexed, totalChunks, failures.toList())
     }
 }

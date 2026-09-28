@@ -131,9 +131,11 @@ re-index survives a relaunch without re-asking for the SAF permission;
 it returns a `file://` Uri. The stored name is
 `<millis>_<uuid8>_<sanitizedDisplayName>` to avoid same-millisecond
 collisions. Then `KnowledgeExtractors.extract` produces the text.
-Extraction yielding no text saves a zero-chunk source row carrying
-`errorMessage = "No text extracted from source"` so the failure is
-visible in the list rather than vanishing.
+Extraction yielding no text **fails** the index ("No text extracted
+from …") rather than saving a zero-chunk success — so the share-target
+ingest's "Nothing indexed" guard holds (it also lists every file that
+was not indexed, with the reason), and a re-index that extracts
+nothing keeps the source's previous chunks.
 
 **Chunk** — `KnowledgeChunker.chunk(text, maxCharsPerChunk = 2048,
 overlapChars = 200)`: split on `Regex("\n{2,}")`, greedily merge

@@ -142,13 +142,13 @@ object KnowledgeService {
         val sourceId = existingSourceId ?: UUID.randomUUID().toString()
         val pieces = KnowledgeChunker.chunk(text)
         if (pieces.isEmpty()) {
-            // Empty text → save a zero-chunk source row so the user
-            // sees the failed extraction in the list rather than
-            // silent disappearance.
-            val src = KnowledgeSource(sourceId, type, displayName, origin, System.currentTimeMillis(), 0, 0,
-                errorMessage = "No text extracted from source")
-            KnowledgeStore.saveSource(context, kbId, src, emptyList(), embeddingDim = kb.embeddingDim)
-            return src
+            // Empty text is a failure, not a zero-chunk success: the old
+            // success row was counted by the share ingest (defeating its
+            // "Nothing indexed" guard), and a re-index that extracted
+            // nothing replaced the source's good chunks with none. A
+            // re-index keeps the previous chunks untouched.
+            error(if (existingSourceId != null) "No text extracted from $displayName; its previous chunks were kept"
+                else "No text extracted from $displayName")
         }
 
         // Embed in batches. Local does one call per text internally;
