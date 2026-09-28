@@ -314,10 +314,24 @@ private fun historyMatchesSearch(
     searchTitle: String,
     searchPrompt: String,
     searchReport: String
-): Boolean =
-    (searchTitle.isBlank() || report.title.contains(searchTitle, ignoreCase = true)) &&
-        (searchPrompt.isBlank() || report.prompt.contains(searchPrompt, ignoreCase = true)) &&
-        (searchReport.isBlank() || report.agents.any { it.responseBody?.contains(searchReport, ignoreCase = true) == true })
+): Boolean {
+    // Same matching as HistorySearchIndex.filter — trimmed needles,
+    // Locale.ROOT lowercase, the answers joined — so the count / list shown
+    // without the index (or while it rebuilds) agrees with the indexed one.
+    val titleNeedle = searchTitle.trim().lowercase(Locale.ROOT)
+    val promptNeedle = searchPrompt.trim().lowercase(Locale.ROOT)
+    val responseNeedle = searchReport.trim().lowercase(Locale.ROOT)
+    return (titleNeedle.isBlank() || titleNeedle in report.title.lowercase(Locale.ROOT)) &&
+        (promptNeedle.isBlank() || promptNeedle in report.prompt.lowercase(Locale.ROOT)) &&
+        (responseNeedle.isBlank() || responseNeedle in historyResponseText(report))
+}
+
+/** A report's answers as the history search sees them: joined, lowercased. */
+private fun historyResponseText(report: Report): String =
+    report.agents.asSequence()
+        .mapNotNull { it.responseBody }
+        .joinToString("\n")
+        .lowercase(Locale.ROOT)
 
 private data class HistorySearchDoc(
     val report: Report,
@@ -371,10 +385,7 @@ private class HistorySearchIndex private constructor(
             if (reports.isEmpty()) return EMPTY
             val trigramMap = mutableMapOf<String, MutableSet<String>>()
             val docs = reports.map { report ->
-                val response = report.agents.asSequence()
-                    .mapNotNull { it.responseBody }
-                    .joinToString("\n")
-                    .lowercase(Locale.ROOT)
+                val response = historyResponseText(report)
                 trigrams(response).forEach { gram ->
                     trigramMap.getOrPut(gram) { LinkedHashSet() }.add(report.id)
                 }
