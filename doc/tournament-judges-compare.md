@@ -98,8 +98,11 @@ worker model is chosen at runtime by `WorkerRunner` (shuffled order, 429
 fallback); the match identity does not include the worker until it settles.
 Verdicts are parsed by `parseMatchVerdict` — it prefers the labelled
 `verdict:` / `confidence:` / `reason:` lines the prompt asks for, with a strict
-JSON fallback, normalising the verdict to `A` / `B` / `tie`. A reply with no
-verdict is a logical miss, so the chain advances to the next worker.
+JSON fallback, normalising the verdict to `A` / `B` / `tie`. Markdown around
+the label or value (`**Verdict:** A`, `verdict: **A**`) is ignored, and the
+slot named first wins over later mentions (`verdict: A (response B misses X)`
+is A; `A.` is A). A reply with no verdict is a logical miss, so the chain
+advances to the next worker.
 
 Stored rows:
 

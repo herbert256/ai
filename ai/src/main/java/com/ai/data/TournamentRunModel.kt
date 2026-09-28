@@ -155,15 +155,18 @@ fun parseMatchVerdict(content: String?): MatchVerdict? {
         .removePrefix("```json").removePrefix("```").removeSuffix("```").trim()
 
     // Labeled-line form (what the workers/tournament prompt asks for).
-    val verdictLine = cleaned.lineSequence()
-        .firstOrNull { it.trim().startsWith("verdict", ignoreCase = true) }
+    // Markdown around the label ("**Verdict:** A", "- verdict: A",
+    // "### Verdict: A") is stripped first — it used to hide the line.
+    val lines = cleaned.lineSequence().map { stripLineMarkup(it) }.toList()
+    val verdictLine = lines
+        .firstOrNull { it.startsWith("verdict", ignoreCase = true) }
         ?.substringAfter(":", "")?.takeIf { it.isNotBlank() }
     if (verdictLine != null) {
-        val confLine = cleaned.lineSequence()
-            .firstOrNull { it.trim().startsWith("confidence", ignoreCase = true) }
+        val confLine = lines
+            .firstOrNull { it.startsWith("confidence", ignoreCase = true) }
             ?.substringAfter(":", "")
-        val reasonLine = cleaned.lineSequence()
-            .firstOrNull { it.trim().startsWith("reason", ignoreCase = true) }
+        val reasonLine = lines
+            .firstOrNull { it.startsWith("reason", ignoreCase = true) }
             ?.substringAfter(":", "")?.trim()
         // A present verdict line that normalises to null is garbage ("cannot
         // decide from these") — a logical MISS, not a spurious tie: return null
@@ -197,17 +200,38 @@ private fun parseConfidence(raw: String?): Double? {
     return (if (v > 1.0) v / 100.0 else v).coerceIn(0.0, 1.0)
 }
 
+/** A reply line without its markdown decoration — emphasis / code marks
+ *  anywhere, and a leading heading / bullet / quote marker — so a labelled
+ *  line reads the same however the model formatted it. */
+private fun stripLineMarkup(line: String): String =
+    line.replace("*", "").replace("`", "").trim().trimStart('#', '-', '>', ' ').trim()
+
 private val forToA = Regex("\\b(for|to) a\\b")
 private val forToB = Regex("\\b(for|to) b\\b")
 private val wordA = Regex("\\ba\\b")
 private val wordB = Regex("\\bb\\b")
+/** The verdict's LEADING slot — "a", "response b", "2", "tie" — standing on
+ *  its own: followed by the end, punctuation or a bracket ("A.", "B —",
+ *  "A (response B misses X)"), never by another word ("a clear win for b"
+ *  is an article, left to the explicit-signal rules). */
+private val leadingSlot = Regex("^(?:(?:response|answer)\\s+)?(a|b|1|2|tie|draw)(?:$|\\s*[.,;:!)\\]\\-–—(\\[\"'])")
 
 /** Returns "A" / "B" / "tie", or NULL when the text is present but nothing
  *  recognisable (a garbage verdict). Null lets the caller treat it as a
  *  logical MISS (advance to the next worker) rather than a spurious tie. An
  *  EXPLICIT tie word still returns "tie". */
 private fun normaliseVerdict(raw: String?): String? {
-    val s = raw?.trim()?.lowercase() ?: return null
+    val s = raw?.replace("*", "")?.replace("`", "")?.trim()?.lowercase() ?: return null
+    // The slot named FIRST is the verdict; a later mention is the
+    // justification ("A (response B misses X)" used to read as B, "A." and
+    // "**A**" as nothing at all).
+    leadingSlot.find(s.trimStart('"', '\'', '(', '[', ' '))?.let { m ->
+        return when (m.groupValues[1]) {
+            "a", "1" -> "A"
+            "b", "2" -> "B"
+            else -> "tie"
+        }
+    }
     // Explicit, unambiguous signals for each side — including "win FOR b" /
     // "edge TO b" where the winner is the OBJECT, so a sentence starting with
     // the article "a" but awarding B resolves to B, not A.
