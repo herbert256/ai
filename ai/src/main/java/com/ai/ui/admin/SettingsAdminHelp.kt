@@ -397,6 +397,7 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
             HelpCard("Fan Out", "category=\"fan_out\". Per-pair source-response template — runs across every (answerer × source) pair (N×(N−1) calls). Placeholders include @RESPONSE@."),
             HelpCard("Fan in, total", "category=\"fan_in\". Combined-report template — one run per source agent on a single picked model. Iterable block `***Report*** @REPORT@@RESPONSES@` expands once per source."),
             HelpCard("Tips", "Both fan-* categories share the FAN_CATEGORIES treatment in the editor — no agent dispatch, the agent slot is N/A. Names are unique within each category, not across — the same name can exist in fan_out and fan_in without collision."),
+            HelpCard("From a report", "The Fan out / Fan in prompt pickers on a report — and their \"Use a one-time prompt\" editor — open this page too: they list the prompts of these two categories, and a one-time prompt uses the same placeholders."),
         )
     ),
     "internal_prompts" to HelpContent(

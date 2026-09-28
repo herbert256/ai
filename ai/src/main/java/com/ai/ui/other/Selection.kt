@@ -814,8 +814,7 @@ internal fun ReportSelectInternalPromptScreen(
         // is shared across the three picker entry points.
         val helpId = when (category) {
             "meta" -> "report_meta"
-            "fan_out" -> "secondary_fan_out"
-            "fan_in" -> "secondary_fan_out"
+            "fan_out", "fan_in" -> "fan_in_out_prompts_hub"
             else -> "secondary_list"
         }
         TitleBar(helpTopic = helpId, title = titleText, subject = "Choose a prompt for this action", onBackClick = onBack)
@@ -978,8 +977,7 @@ internal fun ReportOneTimePromptScreen(
     Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         val helpId = when (category) {
             "meta" -> "report_meta"
-            "fan_out" -> "secondary_fan_out"
-            "fan_in" -> "secondary_fan_out"
+            "fan_out", "fan_in" -> "fan_in_out_prompts_hub"
             else -> "internal_prompt_edit"
         }
         TitleBar(helpTopic = helpId, title = "One-time prompt", subject = "Run a prompt without saving it", onBackClick = onBack)
