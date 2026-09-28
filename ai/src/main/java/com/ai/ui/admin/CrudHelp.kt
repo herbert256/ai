@@ -21,6 +21,16 @@ private val crudHowItWorksCard = HelpCard(
 private fun crud(title: String, vararg cards: HelpCard): HelpContent =
     HelpContent(title, cards.toList() + crudHowItWorksCard)
 
+/** Shared card for the Agents / Flocks / Swarms topics: worker prompts
+ *  refer to these by name. */
+private val workerNameRefsCard = HelpCard(
+    "Renaming and deleting",
+    "Worker prompts (and internal prompts bound to an agent) refer to agents, " +
+        "flocks and swarms by name. Renaming one updates those references. " +
+        "Deleting one removes it from every worker chain; a prompt bound to a " +
+        "deleted agent falls back to *select."
+)
+
 internal val crudHelp: Map<String, HelpContent> = mapOf(
     "crud_generic" to HelpContent(
         "How CRUD screens work",
@@ -194,7 +204,8 @@ internal val crudHelp: Map<String, HelpContent> = mapOf(
                 "are the building block you pick when launching a report or chat, and " +
                 "they're what flocks are made of (a swarm instead picks provider + " +
                 "model pairs directly, with no saved agent involved)."
-        )
+        ),
+        workerNameRefsCard
     ),
     "crud_flocks" to crud(
         "Flocks",
@@ -203,7 +214,8 @@ internal val crudHelp: Map<String, HelpContent> = mapOf(
             "A flock is a named bundle of agents you launch together so the same prompt " +
                 "runs across several models at once. Manage which agents belong to each " +
                 "flock here."
-        )
+        ),
+        workerNameRefsCard
     ),
     "crud_swarms" to crud(
         "Swarms",
@@ -212,7 +224,8 @@ internal val crudHelp: Map<String, HelpContent> = mapOf(
             "A swarm is a larger grouping built for multi-step / fan-out style runs. " +
                 "Manage the swarm's membership and configuration here; see the glossary " +
                 "for how swarms differ from flocks."
-        )
+        ),
+        workerNameRefsCard
     )
 )
 

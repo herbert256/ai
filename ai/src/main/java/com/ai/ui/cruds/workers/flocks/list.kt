@@ -28,13 +28,10 @@ fun FlocksCrud(
     var mode by remember { mutableStateOf<Mode>(Mode.List) }
     var confirmDelete by remember { mutableStateOf<Flock?>(null) }
     val toList = { mode = Mode.List }
-    val upsert: (Flock) -> Unit = { saved ->
-        val list = aiSettings.flocks
-        val updated = if (list.any { it.id == saved.id }) list.map { if (it.id == saved.id) saved else it }
-                      else list + saved
-        onSave(aiSettings.copy(flocks = updated))
-    }
-    val remove: (Flock) -> Unit = { onSave(aiSettings.copy(flocks = aiSettings.flocks.filter { f -> f.id != it.id })) }
+    // Worker prompts refer to flocks by NAME: a rename re-points them, a
+    // delete drops their rows (see Settings.upsertFlock / removeFlock).
+    val upsert: (Flock) -> Unit = { saved -> onSave(aiSettings.upsertFlock(saved)) }
+    val remove: (Flock) -> Unit = { onSave(aiSettings.removeFlock(it.id)) }
 
     when (val m = mode) {
         Mode.List -> CrudListPage(

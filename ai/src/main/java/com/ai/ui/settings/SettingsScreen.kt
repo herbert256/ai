@@ -631,10 +631,10 @@ fun SettingsScreen(
                 existingNames = aiSettings.agents.filter { it.id != (agent?.id ?: "") }.map { it.name.lowercase(java.util.Locale.ROOT) }.toSet(),
                 onTestAiModel = onTestAiModel, onFetchModels = onFetchModels,
                 onSave = { saved, pendingEndpoint ->
-                    // Agent + its picked LiteLLM endpoint in ONE write.
-                    val base = aiSettings.withAddedEndpoint(pendingEndpoint)
-                    val updated = if (agent != null) base.copy(agents = base.agents.map { if (it.id == agent.id) saved else it })
-                    else base.copy(agents = base.agents + saved)
+                    // Agent + its picked LiteLLM endpoint in ONE write. Upsert
+                    // by the SAVED id (a 👯 copy carries a new one and must not
+                    // replace the original); a rename re-points name references.
+                    val updated = aiSettings.withAddedEndpoint(pendingEndpoint).upsertAgent(saved)
                     onSaveAi(updated)   // the form's Save then calls onBack (= goBack) itself — a second goBack here popped two screens
                 },
                 onBack = goBack, onNavigateHome = onNavigateHome,
@@ -658,9 +658,9 @@ fun SettingsScreen(
                 flock = flock, aiSettings = aiSettings,
                 existingNames = aiSettings.flocks.filter { it.id != (flock?.id ?: "") }.map { it.name.lowercase(java.util.Locale.ROOT) }.toSet(),
                 onSave = { saved ->
-                    val updated = if (flock != null) aiSettings.copy(flocks = aiSettings.flocks.map { if (it.id == flock.id) saved else it })
-                    else aiSettings.copy(flocks = aiSettings.flocks + saved)
-                    onSaveAi(updated)   // the form's Save then calls onBack (= goBack) itself — a second goBack here popped two screens
+                    // Upsert by the SAVED id (a 👯 copy must not replace the
+                    // original); a rename re-points worker-prompt references.
+                    onSaveAi(aiSettings.upsertFlock(saved))   // the form's Save then calls onBack (= goBack) itself — a second goBack here popped two screens
                 },
                 onBack = goBack, onNavigateHome = onNavigateHome,
                 onOpenView = flock?.id?.let { fid ->
@@ -680,9 +680,9 @@ fun SettingsScreen(
                 swarm = swarm, aiSettings = aiSettings,
                 existingNames = aiSettings.swarms.filter { it.id != (swarm?.id ?: "") }.map { it.name.lowercase(java.util.Locale.ROOT) }.toSet(),
                 onSave = { saved ->
-                    val updated = if (swarm != null) aiSettings.copy(swarms = aiSettings.swarms.map { if (it.id == swarm.id) saved else it })
-                    else aiSettings.copy(swarms = aiSettings.swarms + saved)
-                    onSaveAi(updated)   // the form's Save then calls onBack (= goBack) itself — a second goBack here popped two screens
+                    // Upsert by the SAVED id (a 👯 copy must not replace the
+                    // original); a rename re-points worker-prompt references.
+                    onSaveAi(aiSettings.upsertSwarm(saved))   // the form's Save then calls onBack (= goBack) itself — a second goBack here popped two screens
                 },
                 onBack = goBack, onNavigateHome = onNavigateHome,
                 onOpenView = swarm?.id?.let { sid ->

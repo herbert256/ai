@@ -28,13 +28,10 @@ fun SwarmsCrud(
     var mode by remember { mutableStateOf<Mode>(Mode.List) }
     var confirmDelete by remember { mutableStateOf<Swarm?>(null) }
     val toList = { mode = Mode.List }
-    val upsert: (Swarm) -> Unit = { saved ->
-        val list = aiSettings.swarms
-        val updated = if (list.any { it.id == saved.id }) list.map { if (it.id == saved.id) saved else it }
-                      else list + saved
-        onSave(aiSettings.copy(swarms = updated))
-    }
-    val remove: (Swarm) -> Unit = { onSave(aiSettings.copy(swarms = aiSettings.swarms.filter { s -> s.id != it.id })) }
+    // Worker prompts refer to swarms by NAME: a rename re-points them, a
+    // delete drops their rows (see Settings.upsertSwarm / removeSwarm).
+    val upsert: (Swarm) -> Unit = { saved -> onSave(aiSettings.upsertSwarm(saved)) }
+    val remove: (Swarm) -> Unit = { onSave(aiSettings.removeSwarm(it.id)) }
 
     when (val m = mode) {
         Mode.List -> CrudListPage(

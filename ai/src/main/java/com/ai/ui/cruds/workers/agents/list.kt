@@ -38,12 +38,9 @@ fun AgentsCrud(
     val toList = { mode = Mode.List }
     // One settings write for the agent AND its picked LiteLLM endpoint —
     // two writes from the same snapshot let the agent save drop the endpoint.
+    // upsertAgent also re-points name-based references on a rename.
     val upsert: (Agent, Pair<AppService, Endpoint>?) -> Unit = { saved, pendingEndpoint ->
-        val base = aiSettings.withAddedEndpoint(pendingEndpoint)
-        val list = base.agents
-        val updated = if (list.any { it.id == saved.id }) list.map { if (it.id == saved.id) saved else it }
-                      else list + saved
-        onSave(base.copy(agents = updated))
+        onSave(aiSettings.withAddedEndpoint(pendingEndpoint).upsertAgent(saved))
     }
 
     when (val m = mode) {

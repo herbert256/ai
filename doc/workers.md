@@ -70,6 +70,15 @@ Field notes:
   (`mapNotNull`).
 - **Swarm members are bare pairs** — no agent id, no key
   override; they carry only the swarm's own `paramsIds`.
+- **Worker chains refer by name.** `InternalPrompt.workers` rows
+  (`Worker.agent` / `.flock` / `.swarm`) and `InternalPrompt.agent`
+  store the entity's NAME. The CRUD saves go through
+  `Settings.upsertAgent` / `upsertFlock` / `upsertSwarm`, which
+  re-point those references on a rename; `removeAgent` /
+  `removeFlock` / `removeSwarm` (and `removeProvider` for its agents)
+  drop the matching chain rows and reset `InternalPrompt.agent` to
+  `*select`. Both leave references alone while another entity still
+  carries the old name.
 - A reserved flock named **`default agents`**
   (`DEFAULT_AGENTS_FLOCK_NAME`,
   [`SettingsModels.kt:123`](../ai/src/main/java/com/ai/model/SettingsModels.kt))

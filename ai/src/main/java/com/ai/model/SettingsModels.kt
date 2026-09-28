@@ -951,25 +951,26 @@ data class Settings(
         pending?.let { (provider, ep) -> withEndpoints(provider, getEndpointsForProvider(provider) + ep) } ?: this
 
     fun removeProvider(service: AppService): Settings {
-        val removedAgentIds = agents.filter { it.provider.id == service.id }.map { it.id }.toSet()
-        return copy(
+        val removedAgents = agents.filter { it.provider.id == service.id }
+        val removedAgentIds = removedAgents.map { it.id }.toSet()
+        var next = copy(
             providers = providers - service, endpoints = endpoints - service, providerStates = providerStates - service.id,
             agents = agents.filter { it.provider.id != service.id },
             flocks = flocks.map { it.copy(agentIds = it.agentIds.filter { id -> id !in removedAgentIds }) },
             swarms = swarms.map { it.copy(members = it.members.filter { m -> m.provider.id != service.id }) },
-            // Clear references to the removed agents from internal
-            // prompts so they don't keep pointing at IDs that no
-            // longer exist. Same "*select" sentinel removeAgent
-            // uses.
+            // Drop a provider+model pin that points at the provider
+            // being removed, so it doesn't dangle.
             internalPrompts = internalPrompts.map {
-                var p = it
-                if (p.agent in removedAgentIds) p = p.copy(agent = "*select")
-                // Also drop a provider+model pin that points at the
-                // provider being removed, so it doesn't dangle.
-                if (p.provider == service.id) p = p.copy(provider = null, model = null)
-                p
+                if (it.provider == service.id) it.copy(provider = null, model = null) else it
             }
         )
+        // Clear the NAME-based references to the removed agents (worker
+        // chains, InternalPrompt.agent → "*select"), as removeAgent does —
+        // comparing those names against agent ids never matched.
+        removedAgents.map { it.name }.distinctBy { it.lowercase() }.forEach { name ->
+            next = next.clearWorkerRefsIfUnused(WorkerRefKind.AGENT, name)
+        }
+        return next
     }
 
     fun removeSystemPrompt(systemPromptId: String): Settings {
@@ -1046,19 +1047,110 @@ data class Settings(
         )
     }
 
-    fun removeAgent(agentId: String) = copy(
-        agents = agents.filter { it.id != agentId },
-        flocks = flocks.map { it.copy(agentIds = it.agentIds.filter { id -> id != agentId }) },
-        // Clear references to this agent from internal prompts so a
-        // re-pinned prompt doesn't show "DeletedAgent" in the picker
-        // (and the picker didn't have a UI path to fix it before
-        // because removed agents were already filtered from the
-        // active list). Reset to the "*select" sentinel that
-        // existing pinning expects to mean "no specific agent".
-        internalPrompts = internalPrompts.map {
-            if (it.agent == agentId) it.copy(agent = "*select") else it
+    fun removeAgent(agentId: String): Settings {
+        val removed = agents.firstOrNull { it.id == agentId }
+        val next = copy(
+            agents = agents.filter { it.id != agentId },
+            flocks = flocks.map { it.copy(agentIds = it.agentIds.filter { id -> id != agentId }) }
+        )
+        // Clear name-based references to this agent (worker-chain rows,
+        // InternalPrompt.agent → "*select") so a prompt doesn't keep
+        // pointing at "DeletedAgent". Those store the agent NAME — the old
+        // comparison against the id never matched.
+        return if (removed == null) next else next.clearWorkerRefsIfUnused(WorkerRefKind.AGENT, removed.name)
+    }
+
+    /** Upsert [saved] by id. A rename re-points the name-based references
+     *  (worker chains, [InternalPrompt.agent]) at the new name. */
+    fun upsertAgent(saved: Agent): Settings {
+        val old = agents.firstOrNull { it.id == saved.id }
+        val next = copy(agents = if (old != null) agents.map { if (it.id == saved.id) saved else it } else agents + saved)
+        return if (old == null) next else next.renameWorkerRefs(WorkerRefKind.AGENT, old.name, saved.name)
+    }
+
+    /** Upsert [saved] by id; a rename re-points worker-chain references. */
+    fun upsertFlock(saved: Flock): Settings {
+        val old = flocks.firstOrNull { it.id == saved.id }
+        val next = copy(flocks = if (old != null) flocks.map { if (it.id == saved.id) saved else it } else flocks + saved)
+        return if (old == null) next else next.renameWorkerRefs(WorkerRefKind.FLOCK, old.name, saved.name)
+    }
+
+    /** Upsert [saved] by id; a rename re-points worker-chain references. */
+    fun upsertSwarm(saved: Swarm): Settings {
+        val old = swarms.firstOrNull { it.id == saved.id }
+        val next = copy(swarms = if (old != null) swarms.map { if (it.id == saved.id) saved else it } else swarms + saved)
+        return if (old == null) next else next.renameWorkerRefs(WorkerRefKind.SWARM, old.name, saved.name)
+    }
+
+    /** Delete a flock and drop the worker-chain rows that named it. */
+    fun removeFlock(flockId: String): Settings {
+        val removed = flocks.firstOrNull { it.id == flockId }
+        val next = copy(flocks = flocks.filter { it.id != flockId })
+        return if (removed == null) next else next.clearWorkerRefsIfUnused(WorkerRefKind.FLOCK, removed.name)
+    }
+
+    /** Delete a swarm and drop the worker-chain rows that named it. */
+    fun removeSwarm(swarmId: String): Settings {
+        val removed = swarms.firstOrNull { it.id == swarmId }
+        val next = copy(swarms = swarms.filter { it.id != swarmId })
+        return if (removed == null) next else next.clearWorkerRefsIfUnused(WorkerRefKind.SWARM, removed.name)
+    }
+
+    /** Which name a worker-chain row (or [InternalPrompt.agent]) refers by. */
+    private enum class WorkerRefKind { AGENT, FLOCK, SWARM }
+
+    /** True when an entity of [kind] (after the edit) still carries
+     *  [name] (case-insensitive, like the resolvers) — its references then
+     *  still resolve to that one and must be left alone. */
+    private fun workerNameTaken(kind: WorkerRefKind, name: String): Boolean = when (kind) {
+        WorkerRefKind.AGENT -> agents.any { it.name.equals(name, ignoreCase = true) }
+        WorkerRefKind.FLOCK -> flocks.any { it.name.equals(name, ignoreCase = true) }
+        WorkerRefKind.SWARM -> swarms.any { it.name.equals(name, ignoreCase = true) }
+    }
+
+    /** After a rename (applied already): re-point every reference to
+     *  [oldName] at [newName], unless another entity still holds [oldName]. */
+    private fun renameWorkerRefs(kind: WorkerRefKind, oldName: String, newName: String): Settings {
+        if (oldName == newName || oldName.isBlank()) return this
+        // The renamed entity itself now carries newName; a DIFFERENT one
+        // still named oldName keeps the references.
+        if (workerNameTaken(kind, oldName)) return this
+        return retargetWorkerRefs(kind, oldName, newName)
+    }
+
+    /** After a delete (applied already): clear references to [name] unless
+     *  another entity still holds it. */
+    private fun clearWorkerRefsIfUnused(kind: WorkerRefKind, name: String): Settings =
+        if (name.isBlank() || workerNameTaken(kind, name)) this else retargetWorkerRefs(kind, name, null)
+
+    /** Worker chains ([InternalPrompt.workers]) and [InternalPrompt.agent]
+     *  refer to agents / flocks / swarms by NAME, so a rename or delete
+     *  otherwise leaves them pointing at nothing (e.g. renaming the
+     *  bundled `workers` swarm broke every worker prompt). [newName] null
+     *  = deleted: matching chain rows are dropped (an empty chain keeps
+     *  its documented meaning) and [InternalPrompt.agent] resets to
+     *  "*select". */
+    private fun retargetWorkerRefs(kind: WorkerRefKind, oldName: String, newName: String?): Settings {
+        fun hit(v: String) = v.equals(oldName, ignoreCase = true)
+        fun ref(w: Worker) = when (kind) {
+            WorkerRefKind.AGENT -> w.agent
+            WorkerRefKind.FLOCK -> w.flock
+            WorkerRefKind.SWARM -> w.swarm
         }
-    )
+        fun renamed(w: Worker, n: String) = when (kind) {
+            WorkerRefKind.AGENT -> w.copy(agent = n)
+            WorkerRefKind.FLOCK -> w.copy(flock = n)
+            WorkerRefKind.SWARM -> w.copy(swarm = n)
+        }
+        return copy(internalPrompts = internalPrompts.map { p ->
+            var np = p
+            if (p.workers.any { hit(ref(it)) }) np = np.copy(workers =
+                if (newName == null) p.workers.filterNot { hit(ref(it)) }
+                else p.workers.map { if (hit(ref(it))) renamed(it, newName) else it })
+            if (kind == WorkerRefKind.AGENT && hit(p.agent)) np = np.copy(agent = newName ?: "*select")
+            np
+        })
+    }
 
     fun getParametersIds(service: AppService) = getProvider(service).parametersIds
     fun withParametersIds(service: AppService, paramsIds: List<String>) = withProvider(service, getProvider(service).copy(parametersIds = paramsIds))
