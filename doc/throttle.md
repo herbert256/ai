@@ -204,7 +204,14 @@ each retry attempt produces its own trace and HTTP-status tally.
 The 429 and 529 budgets are independent — a 529 burst can't eat
 the 429 retry count. `HttpStatusStatsInterceptor` is innermost so
 it counts every per-attempt response (and failures as `0`)
-regardless of the tracing toggle.
+regardless of the tracing toggle. A call that was **cancelled**
+(`chain.call().isCanceled()` — user Stop, screen closed) is not a
+failure: it is left out of the counts and the recent-errors feed, and
+`TracingInterceptor` logs it at INFO (`⊘ … — cancelled`, no toast) and
+saves its trace with the pseudo status `TRACE_STATUS_CANCELLED` (-1)
+and a `[cancelled]` body instead of status 0 / `[network failure]`, so
+it stays out of the trace list's **Only errors** and the 💥 Failed
+count (it lands under ▫️ Other).
 
 A second client (`rawFetchClient`, used by the model-list snapshot
 fetch `fetchUrlAsString`) reuses the same builder but **drops both

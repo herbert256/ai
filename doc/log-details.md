@@ -449,7 +449,7 @@ captured crash report — the message is the `report` string, not a literal.
 
 ### `data/TracingInterceptor.kt`
 
-- **L97** `tag` — "${MetadataIconsHolder.current.crossMark} $callLabel — ${e.javaClass.simpleName}: ${e.message ?: ""} (${System.currentTimeMillis() - callStart}ms)"
+- **L97** `tag` — "${MetadataIconsHolder.current.crossMark} $callLabel — ${e.javaClass.simpleName}: ${e.message ?: ""} (${elapsedMs}ms)"
 - **L155** `tag` — "← ${response.code} $callLabel in ${durationMs}ms$tail"
 - **L169** `tag` — "← ${response.code} $callLabel in ${durationMs}ms"
 
@@ -652,6 +652,7 @@ captured crash report — the message is the `report` string, not a literal.
 ### `data/TracingInterceptor.kt`
 
 - **L92** `tag` — "→ $callLabel"
+- `tag` — "⊘ $callLabel — cancelled (${elapsedMs}ms)" (a cancelled call; the WARN failure line is for real network failures only)
 - **L157** `tag` — "← ${response.code} $callLabel in ${durationMs}ms"
 - **L171** `tag` — "← ${response.code} $callLabel in ${durationMs}ms"
 

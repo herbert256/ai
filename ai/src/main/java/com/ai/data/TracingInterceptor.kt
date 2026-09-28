@@ -80,15 +80,26 @@ class TracingInterceptor : Interceptor {
         val response = try {
             chain.proceed(request)
         } catch (e: Exception) {
-            AppLog.w(tag, "${MetadataIconsHolder.current.crossMark} $callLabel — ${e.javaClass.simpleName}: ${e.message ?: ""} (${System.currentTimeMillis() - callStart}ms)")
+            // A cancelled call (user Stop, screen closed, superseded batch)
+            // is not a failure: INFO instead of a WARN + toast, and the
+            // trace carries TRACE_STATUS_CANCELLED rather than the
+            // network-failure status 0.
+            val cancelled = chain.call().isCanceled()
+            val elapsedMs = System.currentTimeMillis() - callStart
+            if (cancelled) {
+                AppLog.i(tag, "⊘ $callLabel — cancelled (${elapsedMs}ms)")
+            } else {
+                AppLog.w(tag, "${MetadataIconsHolder.current.crossMark} $callLabel — ${e.javaClass.simpleName}: ${e.message ?: ""} (${elapsedMs}ms)")
+            }
             ApiTracer.saveTrace(ApiTrace(
                 timestamp, hostname, capturedReportId, model, capturedCategory,
                 runId = capturedRunId,
                 request = traceRequest,
                 response = TraceResponse(
-                    statusCode = 0,
+                    statusCode = if (cancelled) TRACE_STATUS_CANCELLED else 0,
                     headers = emptyMap(),
-                    body = "[network failure] ${e.javaClass.simpleName}: ${e.message ?: ""}"
+                    body = if (cancelled) "[cancelled] ${e.javaClass.simpleName}: ${e.message ?: ""}"
+                        else "[network failure] ${e.javaClass.simpleName}: ${e.message ?: ""}"
                 ),
                 partial = false
             ), filename = requestTraceFilename)

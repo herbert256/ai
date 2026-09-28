@@ -102,7 +102,7 @@ internal val developerHelp: Map<String, HelpContent> = mapOf(
         cards = listOf(
             HelpCard("Overview", "List of every captured API trace. First open of the session populates ApiTracer's cache via streaming parse over the trace dir; subsequent opens are O(1). Title varies: \"Report Traces\" when scoped by reportId, \"Traces — <model>\" when scoped by model, \"API Traces\" otherwise."),
             HelpCard("Filter row", "Up to four slots in one row, each conditionally rendered: Category (when >1 distinct), Hostname (when >2), Provider (when >1), Model (when any pickable). \"(All)\" hides itself on the button label so chips read just \"Category\" instead of \"Category: (All)\"."),
-            HelpCard("Errors-only", "Checkbox below the filter row when error count > 0. Filters to status 0 (transport) or >= 400 (HTTP)."),
+            HelpCard("Errors-only", "Checkbox below the filter row when error count > 0. Filters to status 0 (transport) or >= 400 (HTTP). A cancelled call (Stop, status -1) is not an error and is left out."),
             HelpCard("Auto-collapse", "When a deep-link arrives with preset filters and the resulting list has exactly one entry, the screen jumps straight into that trace's detail. Flag is rememberSaveable so popping back lands on the (single-entry) list, not the detail again."),
             HelpCard("Pagination", "Computed from BoxWithConstraints maxHeight (52dp per row, 130dp overhead). Prev/Next + position indicator only when total > 1 page."),
             HelpCard("Per-row", "Hostname (left), date/time (center, MM/dd HH:mm:ss), status code (right; green 2xx / orange 4xx / red 5xx / dim others)."),

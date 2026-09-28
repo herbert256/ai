@@ -21,6 +21,12 @@ import kotlinx.coroutines.asContextElement
 import kotlinx.coroutines.launch
 
 data class TraceRequest(val url: String, val method: String, val headers: Map<String, String>, val body: String?)
+
+/** Pseudo status of a trace whose call was cancelled before a response
+ *  arrived (user Stop, screen closed, superseded batch). Distinct from 0
+ *  (a network failure) so cancellations stay out of "Only errors", the
+ *  failure counts and the recent-errors feed. */
+const val TRACE_STATUS_CANCELLED = -1
 data class TraceResponse(val statusCode: Int, val headers: Map<String, String>, val body: String?)
 data class ApiTrace(
     val timestamp: Long, val hostname: String,

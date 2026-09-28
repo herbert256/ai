@@ -199,8 +199,12 @@ class HttpStatusStatsInterceptor : Interceptor {
         val response = try {
             chain.proceed(chain.request())
         } catch (e: Exception) {
-            HttpStatusStats.record(0, host = host, model = model)   // failure: no response time
-            HttpStatusStats.recordError(host, model, 0, "${e.javaClass.simpleName}: ${e.message ?: ""}".trim())
+            // A cancelled call (user Stop) is not a failure — keep it out of
+            // the "other" count and the recent-errors FAIL feed.
+            if (!chain.call().isCanceled()) {
+                HttpStatusStats.record(0, host = host, model = model)   // failure: no response time
+                HttpStatusStats.recordError(host, model, 0, "${e.javaClass.simpleName}: ${e.message ?: ""}".trim())
+            }
             throw e
         }
         HttpStatusStats.record(response.code, System.currentTimeMillis() - start, host, model)
