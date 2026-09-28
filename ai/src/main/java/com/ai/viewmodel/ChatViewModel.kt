@@ -83,7 +83,8 @@ class ChatViewModel(private val appViewModel: AppViewModel) {
     private suspend fun messagesWithRag(
         context: android.content.Context,
         knowledgeBaseIds: List<String>,
-        messages: List<ChatMessage>
+        messages: List<ChatMessage>,
+        maxContextChars: Int = KnowledgeService.DEFAULT_CONTEXT_CHARS
     ): List<ChatMessage> {
         val lastUserMessage = messages.lastOrNull { it.role == "user" } ?: return messages
         val lastUser = lastUserMessage.content.takeIf { it.isNotBlank() } ?: run {
@@ -95,7 +96,7 @@ class ChatViewModel(private val appViewModel: AppViewModel) {
         AppLog.d("Chat.RAG", "retrieving for kbs=${knowledgeBaseIds.joinToString(",")} queryLen=${lastUser.length}")
         val hits = try {
             val retrieved = KnowledgeService.retrieve(context, appViewModel.repository, appViewModel.uiState.value.aiSettings,
-                knowledgeBaseIds, lastUser)
+                knowledgeBaseIds, lastUser, maxContextChars = maxContextChars)
             recordRagEmbeddingUsage(context, knowledgeBaseIds, lastUser)
             retrieved
         } catch (e: kotlinx.coroutines.CancellationException) {
@@ -189,18 +190,23 @@ class ChatViewModel(private val appViewModel: AppViewModel) {
         appViewModel.repository.chatConfigurationError(AppService.LOCAL, modelName, params)?.let {
             throw IllegalArgumentException(it)
         }
-        val withRag = if (knowledgeBaseIds.isNotEmpty()) messagesWithRag(context, knowledgeBaseIds, messages) else messages
+        // The on-device window is small (prompt + answer share
+        // LocalLlm.CONTEXT_TOKENS), so the knowledge block gets the
+        // smaller Local budget.
+        val withRag = if (knowledgeBaseIds.isNotEmpty()) {
+            messagesWithRag(context, knowledgeBaseIds, messages, LocalLlm.KNOWLEDGE_CONTEXT_CHARS)
+        } else messages
         // Most chat-tuned local models (Gemma, Phi, Llama) accept a
         // system prefix but require the chat-template wrapper, which
         // is model-specific. Plain user/assistant transcript is the
         // safest fallback. RAG context, when present, comes through
         // as an injected system message and we surface it as a
         // single Context: prefix.
-        val prompt = buildString {
-            withRag.firstOrNull { it.role == "system" }?.let {
-                append(it.content).append("\n\n")
-            }
-            withRag.filter { it.role != "system" }.forEach { msg ->
+        val system = withRag.firstOrNull { it.role == "system" }?.content
+        val turns = withRag.filter { it.role != "system" }
+        fun transcript(from: Int) = buildString {
+            system?.let { append(it).append("\n\n") }
+            turns.drop(from).forEach { msg ->
                 append(when (msg.role) {
                     "user" -> "User: "
                     "assistant" -> "Assistant: "
@@ -210,8 +216,22 @@ class ChatViewModel(private val appViewModel: AppViewModel) {
             }
             append("Assistant: ")
         }
-        val out = LocalLlm.generate(context, modelName, prompt, params.forParameterValidation())
-            ?: throw IllegalStateException("Local LLM \"$modelName\" failed — verify it loaded in Housekeeping → Local LLMs.")
+        val out = try {
+            // Drop the oldest turns until the transcript fits the window;
+            // the untrimmed history used to overflow it after a few turns.
+            // The newest turn always stays — if it (plus the system block)
+            // alone is too long, generate reports exactly that.
+            var from = 0
+            var prompt = transcript(0)
+            while (from < turns.size - 1 && LocalLlm.countTokens(context, modelName, prompt) > LocalLlm.MAX_PROMPT_TOKENS) {
+                from++
+                prompt = transcript(from)
+            }
+            if (from > 0) AppLog.i("Chat.Local", "dropped $from oldest turn(s) to fit the ${LocalLlm.CONTEXT_TOKENS}-token window")
+            LocalLlm.generate(context, modelName, prompt, params.forParameterValidation())
+        } catch (e: Exception) {
+            throw IllegalStateException("Local LLM \"$modelName\" failed: ${e.message ?: e.javaClass.simpleName}", e)
+        }
         emit(cleanLocalChatOutput(out))
     }.flowOn(Dispatchers.IO)
 

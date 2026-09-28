@@ -2,6 +2,7 @@ package com.ai.viewmodel
 
 import android.content.Context
 import com.ai.data.*
+import com.ai.data.local.LocalLlm
 import com.ai.model.Settings
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -16,7 +17,15 @@ internal object ReportKnowledge {
             val report=ReportStorage.getReport(context,reportId) ?: return@withLock null
             if (report.knowledgeContext != null || report.knowledgeBaseIds.isEmpty()) return@withLock report
             try {
-                val hits=KnowledgeService.retrieve(context,repository,settings,report.knowledgeBaseIds,report.prompt)
+                // One block serves every answer. A Local (on-device) answer's
+                // 2048-token window holds prompt AND answer, and the default
+                // 8000-char block alone overflows it — so a report with a
+                // Local model gets the smaller budget for all its answers,
+                // keeping the evidence identical across them.
+                val maxChars = if (report.agents.any { it.provider == AppService.LOCAL.id }) LocalLlm.KNOWLEDGE_CONTEXT_CHARS
+                    else KnowledgeService.DEFAULT_CONTEXT_CHARS
+                val hits=KnowledgeService.retrieve(context,repository,settings,report.knowledgeBaseIds,report.prompt,
+                    maxContextChars = maxChars)
                 val text=KnowledgeService.formatContextBlock(hits)
                 val saved = ReportStorage.saveKnowledgeContext(context,reportId,text,
                     if(hits.isEmpty()) "No relevant knowledge passages found" else "Saved ${hits.size} knowledge passages for this report",

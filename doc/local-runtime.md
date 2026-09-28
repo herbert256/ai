@@ -93,7 +93,7 @@ the `<context>…</context>` block to the prompt before
 | Install dir | `<filesDir>/local_llms/` | `<filesDir>/local_models/` |
 | Dir const | `LOCAL_LLMS_DIR = "local_llms"` | `LOCAL_MODELS_DIR = "local_models"` |
 | Acquisition | SAF "Add LLM from file" (Kaggle / HuggingFace hand-off links) | In-app download of two MediaPipe models, or SAF import |
-| Output | response `String?` (null on failure) | `List<List<Double>>?` (L2-normalized; null on failure, `emptyList` on empty input) |
+| Output | response `String` (throws with the real reason on failure) | `List<List<Double>>?` (L2-normalized; null on failure, `emptyList` on empty input) |
 
 Both objects are Kotlin `object` singletons that cache native handles
 in a `ConcurrentHashMap<String, …>` keyed by model name, built
@@ -123,9 +123,18 @@ model name can't read or load a file outside `local_llms/` /
 the engine builders turn into an `IllegalStateException("… not found
 in …")`.
 
-The LLM engine is built with `setMaxTokens(2048)`
-([`LocalLlm.kt:143`](../ai/src/main/java/com/ai/data/local/LocalLlm.kt)) —
+The LLM engine is built with `setMaxTokens(CONTEXT_TOKENS = 2048)`
+([`LocalLlm.kt`](../ai/src/main/java/com/ai/data/local/LocalLlm.kt)) —
 a conservative cap that keeps memory in check on non-flagship phones.
+That window holds the prompt **and** the answer, so `generate` counts
+the prompt (`sizeInTokens`) first and refuses one above
+`MAX_PROMPT_TOKENS` (2048 − 256 kept for the answer) with an "Input too
+long for the on-device model" error; every failure surfaces its real
+reason instead of a generic "verify it loaded". Knowledge blocks for a
+Local answer use `KNOWLEDGE_CONTEXT_CHARS = 3000` instead of the default
+8000 (a report with any Local model uses it for all its answers), and
+the local chat drops the oldest turns until the flattened transcript
+fits (`countTokens`), always keeping the newest turn.
 The embedder is built with `setL2Normalize(true)`, and
 `LocalEmbedder.embed` reads `embedding.floatEmbedding()` per input and
 maps each `Float` to `Double`.

@@ -198,12 +198,14 @@ class AnalysisRepository(
      *  [knowledgeBaseIds]. Throws on failure; callers turn that into an
      *  error response rather than answering without the knowledge. */
     private suspend fun knowledgePrefix(context: Context, aiSettings: com.ai.model.Settings,
-                                        knowledgeBaseIds: List<String>, query: String): String {
+                                        knowledgeBaseIds: List<String>, query: String,
+                                        maxContextChars: Int = KnowledgeService.DEFAULT_CONTEXT_CHARS): String {
         // Own throwaway trace sink: the embedding call must not leave ITS
         // trace in the caller's sink, where it became the answer's
         // traceFile when no model trace followed (Local).
         val hits = withTraceFilenameSink(java.util.concurrent.atomic.AtomicReference()) {
-            KnowledgeService.retrieve(context, this@AnalysisRepository, aiSettings, knowledgeBaseIds, query)
+            KnowledgeService.retrieve(context, this@AnalysisRepository, aiSettings, knowledgeBaseIds, query,
+                maxContextChars = maxContextChars)
         }
         return KnowledgeService.formatContextBlock(hits)
     }
@@ -297,7 +299,9 @@ class AnalysisRepository(
         // deleted KB or a missing embedder key).
         val ragPrefix = if (knowledgeBaseIds.isNotEmpty() && context != null && aiSettings != null) {
             try {
-                knowledgePrefix(context, aiSettings, knowledgeBaseIds, prompt.ifBlank { content })
+                // A Local answer gets the smaller block that fits its window.
+                knowledgePrefix(context, aiSettings, knowledgeBaseIds, prompt.ifBlank { content },
+                    if (agent.provider.id == AppService.LOCAL.id) LocalLlm.KNOWLEDGE_CONTEXT_CHARS else KnowledgeService.DEFAULT_CONTEXT_CHARS)
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -312,7 +316,7 @@ class AnalysisRepository(
             }
             val localParams = mergeParameters(agentResolvedParams, overrideParams)
             val unsupported = buildList {
-                if (localParams.maxTokens != null && localParams.maxTokens != 2048) add("max tokens (local context is fixed at 2048)")
+                if (localParams.maxTokens != null && localParams.maxTokens != LocalLlm.CONTEXT_TOKENS) add("max tokens (local context is fixed at ${LocalLlm.CONTEXT_TOKENS})")
                 if (localParams.frequencyPenalty != null || localParams.presencePenalty != null) add("penalties")
                 if (!localParams.stopSequences.isNullOrEmpty()) add("stop sequences")
                 if (localParams.responseFormatJson) add("JSON constraint")
@@ -323,13 +327,17 @@ class AnalysisRepository(
                 "Local runtime does not support: ${unsupported.joinToString()}. Clear these controls before running.", agentName = agent.name)
             val userPrompt = withRagPrefix(if (literalPrompt) prompt else buildPrompt(prompt, agent), ragPrefix)
             val finalPrompt = localParams.systemPrompt?.takeIf { it.isNotBlank() }?.let { "System instructions:\n$it\n\nUser request:\n$userPrompt" } ?: userPrompt
-            val out = LocalLlm.generate(context, agent.model, finalPrompt, localParams)
-            return@withContext if (out != null) {
-                AnalysisResponse(agent.provider, out, null, agentName = agent.name, promptUsed = finalPrompt, httpStatusCode = 200,
-                    tokenUsage = TokenUsage(finalPrompt.length / 4, out.length / 4, apiCost = 0.0, estimated = true)).withoutThinkSections()
-            } else {
-                AnalysisResponse(agent.provider, null, "Local LLM \"${agent.model}\" failed — verify it loaded in Housekeeping → Local LLMs.", agentName = agent.name, promptUsed = finalPrompt, httpStatusCode = 500)
+            // generate throws with the real reason (e.g. input too long for
+            // the 2048-token window) — show that, not a generic "verify it loaded".
+            val out = try {
+                LocalLlm.generate(context, agent.model, finalPrompt, localParams)
+            } catch (e: Exception) {
+                return@withContext AnalysisResponse(agent.provider, null,
+                    "Local LLM \"${agent.model}\" failed: ${e.message ?: e.javaClass.simpleName}",
+                    agentName = agent.name, promptUsed = finalPrompt, httpStatusCode = 500)
             }
+            return@withContext AnalysisResponse(agent.provider, out, null, agentName = agent.name, promptUsed = finalPrompt, httpStatusCode = 200,
+                tokenUsage = TokenUsage(finalPrompt.length / 4, out.length / 4, apiCost = 0.0, estimated = true)).withoutThinkSections()
         }
         if (agent.apiKey.isBlank()) {
             return@withContext AnalysisResponse(agent.provider, null, "API key not configured for agent ${agent.name}", agentName = agent.name)

@@ -33,6 +33,16 @@ import java.util.concurrent.atomic.AtomicInteger
  */
 object LocalLlm {
     private const val LOCAL_LLMS_DIR = "local_llms"
+    /** The engine's token window (setMaxTokens) — the prompt AND the
+     *  answer share it. */
+    const val CONTEXT_TOKENS = 2048
+    /** Tokens kept free for the answer; a longer prompt is refused up
+     *  front with a clear error instead of failing in native code. */
+    private const val ANSWER_RESERVE_TOKENS = 256
+    const val MAX_PROMPT_TOKENS = CONTEXT_TOKENS - ANSWER_RESERVE_TOKENS
+    /** Knowledge-block budget (chars) for a Local answer: the default
+     *  8000-char block (~2000 tokens) alone overflows [CONTEXT_TOKENS]. */
+    const val KNOWLEDGE_CONTEXT_CHARS = 3000
     private val instances = ConcurrentHashMap<String, NativeHandle<LlmInference>>()
 
     /** Live state for the dashboard's Local-runtime card. */
@@ -142,7 +152,7 @@ object LocalLlm {
             // expose advanced options.
             val options = LlmInference.LlmInferenceOptions.builder()
                 .setModelPath(file.absolutePath)
-                .setMaxTokens(2048)
+                .setMaxTokens(CONTEXT_TOKENS)
                 .build()
             val engine = LlmInference.createFromOptions(context, options)
             AppLog.i("LocalLlm", "← loaded $modelName in ${System.currentTimeMillis() - loadStart}ms")
@@ -172,19 +182,28 @@ object LocalLlm {
         return removed
     }
 
+    /** Token count of [text] under [modelName]'s tokenizer — lets the
+     *  local chat drop old turns until the transcript fits
+     *  [MAX_PROMPT_TOKENS]. Loads the engine like [generate] and throws
+     *  the same errors. */
+    fun countTokens(context: Context, modelName: String, text: String): Int =
+        getEngine(context, modelName).useLocked { it.sizeInTokens(text) }
+
     /** Synchronously generate a response for [prompt]. Records one
-     *  trace entry per call. Returns null on failure. The native
-     *  LlmInference handle is not thread-safe, so calls are
-     *  serialised per-engine — two parallel report agents pointing at
-     *  the same `.task` file would otherwise corrupt the runtime
-     *  state. */
-    fun generate(context: Context, modelName: String, prompt: String, parameters: AgentParameters = AgentParameters()): String? {
+     *  trace entry per call. Throws on failure with the real reason
+     *  (runtime missing, model file gone, input too long for the
+     *  window, native error) so callers show that instead of a generic
+     *  "verify it loaded". The native LlmInference handle is not
+     *  thread-safe, so calls are serialised per-engine — two parallel
+     *  report agents pointing at the same `.task` file would otherwise
+     *  corrupt the runtime state. */
+    fun generate(context: Context, modelName: String, prompt: String, parameters: AgentParameters = AgentParameters()): String {
         val started = System.currentTimeMillis()
         AppLog.d("LocalLlm", "→ generate $modelName promptChars=${prompt.length}")
         markGeneratingStart(modelName)
         return try {
             val engine = getEngine(context, modelName)
-            val out = engine.useLocked { inference ->
+            val out: String = engine.useLocked { inference ->
                 val options = LlmInferenceSession.LlmInferenceSessionOptions.builder().apply {
                     parameters.temperature?.let { setTemperature(it) }
                     parameters.topP?.let { setTopP(it) }
@@ -192,20 +211,25 @@ object LocalLlm {
                     parameters.seed?.let { setRandomSeed(it) }
                 }.build()
                 LlmInferenceSession.createFromOptions(inference, options).use { session ->
+                    val promptTokens = session.sizeInTokens(prompt)
+                    if (promptTokens > MAX_PROMPT_TOKENS) throw IllegalArgumentException(
+                        "Input too long for the on-device model: $promptTokens tokens, at most $MAX_PROMPT_TOKENS fit " +
+                            "(its $CONTEXT_TOKENS-token window also holds the answer). Shorten the prompt, the " +
+                            "conversation or the attached knowledge.")
                     session.addQueryChunk(prompt)
-                    session.generateResponse()
+                    session.generateResponse() ?: error("The model returned no text")
                 }
             }
             val durMs = System.currentTimeMillis() - started
             recordTrace(modelName, prompt, out, durationMs = durMs, error = null)
-            val outLen = out?.length ?: 0
+            val outLen = out.length
             val rate = if (durMs > 0) (outLen.toDouble() * 1000.0 / durMs) else 0.0
             AppLog.d("LocalLlm", "← generate $modelName outChars=$outLen ${durMs}ms (${String.format(Locale.US, "%.1f", rate)} chars/s)")
             out
         } catch (e: Exception) {
             AppLog.e("LocalLlm", "generate failed: ${e.message}", e)
             recordTrace(modelName, prompt, null, durationMs = System.currentTimeMillis() - started, error = e.message ?: e.javaClass.simpleName)
-            null
+            throw e
         } finally {
             markGeneratingEnd(modelName)
         }

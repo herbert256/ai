@@ -177,7 +177,9 @@ Google providers"` — so a KB whose embedder is an Anthropic model can
 never index.
 
 **Retrieve** — `retrieve(kbIds, query, topK = 8, maxContextChars =
-8000)`:
+DEFAULT_CONTEXT_CHARS = 8000)`; on-device answers (local chat, reports
+containing a Local model) pass `LocalLlm.KNOWLEDGE_CONTEXT_CHARS = 3000`
+so the block fits the 2048-token window:
 
 1. Embed the query with the **first** KB's embedder (a warning is
    logged if the other attached KBs declare a different

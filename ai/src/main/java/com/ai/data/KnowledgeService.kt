@@ -21,6 +21,10 @@ import java.util.UUID
  * embedder would silently mis-rank.
  */
 object KnowledgeService {
+    /** Default knowledge-block budget (chars) for [retrieve]. On-device
+     *  answers use the smaller LocalLlm.KNOWLEDGE_CONTEXT_CHARS. */
+    const val DEFAULT_CONTEXT_CHARS = 8000
+
     /** A retrieval hit — the chunk plus its similarity score and KB
      *  context. Used to build the injected context block. */
     data class Hit(
@@ -214,7 +218,7 @@ object KnowledgeService {
         kbIds: List<String>,
         query: String,
         topK: Int = 8,
-        maxContextChars: Int = 8000
+        maxContextChars: Int = DEFAULT_CONTEXT_CHARS
     ): List<Hit> {
         if (kbIds.isEmpty() || query.isBlank()) return emptyList()
         if (topK <= 0) return emptyList()
