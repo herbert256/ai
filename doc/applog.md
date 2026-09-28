@@ -85,6 +85,23 @@ A single writer is held open across calls and **flushed per line**
 so a process kill never loses the last few lines (slightly more
 I/O than batched, but a durable log is the whole point).
 
+## Retention
+
+Log files are pruned automatically (`AppLog.pruneLocked`): files last
+written more than **30 days** ago are deleted, then the oldest days until
+the whole `applog/` directory fits **50 MB**. Today's (active) file is never
+removed. The pass runs when the writer opens (first log call after process
+start, and on the day rollover) and again after every ~2 MB written, and
+reports to logcat only. The viewer's **Delete > 7 days** and 🗑 remain for
+manual trimming.
+
+## Reading files
+
+`readLogFile` and `logFileForRead` resolve the file under the logger lock
+but read it **outside** the lock, so opening a large file in the viewer or
+the App log statistics (which streams each file line by line) no longer
+stalls every `AppLog` call app-wide, the main thread's included.
+
 ## Bootstrap log line
 
 On every app start, `AppViewModel`'s startup path writes one

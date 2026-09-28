@@ -784,7 +784,6 @@ captured crash report — the message is the `report` string, not a literal.
 
 - **L97** `"SSE"` — "stream open"
 - **L128** `"SSE"` — "[DONE] terminator (event=$eventType)"
-- **L144** `"SSE"` — "chunk event=${eventType ?: "(none)"} dataBytes=${data.length} contentBytes=${content.length}"
 - **L148** `"SSE"` — "final chunk (event=$eventType)"
 - **L197** `"SSE"` — "stream closed — $chunkCount chunks in ${System.currentTimeMillis() - parseStartMs}ms"
 

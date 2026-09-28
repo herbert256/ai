@@ -78,6 +78,16 @@ object AppLog {
 
     @Volatile private var cachedFiles: List<AppLogFileInfo>? = null
 
+    // Automatic retention: files last written more than MAX_LOG_AGE_DAYS ago
+    // are removed, then the oldest days until the directory fits
+    // MAX_LOG_TOTAL_BYTES. Today's (active) file is never removed. Runs when
+    // the writer opens (process start / day rollover) and after every
+    // PRUNE_EVERY_BYTES written.
+    private const val MAX_LOG_AGE_DAYS = 30L
+    private const val MAX_LOG_TOTAL_BYTES = 50L * 1024 * 1024
+    private const val PRUNE_EVERY_BYTES = 2L * 1024 * 1024
+    private var bytesSincePrune = 0L
+
     @Volatile private var appContext: Context? = null
     private val mainHandler by lazy { android.os.Handler(android.os.Looper.getMainLooper()) }
     // Debounce so a burst of WARN/ERROR lines (e.g. fan-out icon retries
@@ -208,11 +218,20 @@ object AppLog {
             !name.contains('/') && !name.contains('\\') &&
             name.removePrefix(FILE_PREFIX).removeSuffix(FILE_SUFFIX).matches(Regex("\\d{8}"))
 
-    fun readLogFile(filename: String): String? = lock.withLock {
+    /** Resolves [filename] to its file (null when it isn't one of our log
+     *  files or doesn't exist) without reading it — callers read (or
+     *  stream) the content outside [lock]. */
+    fun logFileForRead(filename: String): File? = lock.withLock {
         if (!isOwnLogFilename(filename)) return null
         val dir = logDir ?: return null
-        val file = File(dir, filename)
-        if (!file.exists()) return null
+        File(dir, filename).takeIf { it.exists() }
+    }
+
+    fun readLogFile(filename: String): String? {
+        val file = logFileForRead(filename) ?: return null
+        // Read outside [lock]: a multi-MB read under it stalled every log
+        // call app-wide, the main thread's included. Appends are flushed
+        // per line, so a concurrent read at worst misses the newest line.
         return try { file.readText() } catch (_: Exception) { null }
     }
 
@@ -298,6 +317,7 @@ object AppLog {
                 val today = FILE_DATE_FORMAT.format(LocalDate.now())
                 if (writerDate != today) {
                     closeWriterLocked()
+                    pruneLocked(dir, "$FILE_PREFIX$today$FILE_SUFFIX")
                     writer = BufferedWriter(FileWriter(File(dir, "$FILE_PREFIX$today$FILE_SUFFIX"), /* append = */ true))
                     writerDate = today
                 }
@@ -306,6 +326,7 @@ object AppLog {
                 val safeMsg = redactSecret(msg)
                 w.write("$ts ${level.name} $tag: $safeMsg")
                 w.newLine()
+                var written = ts.length + tag.length + safeMsg.length + 16L
                 if (t != null) {
                     val sw = StringWriter()
                     t.printStackTrace(PrintWriter(sw))
@@ -313,10 +334,16 @@ object AppLog {
                         if (line.isNotBlank()) {
                             w.write("    $line")
                             w.newLine()
+                            written += line.length + 5L
                         }
                     }
                 }
                 w.flush()
+                bytesSincePrune += written
+                if (bytesSincePrune >= PRUNE_EVERY_BYTES) {
+                    bytesSincePrune = 0L
+                    pruneLocked(dir, "$FILE_PREFIX$today$FILE_SUFFIX")
+                }
                 // Invalidate the cached file list: today's size grew and
                 // possibly the file was just created. The next viewer
                 // open does an O(N) restat — cheap with ~daily-sized N.
@@ -337,6 +364,27 @@ object AppLog {
                 droppedLineCount += 1L
                 android.util.Log.w("AppLog", "appendLine failed: ${e.message}")
             }
+        }
+    }
+
+    /** Retention pass (see [MAX_LOG_AGE_DAYS] / [MAX_LOG_TOTAL_BYTES]).
+     *  Never removes [activeName]. Logs to logcat only — an AppLog call
+     *  from here would re-enter the append path. */
+    private fun pruneLocked(dir: File, activeName: String) {
+        val files = dir.listFiles()?.filter { it.isFile && isOwnLogFilename(it.name) } ?: return
+        val cutoff = System.currentTimeMillis() - MAX_LOG_AGE_DAYS * 24L * 60 * 60 * 1000
+        var total = files.sumOf { it.length() }
+        var removed = 0
+        // yyyyMMdd filenames sort oldest-first.
+        files.filter { it.name != activeName }.sortedBy { it.name }.forEach { f ->
+            if (f.lastModified() < cutoff || total > MAX_LOG_TOTAL_BYTES) {
+                val size = f.length()
+                if (f.delete()) { total -= size; removed++ }
+            }
+        }
+        if (removed > 0) {
+            cachedFiles = null
+            android.util.Log.i("AppLog", "Retention removed $removed old log file(s)")
         }
     }
 

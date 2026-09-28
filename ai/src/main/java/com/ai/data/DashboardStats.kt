@@ -809,14 +809,20 @@ internal suspend fun computeLogStats(): LogStatsData = withContext(Dispatchers.I
     val tags = HashMap<String, Int>()
     var entries = 0
     for (f in files) {
-        val content = AppLog.readLogFile(f.filename) ?: continue
-        for (line in content.lineSequence()) {
-            val m = LOG_HEADER.find(line) ?: continue
-            entries++
-            val lvl = m.groupValues[1]
-            if (lvl in byLevel) byLevel[lvl] = (byLevel[lvl] ?: 0) + 1
-            val tag = m.groupValues[2]
-            if (tag.isNotBlank()) tags[tag] = (tags[tag] ?: 0) + 1
+        // Stream each file outside AppLog's lock: reading whole files under
+        // it stalled every log call app-wide while the statistics loaded.
+        val file = AppLog.logFileForRead(f.filename) ?: continue
+        runCatching {
+            file.useLines { lines ->
+                for (line in lines) {
+                    val m = LOG_HEADER.find(line) ?: continue
+                    entries++
+                    val lvl = m.groupValues[1]
+                    if (lvl in byLevel) byLevel[lvl] = (byLevel[lvl] ?: 0) + 1
+                    val tag = m.groupValues[2]
+                    if (tag.isNotBlank()) tags[tag] = (tags[tag] ?: 0) + 1
+                }
+            }
         }
     }
     LogStatsData(

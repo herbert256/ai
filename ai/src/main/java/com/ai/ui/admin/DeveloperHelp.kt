@@ -173,7 +173,7 @@ internal val developerHelp: Map<String, HelpContent> = mapOf(
             HelpCard("Tap a row", "Opens the per-file detail view with search, tag filter, level filter, time-range filter, copy + share. Files appear newest-first."),
             HelpCard("Empty state", "Shows the current threshold so you can tell when nothing's been written because everything is below it (e.g. threshold = WARN and no warnings have fired today). A red banner appears instead if the log writer hit a disk / IO error — message + dropped-line count surfaced inline."),
             HelpCard("Source", "Files are written by [com.ai.viewmodel.AppLog]; the list is re-read on every screen resume so detail-view deletes propagate."),
-            HelpCard("Pitfalls", "Old files are kept until you delete them (or use Delete > 7 days) — set a calendar reminder if storage matters. Toast messages route through AppLog too: WARN / ERROR levels also flash a toast, but the file is the authoritative record."),
+            HelpCard("Pitfalls", "Files are pruned automatically: days older than 30 days go, then the oldest days until all logs fit 50 MB (today's file is always kept). Use Delete > 7 days or 🗑 to trim sooner. Toast messages route through AppLog too: WARN / ERROR levels also flash a toast, but the file is the authoritative record."),
             HelpCard("Reached from", "Settings → Log/trace/audit/statistics → Application log.")
         )
     ),

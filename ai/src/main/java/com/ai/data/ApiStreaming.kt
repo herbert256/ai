@@ -164,13 +164,11 @@ internal fun parseSseStream(
                 throw java.io.IOException("${eventType}${reason?.let { ": $it" }.orEmpty()}")
             }
             val content = extractContent(eventType, data)
-            // Per-chunk TRACE: log the event-type tag and payload size
-            // (not the payload itself — that would duplicate the trace
-            // file and leak content). Skip when nothing extracted, that
-            // narrows the noise to chunks that actually carry data.
+            // No per-chunk log line: at DEBUG it wrote one file line per
+            // streamed token batch. The "stream closed — N chunks" summary
+            // below carries the count.
             if (!content.isNullOrEmpty()) {
                 chunkCount++
-                AppLog.d("SSE", "chunk event=${eventType ?: "(none)"} dataBytes=${data.length} contentBytes=${content.length}")
                 emit(content)
             }
             if (isFinalChunk(eventType, data)) {
