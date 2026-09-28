@@ -56,15 +56,22 @@ object KnowledgeService {
         // want re-index after a relaunch to keep working without
         // asking the user to re-pick the file.
         val storedUri = persistSourceLocally(context, kbId, uri, displayName)
-        progress.onProgress("Extracting…", 0, 1)
-        val text = KnowledgeExtractors.extract(context, type, storedUri.toString())
-        runIndex(context, repository, aiSettings, kbId,
-            type = type,
-            displayName = displayName,
-            origin = storedUri.toString(),
-            text = text,
-            progress = progress
-        )
+        try {
+            progress.onProgress("Extracting…", 0, 1)
+            val text = KnowledgeExtractors.extract(context, type, storedUri.toString())
+            runIndex(context, repository, aiSettings, kbId,
+                type = type,
+                displayName = displayName,
+                origin = storedUri.toString(),
+                text = text,
+                progress = progress
+            )
+        } catch (e: Throwable) {
+            // The copy only backs a saved source; a failed or cancelled
+            // index saved none, so it would sit in files/ forever.
+            KnowledgeStore.resolveKbDir(context, kbId)?.let { KnowledgeStore.deleteLocalCopy(it, storedUri.toString()) }
+            throw e
+        }
     }
 
     suspend fun indexUrl(

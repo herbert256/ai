@@ -113,6 +113,8 @@ object KnowledgeStore {
     private const val ROOT_DIR = "knowledge"
     private const val MANIFEST = "manifest.json"
     private const val CHUNKS_DIR = "chunks"
+    /** Locally persisted copies of file sources (KnowledgeService.persistSourceLocally). */
+    private const val FILES_DIR = "files"
     private val gson = createAppGson()
     private val lock = ReentrantLock()
     @Volatile private var rootDir: File? = null
@@ -295,8 +297,24 @@ object KnowledgeStore {
             val current = runCatching { loadKb(kbDir) }.getOrNull() ?: return@withLock
             if (!saveManifest(kbDir, current.copy(sources = current.sources.filter { it.id != sourceId }))) {
                 AppLog.w("Knowledge", "deleteSource: manifest update failed for kb=$kbId source=$sourceId")
+                return@withLock
             }
+            // Remove a file source's local copy too — every add + delete
+            // used to leave its bytes behind under files/.
+            current.sources.firstOrNull { it.id == sourceId }?.let { deleteLocalCopy(kbDir, it.origin) }
         }
+    }
+
+    /** Delete [origin] when it is a `file://` copy inside [kbDir]'s
+     *  files/ (and nowhere else — a restored manifest's origin must not
+     *  aim the delete outside this KB). */
+    internal fun deleteLocalCopy(kbDir: File, origin: String) {
+        if (!origin.startsWith("file:")) return
+        val path = runCatching { android.net.Uri.parse(origin).path }.getOrNull() ?: return
+        val filesDir = File(kbDir, FILES_DIR)
+        val copy = File(path)
+        if (!copy.canonicalPath.startsWith(filesDir.canonicalPath + File.separator)) return
+        if (copy.exists() && !copy.delete()) AppLog.w("Knowledge", "Could not delete local copy ${copy.name}")
     }
 
     /** Stream every chunk for [kbId] across all its sources through

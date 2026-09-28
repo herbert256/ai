@@ -257,6 +257,11 @@ knowledge/<kbId>/
   files/<unique>         — locally-cached copy of a file source
 ```
 
+A copy lives exactly as long as its source: a failed or cancelled
+`indexFile` deletes the copy it just made, and `deleteSource` deletes
+the source's `file://` origin (only when it resolves inside this KB's
+`files/`).
+
 One chunk file per source keeps add/remove/re-index cheap (no full-KB
 rewrite). `forEachChunk` parses one source file at a time and lets the
 decoded array go out of scope between files, so peak heap during
