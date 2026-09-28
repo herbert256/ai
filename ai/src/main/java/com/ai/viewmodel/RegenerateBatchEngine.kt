@@ -66,6 +66,28 @@ class RegenerateBatchEngine internal constructor(
      *  composable. */
     fun hasJob(reportId: String): Boolean = _jobs.value.containsKey(reportId)
 
+    /** Toasts from this engine's launches: they run on Dispatchers.IO (no
+     *  Looper), where Toast.makeText throws — the throw was swallowed by
+     *  CrashReporter.coroutineHandler and the user saw nothing. */
+    private suspend fun toast(context: Context, text: String) = withContext(Dispatchers.Main) {
+        android.widget.Toast.makeText(context, text, android.widget.Toast.LENGTH_LONG).show()
+    }
+
+    /** [com.ai.data.ReportWorkLimits] gate that tells the user, instead of
+     *  ReportWorkLimits.checkSize's require() throw, which died silently in
+     *  the coroutine handler. */
+    internal suspend fun fitsSizeLimit(context: Context, size: Int): Boolean {
+        if (size <= com.ai.data.ReportWorkLimits.MAX_ITEMS) return true
+        toast(context, "This regenerate has $size items. Limit is ${com.ai.data.ReportWorkLimits.MAX_ITEMS}; reduce models or scope.")
+        return false
+    }
+
+    /** Size of the task list a full Regenerate would build for [reportId]
+     *  right now — lets [ReportViewModel.regenerateReportBatch] check the
+     *  size limit before it applies staged edits or clears the banner. */
+    internal suspend fun taskCount(context: Context, reportId: String): Int =
+        buildTaskList(context, reportId).size
+
     // -----------------------------------------------------------------
     // Hydration — disk → StateFlow
     // -----------------------------------------------------------------
@@ -135,15 +157,14 @@ class RegenerateBatchEngine internal constructor(
                 else -> allTasks
             }
             if ((erroredOnly || onlyAgentIds != null) && tasks.isEmpty()) {
-                android.widget.Toast.makeText(
+                toast(
                     context,
                     if (erroredOnly) "Nothing to retry — no errored rows on this report."
-                    else "Model list updated — nothing new to run.",
-                    android.widget.Toast.LENGTH_LONG
-                ).show()
+                    else "Model list updated — nothing new to run."
+                )
                 return@launch
             }
-            com.ai.data.ReportWorkLimits.checkSize(tasks.size)
+            if (!fitsSizeLimit(context, tasks.size)) return@launch
             val now = System.currentTimeMillis()
             // Start at the FIRST phase the enum declares — not a
             // hardcoded one. Otherwise prepending a new phase
@@ -186,7 +207,7 @@ class RegenerateBatchEngine internal constructor(
                 }) }
             }
             val unfinishedCount = RegenerateBatchStorage.get(context,reportId)?.tasks?.count { it.state != RegenerateTaskState.SUCCESS } ?: 0
-            com.ai.data.ReportWorkLimits.checkSize(unfinishedCount)
+            if (!fitsSizeLimit(context, unfinishedCount)) return@launch
             var shouldStart = false
             mutateJob(context, reportId, allowTerminalMutation = true) { job ->
                 when {

@@ -2301,7 +2301,20 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 val modelListOnly = pre.stagedChangesReportId == reportId &&
                     pre.stagedReportModels.isNotEmpty() &&
                     !pre.hasPendingPromptChange && !pre.hasPendingParametersChange
-                val appliedNewIds = applyStagedModelList(context, reportId)
+                // The batch-size limit is checked BEFORE the staged list is
+                // written and the banner cleared: the engine's own check runs
+                // after, so an over-limit batch used to apply the edit, drop
+                // the pending banner and then start nothing.
+                val applied = applyStagedModelList(context, reportId) { added, removed ->
+                    regenerateBatchEngine.fitsSizeLimit(context,
+                        if (modelListOnly) added
+                        else regenerateBatchEngine.taskCount(context, reportId) + added - removed)
+                }
+                if (applied.aborted) return@launch
+                val appliedNewIds = applied.newIds
+                if (appliedNewIds == null && !modelListOnly &&
+                    !regenerateBatchEngine.fitsSizeLimit(context, regenerateBatchEngine.taskCount(context, reportId))
+                ) return@launch
                 appViewModel.updateUiState {
                     // Staged state belonging to a different report survives a
                     // plain regenerate here — it stays banner-visible on its
@@ -2333,15 +2346,19 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
      *  Returns the ids of the newly appended agents (empty set when the
      *  edit was removals-only), or null when no staged list was applied
      *  at all — caller uses this for the additive model-list-only
-     *  regenerate. */
-    private suspend fun applyStagedModelList(context: Context, reportId: String): Set<String>? {
+     *  regenerate. [fitsLimit] gets the (added, removed) agent counts
+     *  before anything is written; false → nothing applied, `aborted`. */
+    private suspend fun applyStagedModelList(
+        context: Context, reportId: String,
+        fitsLimit: suspend (added: Int, removed: Int) -> Boolean
+    ): StagedModelListApply {
         val state = appViewModel.uiState.value
         val staged = state.stagedReportModels
         // Owner gate: the staged list belongs to exactly one report. Applying
         // report X's list to report Y would delete every Y agent not in X's
         // set — the swipe-navigation data-loss bug.
-        if (staged.isEmpty() || state.stagedChangesReportId != reportId) return null
-        val report = withContext(Dispatchers.IO) { ReportStorage.getReport(context, reportId) } ?: return null
+        if (staged.isEmpty() || state.stagedChangesReportId != reportId) return StagedModelListApply(null)
+        val report = withContext(Dispatchers.IO) { ReportStorage.getReport(context, reportId) } ?: return StagedModelListApply(null)
         val ai = state.aiSettings
         val agentIds = staged.filter { it.type == "agent" }.mapNotNull { it.agentId }.toSet()
         // Kept swarm members from their explicit (provider, model) — never
@@ -2373,7 +2390,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                     "Edited model list had nothing to run — none of the picked agents or providers are configured on this device.",
                     android.widget.Toast.LENGTH_LONG).show()
             }
-            return null
+            return StagedModelListApply(null)
         }
         val existingIds = report.agents.map { it.agentId }.toSet()
         val overlay = resolveReportOverrideParams(ai, report.parameterPresetIds, report.advancedParameters,
@@ -2385,6 +2402,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 baseParameters = task.resolvedParams, refreshPrompt = true))
         }
         val removedIds = existingIds - tasks.map { it.resultId }.toSet()
+        if (!fitsLimit(newAgents.size, removedIds.size)) return StagedModelListApply(null, aborted = true)
         withContext(Dispatchers.IO) {
             for (id in removedIds) {
                 val agent = report.agents.firstOrNull { it.agentId == id }
@@ -2412,8 +2430,13 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             }
         }
         AuditLog.append(reportId, "Applied edited model list (+${newAgents.size} / -${removedIds.size} models)")
-        return newAgents.map { it.agentId }.toSet()
+        return StagedModelListApply(newAgents.map { it.agentId }.toSet())
     }
+
+    /** [applyStagedModelList]'s result: [newIds] as documented there;
+     *  [aborted] = the regenerate would exceed the size limit, so nothing
+     *  was applied (already toasted). */
+    private class StagedModelListApply(val newIds: Set<String>?, val aborted: Boolean = false)
 
     /**
      * Update the saved report's prompt (and the matching UiState) without
