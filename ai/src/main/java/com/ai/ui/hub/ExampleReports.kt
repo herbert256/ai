@@ -121,7 +121,7 @@ internal fun rememberExampleOpener(
     return { entry, view ->
         scope.launch {
             val exists = withContext(Dispatchers.IO) {
-                ReportStorage.getAllReports(context).any { it.title == entry.title }
+                ReportStorage.getReportHeaders(context).any { it.title == entry.title }
             }
             if (exists) overwriteTarget = entry to view
             else importExampleAndOpen(entry, view, false)

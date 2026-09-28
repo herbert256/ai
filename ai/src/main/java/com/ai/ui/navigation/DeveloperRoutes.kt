@@ -374,7 +374,7 @@ internal fun NavGraphBuilder.developerRoutes(
             val resumeTick = com.ai.ui.shared.resumeRefreshTick()
             val hasTrimmable by produceState(initialValue = false, resumeTick) {
                 value = withContext(Dispatchers.IO) {
-                    com.ai.data.ReportStorage.getAllReports(ctx).isNotEmpty() ||
+                    com.ai.data.ReportStorage.getReportHeaders(ctx).isNotEmpty() ||
                         com.ai.data.ChatHistoryManager.getSessionCount() > 0 ||
                         com.ai.data.ApiTracer.hasAnyTraceFile()
                 }

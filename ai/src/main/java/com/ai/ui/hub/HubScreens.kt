@@ -75,7 +75,7 @@ fun HubScreen(
     // freshly-finished report is reachable without a process restart.
     val refreshTick = com.ai.ui.shared.resumeRefreshTick()
     val hasAnyReport by produceState(initialValue = false, refreshTick) {
-        value = withContext(Dispatchers.IO) { ReportStorage.getAllReports(context).isNotEmpty() }
+        value = withContext(Dispatchers.IO) { ReportStorage.getReportHeaders(context).isNotEmpty() }
     }
 
     // "Running reports" + "Reports with problems" cards — shared

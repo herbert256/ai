@@ -118,7 +118,7 @@ internal fun ColumnScope.SelectionPhase(
     // IO read returns.
     val hasAnyReport by androidx.compose.runtime.produceState(initialValue = false) {
         value = withContext(Dispatchers.IO) {
-            com.ai.data.ReportStorage.getAllReports(context).isNotEmpty()
+            com.ai.data.ReportStorage.getReportHeaders(context).isNotEmpty()
         }
     }
 

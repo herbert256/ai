@@ -143,7 +143,7 @@ fun ModelSelectionScreen(
         // having saved reports.
         val hasAnyReport by androidx.compose.runtime.produceState(initialValue = false) {
             value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                com.ai.data.ReportStorage.getAllReports(context).isNotEmpty()
+                com.ai.data.ReportStorage.getReportHeaders(context).isNotEmpty()
             }
         }
         @OptIn(ExperimentalLayoutApi::class)

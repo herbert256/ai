@@ -51,7 +51,7 @@ fun TrimByAgeScreen(
             val counts by produceState<TrimByAgeCounts?>(initialValue = null, cutoff) {
                 value = withContext(Dispatchers.IO) {
                     TrimByAgeCounts(
-                        reports = ReportStorage.getAllReports(context).count { it.timestamp < cutoff },
+                        reports = ReportStorage.getReportHeaders(context).count { it.timestamp < cutoff },
                         chats = ChatHistoryManager.getAllSessions().count { it.updatedAt < cutoff },
                         traces = ApiTracer.getTraceFiles().count { it.timestamp < cutoff }
                     )
