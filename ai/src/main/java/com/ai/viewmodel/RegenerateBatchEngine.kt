@@ -1057,8 +1057,19 @@ class RegenerateBatchEngine internal constructor(
             )
         }
 
-        // TRANSLATIONS — every TRANSLATE row.
-        val translateRows = all.filter { it.kind == SecondaryKind.TRANSLATE }
+        // TRANSLATIONS — every TRANSLATE row whose source still exists. The
+        // dispatcher (TranslationRunManager) drops a row whose agent / meta
+        // is gone, so a task for it — blanked by resetRowsForPhase — never
+        // settles and the phase waits out the 30-minute timeout.
+        val agentIdSet = report.agents.map { it.agentId }.toSet()
+        val secondaryIdSet = all.map { it.id }.toSet()
+        val translateRows = all.filter { it.kind == SecondaryKind.TRANSLATE }.filter { row ->
+            when (row.translateSourceKind) {
+                "AGENT", "AGENT_TITLE" -> row.translateSourceTargetId in agentIdSet
+                "META", "FANOUT_TITLE" -> row.translateSourceTargetId in secondaryIdSet
+                else -> true
+            }
+        }
         for (row in translateRows) {
             tasks += RegenerateTask(
                 rowId = row.id,

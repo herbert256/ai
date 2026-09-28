@@ -3305,14 +3305,20 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             // total twice for one agent.
             val actuallyRemoved = ReportStorage.removeAgent(context, reportId, agentId)
             // Cascade: every TRANSLATE row whose translateSourceKind =
-            // "AGENT" and translateSourceTargetId == this agent's id is
-            // now an orphan. Drop them so the on-disk state matches the
-            // META cascade in deleteSecondaryResult. Their cost rolls
-            // into costsFromDeletedItems so the cost view continues to
-            // reflect the real API spend.
+            // "AGENT" or "AGENT_TITLE" (its answer / its model title) and
+            // translateSourceTargetId == this agent's id is now an orphan.
+            // Drop them so the on-disk state matches the META cascade in
+            // deleteSecondaryResult — a left-over title row was later
+            // blanked by a full Regenerate and never re-run (its source is
+            // gone), hanging the TRANSLATIONS phase. Their cost rolls into
+            // costsFromDeletedItems so the cost view continues to reflect
+            // the real API spend.
             val orphans = SecondaryResultStorage
                 .listForReport(context, reportId, SecondaryKind.TRANSLATE)
-                .filter { it.translateSourceKind == "AGENT" && it.translateSourceTargetId == agentId }
+                .filter {
+                    (it.translateSourceKind == "AGENT" || it.translateSourceKind == "AGENT_TITLE") &&
+                        it.translateSourceTargetId == agentId
+                }
             if (orphans.isNotEmpty()) {
                 var costDelta = 0.0
                 orphans.forEach { tr ->
