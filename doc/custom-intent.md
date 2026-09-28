@@ -52,7 +52,7 @@ or empty pairs, such as `<return>` or `<return></return>`.
 | `<open>content</open>` / `<close>content</close>` | Opening/closing report presentation, including HTML, CSS and JavaScript. |
 | `<next>View</next>` | Completion action: `View`, `Share`, `Browser` or `Email`. Email uses AI's configured default email address. |
 | `<email>recipient@example.com</email>` | Open the email chooser with the completed report attached and recipient filled in. |
-| `<return>` | Finish AI after its completion action. No report data is returned as an Android activity result. |
+| `<return>` | Finish AI after its completion action. No report data is returned as an Android activity result. `MainActivity` is `singleTask`, so the request runs in AI's own (single) task, brought in front of the caller's; finishing AI's task root reveals the caller again. It also ends any other work running in AI at that moment, since there is only one AI instance. |
 | `<name>value</name>` | Supply data for matching `@name@` placeholders. Send it only when that placeholder is used. |
 
 Only a confirmed request's `<open>` becomes presentation HTML (internally it

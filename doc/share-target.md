@@ -78,9 +78,19 @@ Notes on the exact filter set:
   the chooser can hand to Report-as-knowledge or to the Knowledge
   screen.
 
-`MainActivity` is `launchMode="singleTop"` and `exported="true"`. The
+`MainActivity` is `launchMode="singleTask"` and `exported="true"`. The
 `MAIN`/`LAUNCHER` and `com.ai.ACTION_NEW_REPORT` filters share the same
-activity.
+activity. `singleTask` means a share (or external request) from another
+app is delivered to the **one** running instance via `onNewIntent`, in
+AI's own task — `singleTop` used to start a second `MainActivity`, with
+its own `AppViewModel` and `Settings` copy, inside the sender's task (the
+two instances overwrote each other's settings, the second's cold-start
+pass stamped the first's live batch cells Interrupted, and Back on its
+hub moved the sender's task away). A task that a share created keeps the
+`ACTION_SEND` as its base intent, so `onCreate` also skips
+`handleIntent` for a relaunch from Recents
+(`FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY`) — otherwise reopening it after
+the activity finished would replay the old share.
 
 ## Snapshot
 

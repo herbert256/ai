@@ -30,10 +30,19 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.AI"
         tools:targetApi="31">
+        <!-- singleTask: shares and com.ai.ACTION_NEW_REPORT hand-offs from
+             other apps reach the ONE instance (onNewIntent) in AI's own task.
+             singleTop created a second MainActivity (own AppViewModel and
+             Settings copy) inside the sender's task: the two overwrote each
+             other's settings, the second's cold-start pass stamped the
+             first's live batch cells Interrupted, and Back on its hub moved
+             the sender's task away. A <return> request still finishes AI
+             after its completion action; finishing the root of AI's task
+             hands the screen back to the caller's task underneath. -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
-            android:launchMode="singleTop"
+            android:launchMode="singleTask"
             android:theme="@style/Theme.AI">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

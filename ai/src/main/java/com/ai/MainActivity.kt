@@ -73,7 +73,12 @@ class MainActivity : ComponentActivity() {
         // — handling it a second time re-imports the shared content the user already
         // consumed, which surfaces as the chat composer suddenly re-populating with a
         // shared file or text the user just dismissed.
-        if (savedInstanceState == null) handleIntent(intent)
+        // Same for a relaunch from Recents: with launchMode singleTask a task
+        // started by a share / ACTION_NEW_REPORT keeps that intent as its base
+        // intent, so reopening it after the activity finished (e.g. a <return>
+        // request) would replay the old share / request.
+        val fromRecents = ((intent?.flags ?: 0) and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY) != 0
+        if (savedInstanceState == null && !fromRecents) handleIntent(intent)
 
         setContent {
             val viewModel: AppViewModel = viewModel()

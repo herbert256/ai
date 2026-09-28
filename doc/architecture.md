@@ -171,8 +171,11 @@ Activity in the codebase (there is no custom `Application` subclass). In
    `<filesDir>/crash/last-crash.txt`;
 2. calls `enableEdgeToEdge()`;
 3. handles a share intent via `handleIntent(intent)` **only when
-   `savedInstanceState == null`**, so a rotation doesn't re-import the
-   shared payload;
+   `savedInstanceState == null`** and the launch is not a relaunch from
+   Recents, so a rotation doesn't re-import the shared payload and a
+   `singleTask` task created by a share doesn't replay its base intent
+   (later shares / `ACTION_NEW_REPORT` reach the single instance through
+   `onNewIntent`);
 4. sets content to `AppNavHost(...)` wrapped in `AppTheme`.
 
 ## Navigation: two systems
