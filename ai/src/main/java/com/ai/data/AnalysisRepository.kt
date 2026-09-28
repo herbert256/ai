@@ -499,19 +499,27 @@ class AnalysisRepository(
         }
         answerFilter.finish().takeIf { it.isNotEmpty() }?.let(onDelta)
         val resp = rawResponse.withoutThinkSections()
+        fun estimatedUsage(answer: String) = TokenUsage(
+            (finalPrompt.length + 3 + (params.systemPrompt?.length ?: 0)) / 4, (answer.length + 3) / 4,
+            estimated = true, traceFile = ApiTracer.traceFilenameSink.get()?.get())
         if (resp.isSuccess) {
             // Keep a successful stream even when usage must be estimated;
             // missing usage never justifies billing the same answer again.
             return@withContext if (resp.tokenUsage.let { it != null && (it.inputTokens > 0 || it.outputTokens > 0) }) {
                 resp.copy(agentName = agent.name, promptUsed = finalPrompt)
             } else resp.copy(
-                tokenUsage = TokenUsage((finalPrompt.length + 3 + (params.systemPrompt?.length ?: 0)) / 4, ((rawResponse.analysis ?: "").length + 3) / 4, estimated = true, traceFile = ApiTracer.traceFilenameSink.get()?.get()),
+                tokenUsage = estimatedUsage(rawResponse.analysis ?: ""),
                 agentName = agent.name, promptUsed = finalPrompt
             )
         }
         if (!shouldFallbackFromReportStream(resp)) {
             AppLog.i("AiAnalysis", "Skipping non-streaming fallback for ${agent.name}: HTTP ${resp.httpStatusCode}, finish=${resp.finishReason}, generationFailed=${resp.generationFailed}")
-            return@withContext resp.copy(agentName = agent.name, promptUsed = finalPrompt)
+            // Like chat: a stream that broke off after producing text but
+            // never reported usage was still billed — record an explicit
+            // estimate instead of zero. No text and no usage stays unpriced.
+            val usage = resp.tokenUsage
+                ?: rawResponse.analysis?.takeIf { it.isNotBlank() }?.let { estimatedUsage(it) }
+            return@withContext resp.copy(tokenUsage = usage, agentName = agent.name, promptUsed = finalPrompt)
         }
         AppLog.w("AiAnalysis", "Streaming attempt failed for ${agent.name}; trying non-streaming")
         // Keep the fallback outside the streaming try/catch: an exception in
