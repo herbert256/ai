@@ -326,15 +326,49 @@ fun schulze(m: WinMatrix): List<RankRow> {
             .thenBy { m.ids[it] }
     )
     val denom = (n - 1).coerceAtLeast(1)
+    // Tied standings (same beat-path wins AND strength) share one score — the
+    // mean of the positional scores they span. A plain positional score turned
+    // an all-tie matrix into a fake 100…0 spread ordered by report position
+    // (the id tiebreak), and Schulze was then the one method Value view's
+    // Combined blend didn't drop as uninformative. Ranks stay 1..N (id
+    // tiebreak), like every other method.
+    fun tied(x: Int, y: Int) = beatWins[x] == beatWins[y] && kotlin.math.abs(strength[x] - strength[y]) < 1e-9
+    val scoreAt = DoubleArray(n)
+    var start = 0
+    while (start < n) {
+        var end = start
+        while (end + 1 < n && tied(order[start], order[end + 1])) end++
+        val mean = (start..end).map { 100.0 * (n - 1 - it) / denom }.average()
+        for (pos in start..end) scoreAt[pos] = mean
+        start = end + 1
+    }
     return order.mapIndexed { rank, i ->
-        val score = 100.0 * (n - 1 - rank) / denom
         RankRow(
             id = m.ids[i],
             rank = rank + 1,
-            score = Math.round(score * 10.0) / 10.0,
+            score = Math.round(scoreAt[rank] * 10.0) / 10.0,
             reason = String.format(java.util.Locale.US, "Beats %d via strongest paths", beatWins[i])
         )
     }
+}
+
+/** Each id's position in [rows] (a [rankFor] result) with ties shared:
+ *  rows with equal scores all get the mean of the 1-based ranks they span.
+ *  The ranks themselves break ties by id, so averaging them across methods
+ *  (Value view's Tournament Total) ordered genuinely tied models by report
+ *  position. */
+fun tieAwarePositions(rows: List<RankRow>): Map<Int, Double> {
+    val sorted = rows.sortedBy { it.rank }
+    val out = HashMap<Int, Double>()
+    var start = 0
+    while (start < sorted.size) {
+        var end = start
+        while (end + 1 < sorted.size && kotlin.math.abs(sorted[end + 1].score - sorted[start].score) < 1e-9) end++
+        val mean = (start..end).map { sorted[it].rank.toDouble() }.average()
+        for (k in start..end) out[sorted[k].id] = mean
+        start = end + 1
+    }
+    return out
 }
 
 /** Colley's bias-free rating (the sports/BCS method). Solves the Colley

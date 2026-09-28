@@ -1008,7 +1008,7 @@ private fun methodScoreHint(method: TournamentMethod): String = when (method) {
     TournamentMethod.ELO -> "Score = Elo rating (all start at 1500) — higher is better."
     TournamentMethod.DAVIDSON -> "Score = Davidson strength (tie-aware fit) — higher is better."
     TournamentMethod.MARKOV -> "Score = Markov visit share — higher is better."
-    TournamentMethod.SCHULZE -> "Score = Schulze beat-path strength — higher is better."
+    TournamentMethod.SCHULZE -> "Score = Schulze standing by strongest beat-paths (100 = first, 0 = last; tied standings share a score) — higher is better."
     TournamentMethod.COLLEY -> "Score = Colley rating (centred on 0.5) — higher is better."
     TournamentMethod.TRUESKILL2 -> "Score = TrueSkill2 conservative skill (μ − 3σ) — higher is better."
 }

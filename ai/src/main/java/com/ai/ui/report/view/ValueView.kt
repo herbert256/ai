@@ -230,7 +230,9 @@ internal fun buildValuePoints(
  *  better), matching the Tournament Total grid's ordering. */
 internal fun tournamentTotalRows(matrix: WinMatrix): List<RerankRow> {
     val methods = TournamentMethod.values()
-    val rankByMethod = methods.associateWith { m -> rankFor(m, matrix).associate { it.id to it.rank } }
+    // Tie-aware positions: the per-method ranks break score ties by id, so
+    // averaging them ordered genuinely tied models by report position.
+    val rankByMethod = methods.associateWith { m -> com.ai.data.tieAwarePositions(rankFor(m, matrix)) }
     val n = matrix.n
     return matrix.ids.map { id ->
         val ranks = methods.mapNotNull { rankByMethod[it]?.get(id) }

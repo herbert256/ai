@@ -167,7 +167,7 @@ would crash on a comma-decimal locale).
 | **Elo** | Replays each contested pair once in deterministic id order, K=32 from a 1500 base. Order-sensitive, so a weaker fit for a static round-robin. |
 | **Davidson** | Tie-aware paired-comparison MLE using the explicit tie counts, 700 gradient iterations; score = fitted strength rescaled so the strongest = 100. Davidson is the only method that **triggers a rebuild** of the matrix from the match rows when the sidecar lacks explicit ties (`hasTieData == false`); TrueSkill2 also reads tie counts but uses whatever the decoded matrix carries (synthesized from wins/games when absent). |
 | **Markov** | Random-walk stationary distribution over the pairwise results (damping 0.92, ~500 power-iterations), rescaled so the strongest = 100. |
-| **Schulze** | Beatpaths (Condorcet). Seeds each ordered pair with the winner's pairwise points, then Floyd–Warshall finds the strongest (widest) path between every pair; `i` outranks `j` when its strongest path beats `j`'s back. Ordering method — rank-based score, beatpath win count as the reason. |
+| **Schulze** | Beatpaths (Condorcet). Seeds each ordered pair with the winner's pairwise points, then Floyd–Warshall finds the strongest (widest) path between every pair; `i` outranks `j` when its strongest path beats `j`'s back. Ordering method — positional score (100 = first … 0 = last), with **tied standings** (same beatpath wins and strength) sharing the mean of the positions they span, so an all-tie matrix scores everyone 50 rather than a fake spread by report order; beatpath win count as the reason. |
 | **Colley** | Colley's bias-free rating (the sports/BCS method): solves `C·r = b` via Gauss–Jordan with partial pivoting; ratings centre near 0.5 and fold in schedule strength without margin bias, rescaled so the strongest = 100. Falls back to a plain win share if the solve degenerates. |
 | **TrueSkill2** | The 1-v-1 core of Microsoft's TrueSkill: a Bayesian μ/σ skill belief per response updated through every contested pair (draw margin estimated from the observed tie rate). Score = the conservative estimate μ − 3σ. |
 
@@ -177,7 +177,9 @@ would crash on a comma-decimal locale).
 > count (commit `490d8b2e9`).
 
 `assignRanks` sorts by score descending with an id-ascending tiebreak and
-assigns ranks 1..N.
+assigns ranks 1..N. Because that tiebreak is arbitrary, Value view's
+Tournament Total averages **tie-aware** positions (`tieAwarePositions`: equal
+scores share the mean of their ranks) rather than the raw ranks.
 
 Manage-side drill-in:
 
