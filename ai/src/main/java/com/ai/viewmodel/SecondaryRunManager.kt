@@ -135,8 +135,15 @@ class SecondaryRunManager(
                 )
             }
             val row = SecondaryResultStorage.get(context, reportId, base.id) ?: return
-            if (row.errorMessage == null && !row.content.isNullOrBlank()) return  // success
+            // A RERANK reply only counts when it parses as a ranking — a
+            // prose preamble / non-JSON answer used to be accepted, leaving a
+            // "successful" rerank no Top-ranked scope could read, instead of
+            // falling back to the next worker.
+            val unreadableRanking = kind == SecondaryKind.RERANK && !row.content.isNullOrBlank() &&
+                extractTopRankedIds(row.content, 1) == null
+            if (row.errorMessage == null && !row.content.isNullOrBlank() && !unreadableRanking) return  // success
             lastErr = row.errorMessage
+                ?: if (unreadableRanking) "Reply was not a readable ranking (expected a JSON array of {id, rank, score, reason})." else null
             if (row.errorMessage?.contains("429") == true || row.errorMessage?.contains("529") == true) {
                 cooldown[key] = System.currentTimeMillis() + WORKER_429_DEFAULT_MS
                 sawRateLimit = true
@@ -1509,9 +1516,10 @@ class SecondaryRunManager(
                 // update to the report, not a passive read.
                 ReportStorage.bumpReportTimestamp(context, reportId)
                 // Resolve scope: AllReports → no filter; TopRanked → parse
-                // the chosen rerank, take the top-N original ids. If parsing
-                // fails (legacy / malformed rerank output) fall back to
-                // AllReports rather than blocking the user.
+                // the chosen rerank, take the top-N original ids. A ranking
+                // that can't be read (errored / malformed) or whose models are
+                // all gone resolves to NO answers — refused below with a
+                // message, never silently widened to all answers.
                 val includeIds: Set<Int>? = when (scopeChoice) {
                     SecondaryScope.AllReports -> null
                     is SecondaryScope.TopRanked -> {
@@ -1540,7 +1548,18 @@ class SecondaryRunManager(
                 val successfulCount = if (includeIds != null) includeIds.size
                     else report.agents.count { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
 
-                require(successfulCount > 0) { "The selected scope contains no available answers. Select answers before running." }
+                if (successfulCount <= 0) {
+                    // Used to be a require(): the throw only reached the
+                    // crash-history handler, so the run silently did nothing.
+                    val message = if (scopeChoice is SecondaryScope.TopRanked)
+                        "The selected ranking has no readable ranking of the current answers. Pick another ranking or all answers."
+                    else "The selected scope contains no available answers. Select answers before running."
+                    AppLog.w("Meta", "\"${metaPrompt.name}\" not run report=$reportId: $message")
+                    withContext(Dispatchers.Main) {
+                        android.widget.Toast.makeText(context, message, android.widget.Toast.LENGTH_LONG).show()
+                    }
+                    return@withTracerTags
+                }
                 // Multi-language fan-out: one batch per language present
                 // on the report. The Original language is encoded as null
                 // and the SecondaryResult.targetLanguage stays null for

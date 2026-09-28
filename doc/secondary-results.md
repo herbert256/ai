@@ -320,6 +320,13 @@ cascade-on-prompt-change path reads `secondaryScope` and re-runs at
 the same scope rather than silently widening to `AllReports`. Legacy
 rows (no `secondaryScope` set) fall back to `AllReports`.
 
+The scope screen offers only rankings that parse (`extractTopRankedIds`)
+and carry no error, newest first. A Meta run whose Top-ranked scope still
+resolves to no answers is refused with a toast (never widened). A RERANK
+worker reply that isn't a readable ranking (e.g. prose before the JSON)
+counts as a miss in `runSecondaryViaSwarm`, so the next worker is tried; if
+none produces one the row ends as an error.
+
 ## Tournament / Judges / Compare
 
 The grid-shaped secondary kinds are **not** launched through the

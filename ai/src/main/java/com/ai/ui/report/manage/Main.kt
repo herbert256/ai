@@ -1011,10 +1011,16 @@ fun ReportsScreen(
                 val all = com.ai.data.SecondaryResultStorage.listForReport(context, rid)
                 // Tournament aggregate rows conform to the rerank JSON
                 // contract, so they're selectable as a Top-ranked source too.
+                // Only rankings that actually parse are offered — an errored
+                // or prose rerank resolved to NO answers, so the Meta run
+                // silently did nothing — newest first, so the default pick is
+                // the latest usable ranking rather than the oldest row.
                 val rr = all.filter {
-                    it.kind == com.ai.data.SecondaryKind.RERANK ||
-                        (it.kind == com.ai.data.SecondaryKind.TOURNAMENT && it.tournamentRole == "AGGREGATE")
-                }
+                    (it.kind == com.ai.data.SecondaryKind.RERANK ||
+                        (it.kind == com.ai.data.SecondaryKind.TOURNAMENT && it.tournamentRole == "AGGREGATE")) &&
+                        it.errorMessage == null &&
+                        com.ai.data.extractTopRankedIds(it.content, 1) != null
+                }.sortedByDescending { it.timestamp }
                 val successfulAgents = report?.agents?.filter { it.reportStatus == com.ai.data.ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }.orEmpty()
                 val nativeByLang = LinkedHashMap<String, String?>()
                 all.filter { it.kind == com.ai.data.SecondaryKind.TRANSLATE && !it.targetLanguage.isNullOrBlank() }
