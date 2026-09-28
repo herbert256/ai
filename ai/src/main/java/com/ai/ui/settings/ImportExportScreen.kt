@@ -48,6 +48,7 @@ import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import com.google.gson.JsonSyntaxException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -284,87 +285,119 @@ private fun buildAllRuntimeBundle(context: Context): JsonObject {
  *  disk is persisted; secondaries that travel with it land in
  *  filesDir/secondary/<reportId>/. Existing reports are NEVER
  *  overwritten — the user explicitly asked for merge, not replace.
- *  Returns (addedReports, skippedReports, addedSecondaries). */
-private data class ImportReportsResult(val added: Int, val skipped: Int, val secondaries: Int)
+ *  Returns (addedReports, skippedReports, addedSecondaries, failedReports).
+ *
+ *  Blocking disk work — callers run it on Dispatchers.IO. A report that
+ *  can't be parsed or saved is counted in `failed` and the import moves
+ *  on to the next one instead of aborting the whole file. */
+private data class ImportReportsResult(val added: Int, val skipped: Int, val secondaries: Int, val failed: Int = 0)
 
 private fun applyRuntimeReports(context: Context, root: JsonObject): ImportReportsResult {
     val gson = createAppGson()
-    val existingIds = ReportStorage.getAllReports(context).map { it.id }.toSet()
     var added = 0
     var skipped = 0
+    var failed = 0
     var secondariesAdded = 0
     val reportsArr = root.getAsJsonArray("reports") ?: return ImportReportsResult(0, 0, 0)
     val secondariesObj = root.getAsJsonObject("secondaries")
     reportsArr.forEach { el ->
         val report = try { gson.fromJson(el, Report::class.java) } catch (e: Exception) {
             AppLog.w("ImportExport", "Skipped runtime report entry: ${e.message}")
-            return@forEach
+            null
         }
-        if (report.id.isBlank()) { skipped++; return@forEach }
-        val isNew = report.id !in existingIds
-        if (isNew) {
-            check(ReportStorage.persistNewReport(context, report)) { "Could not save imported report ${report.id}" }
-            added++
-        } else {
-            skipped++
-        }
-        root.getAsJsonObject("reportEvidence")?.getAsJsonObject(report.id)?.entrySet()?.forEach { (id, evidence) ->
-            // Written byte-identical to the export (see reportEvidenceJson);
-            // a snapshot whose text doesn't hash to its name would only
-            // fail the integrity check later, so skip it here.
-            val text = evidence.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isString }?.asString
-            if (text == null || (!id.startsWith("run_") && com.ai.data.ReportEvidenceStore.digest(text) != id)) {
-                AppLog.w("ImportExport", "Skipped report evidence $id of ${report.id}: not an exact source snapshot")
-                return@forEach
+        // Gson leaves a missing "id" as null despite the non-null type.
+        if (report == null || (report.id as String?).isNullOrBlank()) { failed++; return@forEach }
+        try {
+            // On-disk existence, not the loaded list: a report file that
+            // exists but didn't load would make persistNewReport refuse
+            // (it never overwrites) — that's the backfill case below.
+            val isNew = !ReportStorage.reportFileExists(context, report.id)
+            if (isNew) {
+                if (!ReportStorage.persistNewReport(context, report)) {
+                    AppLog.w("ImportExport", "Could not save imported report ${report.id}")
+                    failed++
+                    return@forEach
+                }
+                added++
+            } else {
+                skipped++
             }
-            val existing = com.ai.data.ReportEvidenceStore.files(report.id).any { it.nameWithoutExtension == id }
-            if (!existing) com.ai.data.ReportEvidenceStore.importFile(context,report.id,id,text)
-        }
-        // Per-report secondaries — additive. For a newly-added report any
-        // secondary is new by construction; for a skipped (already-present)
-        // report we still merge any secondary whose id isn't on disk so an
-        // import can backfill missing secondaries (Bug 46).
-        val rows = secondariesObj?.getAsJsonArray(report.id) ?: return@forEach
-        val existingSecondaryIds = if (isNew) emptySet()
-            else SecondaryResultStorage.listForReport(context, report.id).map { it.id }.toSet()
-        rows.forEach { se ->
-            val sr = try { gson.fromJson(se, SecondaryResult::class.java) } catch (e: Exception) {
-                AppLog.w("ImportExport", "Skipped secondary row: ${e.message}")
-                return@forEach
-            }
-            if (sr.id.isBlank() || sr.reportId.isBlank()) return@forEach
-            // Guard against a malformed bundle attaching a secondary to the
-            // wrong parent (Bug 47).
-            if (sr.reportId != report.id) return@forEach
-            if (!isNew && sr.id in existingSecondaryIds) return@forEach
-            // Verbatim, not save(): save() would attach a snapshot of the
-            // current report to a row exported without recorded inputs.
-            if (SecondaryResultStorage.importRow(context, sr)) secondariesAdded++
+            secondariesAdded += applyRuntimeReportChildren(context, root, secondariesObj, report.id, isNew, gson)
+        } catch (e: Exception) {
+            // ReportSaveException (a CancellationException) lands here too;
+            // report it as a failure instead of silently ending the import.
+            AppLog.e("ImportExport", "Import of report ${report.id} failed", e)
+            failed++
         }
     }
-    return ImportReportsResult(added, skipped, secondariesAdded)
+    return ImportReportsResult(added, skipped, secondariesAdded, failed)
 }
 
-/** Additive merge for chat sessions — same id-based logic. */
-private data class ImportChatsResult(val added: Int, val skipped: Int)
+/** Evidence + secondaries of one imported report. Returns the number of
+ *  secondaries added. */
+private fun applyRuntimeReportChildren(
+    context: Context, root: JsonObject, secondariesObj: JsonObject?, reportId: String, isNew: Boolean,
+    gson: com.google.gson.Gson
+): Int {
+    var secondariesAdded = 0
+    root.getAsJsonObject("reportEvidence")?.getAsJsonObject(reportId)?.entrySet()?.forEach { (id, evidence) ->
+        // Written byte-identical to the export (see reportEvidenceJson);
+        // a snapshot whose text doesn't hash to its name would only
+        // fail the integrity check later, so skip it here.
+        val text = evidence.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isString }?.asString
+        if (text == null || (!id.startsWith("run_") && com.ai.data.ReportEvidenceStore.digest(text) != id)) {
+            AppLog.w("ImportExport", "Skipped report evidence $id of $reportId: not an exact source snapshot")
+            return@forEach
+        }
+        val existing = com.ai.data.ReportEvidenceStore.files(reportId).any { it.nameWithoutExtension == id }
+        if (!existing) com.ai.data.ReportEvidenceStore.importFile(context,reportId,id,text)
+    }
+    // Per-report secondaries — additive. For a newly-added report any
+    // secondary is new by construction; for a skipped (already-present)
+    // report we still merge any secondary whose id isn't on disk so an
+    // import can backfill missing secondaries (Bug 46).
+    val rows = secondariesObj?.getAsJsonArray(reportId) ?: return 0
+    val existingSecondaryIds = if (isNew) emptySet()
+        else SecondaryResultStorage.listForReport(context, reportId).map { it.id }.toSet()
+    rows.forEach { se ->
+        val sr = (try { gson.fromJson(se, SecondaryResult::class.java) } catch (e: Exception) {
+            AppLog.w("ImportExport", "Skipped secondary row: ${e.message}")
+            null
+        }) ?: return@forEach
+        if ((sr.id as String?).isNullOrBlank() || (sr.reportId as String?).isNullOrBlank()) return@forEach
+        // Guard against a malformed bundle attaching a secondary to the
+        // wrong parent (Bug 47).
+        if (sr.reportId != reportId) return@forEach
+        if (!isNew && sr.id in existingSecondaryIds) return@forEach
+        // Verbatim, not save(): save() would attach a snapshot of the
+        // current report to a row exported without recorded inputs.
+        if (SecondaryResultStorage.importRow(context, sr)) secondariesAdded++
+    }
+    return secondariesAdded
+}
+
+/** Additive merge for chat sessions — same id-based logic. Blocking disk
+ *  work — callers run it on Dispatchers.IO. */
+private data class ImportChatsResult(val added: Int, val skipped: Int, val failed: Int = 0)
 
 private fun applyRuntimeChats(root: JsonObject): ImportChatsResult {
     val gson = createAppGson()
     val existingIds = ChatHistoryManager.getAllSessions().map { it.id }.toSet()
     var added = 0
     var skipped = 0
+    var failed = 0
     val arr = root.getAsJsonArray("chats") ?: return ImportChatsResult(0, 0)
     arr.forEach { el ->
         val session = try { gson.fromJson(el, ChatSession::class.java) } catch (e: Exception) {
             AppLog.w("ImportExport", "Skipped chat session entry: ${e.message}")
-            return@forEach
+            null
         }
-        if (session.id.isBlank()) { skipped++; return@forEach }
+        // Gson leaves a missing "id" as null despite the non-null type.
+        if (session == null || (session.id as String?).isNullOrBlank()) { failed++; return@forEach }
         if (session.id in existingIds) { skipped++; return@forEach }
-        ChatHistoryManager.saveSession(session)
-        added++
+        if (ChatHistoryManager.saveSession(session)) added++ else failed++
     }
-    return ImportChatsResult(added, skipped)
+    return ImportChatsResult(added, skipped, failed)
 }
 
 /** JSON tree of every Agent / Flock / Swarm. Same shape used by both
@@ -967,7 +1000,7 @@ fun ImportExportScreen(
         return context.contentResolver.openInputStream(uri)?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }
     }
 
-    fun launchJsonObjectImport(uri: Uri, objectErrorMessage: String, onObject: (JsonObject) -> Unit) {
+    fun launchJsonObjectImport(uri: Uri, objectErrorMessage: String, onObject: suspend (JsonObject) -> Unit) {
         scope.launch {
             val parsed = withContext(Dispatchers.IO) {
                 try {
@@ -988,7 +1021,33 @@ fun ImportExportScreen(
                 Toast.makeText(context, parsed.second ?: objectErrorMessage, Toast.LENGTH_LONG).show()
                 return@launch
             }
-            onObject(root)
+            // An exception escaping here would crash the app from this
+            // uncaught launch; a CancellationException (e.g. a
+            // ReportSaveException) would end the import without a word.
+            // Report both — unless this coroutine itself was cancelled.
+            try {
+                onObject(root)
+            } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException && !isActive) throw e
+                AppLog.e("ImportExport", "Import failed", e)
+                Toast.makeText(context, "Import failed: ${e.message ?: e.javaClass.simpleName}", Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+
+    /** Runtime exports read every report / chat off disk and serialise it
+     *  all — far too much work for the main thread (ANR / jank on a large
+     *  history). Build + stage on IO; [work] returns the success toast. */
+    fun launchRuntimeExport(work: () -> String) {
+        scope.launch {
+            val msg = try {
+                withContext(Dispatchers.IO) { work() }
+            } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException && !isActive) throw e
+                AppLog.e("ImportExport", "Runtime export failed", e)
+                "Export failed: ${e.message ?: e.javaClass.simpleName}"
+            }
+            Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -1203,7 +1262,7 @@ fun ImportExportScreen(
         ).show()
     }
 
-    fun exportRuntimeReports() {
+    fun exportRuntimeReports() = launchRuntimeExport {
         val bundle = buildReportsRuntimeBundle(context)
         shareExportText(context, "ai_reports-${exportTimestamp()}.json", "application/json", "Share reports",
             createAppGson(prettyPrint = true).toJson(bundle))
@@ -1211,18 +1270,18 @@ fun ImportExportScreen(
         val secondaries = bundle.getAsJsonObject("secondaries")?.entrySet()?.sumOf {
             (it.value as? JsonArray)?.size() ?: 0
         } ?: 0
-        Toast.makeText(context, "Reports ready to share ($reports reports, $secondaries meta-results)", Toast.LENGTH_SHORT).show()
+        "Reports ready to share ($reports reports, $secondaries meta-results)"
     }
 
-    fun exportRuntimeChats() {
+    fun exportRuntimeChats() = launchRuntimeExport {
         val bundle = buildChatsRuntimeBundle()
         shareExportText(context, "ai_chats-${exportTimestamp()}.json", "application/json", "Share chats",
             createAppGson(prettyPrint = true).toJson(bundle))
         val chats = bundle.getAsJsonArray("chats")?.size() ?: 0
-        Toast.makeText(context, "Chats ready to share ($chats sessions)", Toast.LENGTH_SHORT).show()
+        "Chats ready to share ($chats sessions)"
     }
 
-    fun exportRuntimeAll() {
+    fun exportRuntimeAll() = launchRuntimeExport {
         val bundle = buildAllRuntimeBundle(context)
         shareExportText(context, "ai_runtime-${exportTimestamp()}.json", "application/json", "Share runtime data",
             createAppGson(prettyPrint = true).toJson(bundle))
@@ -1231,7 +1290,7 @@ fun ImportExportScreen(
         val secondaries = bundle.getAsJsonObject("secondaries")?.entrySet()?.sumOf {
             (it.value as? JsonArray)?.size() ?: 0
         } ?: 0
-        Toast.makeText(context, "Runtime data ready to share ($reports reports, $secondaries meta-results, $chats chats)", Toast.LENGTH_SHORT).show()
+        "Runtime data ready to share ($reports reports, $secondaries meta-results, $chats chats)"
     }
 
     fun exportCosts() {
@@ -1589,29 +1648,34 @@ fun ImportExportScreen(
             }
             "runtimeReports" -> {
                 launchJsonObjectImport(uri, "Reports file is not a JSON object") { root ->
-                    val res = applyRuntimeReports(context, root)
+                    val res = withContext(Dispatchers.IO) { applyRuntimeReports(context, root) }
                     val msg = buildString {
                         append("Added ${res.added} report")
                         if (res.added != 1) append("s")
                         if (res.secondaries > 0) append(" + ${res.secondaries} meta-results")
                         if (res.skipped > 0) append(" (${res.skipped} skipped, already present)")
+                        if (res.failed > 0) append(" — ${res.failed} could not be imported, see Application log")
                     }
                     Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
                 }
             }
             "runtimeChats" -> {
                 launchJsonObjectImport(uri, "Chats file is not a JSON object") { root ->
-                    val res = applyRuntimeChats(root)
+                    val res = withContext(Dispatchers.IO) { applyRuntimeChats(root) }
                     val msg = "Added ${res.added} chat session${if (res.added == 1) "" else "s"}" +
-                        if (res.skipped > 0) " (${res.skipped} skipped, already present)" else ""
+                        (if (res.skipped > 0) " (${res.skipped} skipped, already present)" else "") +
+                        (if (res.failed > 0) " — ${res.failed} could not be imported, see Application log" else "")
                     Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
                 }
             }
             "runtimeAll" -> {
                 launchJsonObjectImport(uri, "Runtime file is not a JSON object") { root ->
-                    val rRes = if (root.has("reports")) applyRuntimeReports(context, root) else ImportReportsResult(0, 0, 0)
-                    val cRes = if (root.has("chats")) applyRuntimeChats(root) else ImportChatsResult(0, 0)
-                    if (rRes.added == 0 && cRes.added == 0 && rRes.skipped == 0 && cRes.skipped == 0) {
+                    val (rRes, cRes) = withContext(Dispatchers.IO) {
+                        (if (root.has("reports")) applyRuntimeReports(context, root) else ImportReportsResult(0, 0, 0)) to
+                            (if (root.has("chats")) applyRuntimeChats(root) else ImportChatsResult(0, 0))
+                    }
+                    val failed = rRes.failed + cRes.failed
+                    if (rRes.added == 0 && cRes.added == 0 && rRes.skipped == 0 && cRes.skipped == 0 && failed == 0) {
                         Toast.makeText(context, "No runtime data found in file", Toast.LENGTH_LONG).show()
                     } else {
                         val parts = mutableListOf<String>()
@@ -1620,7 +1684,8 @@ fun ImportExportScreen(
                         if (cRes.added > 0) parts += "${cRes.added} chats"
                         val skipped = rRes.skipped + cRes.skipped
                         val msg = "Added " + (if (parts.isEmpty()) "nothing new" else parts.joinToString(", ")) +
-                            if (skipped > 0) " ($skipped skipped, already present)" else ""
+                            (if (skipped > 0) " ($skipped skipped, already present)" else "") +
+                            (if (failed > 0) " — $failed could not be imported, see Application log" else "")
                         Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
                     }
                 }
