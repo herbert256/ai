@@ -777,3 +777,19 @@ sealed interface TranslationCandidate {
     ) : TranslationCandidate
     data class Error(override val provider: com.ai.data.AppService, override val model: String, val reason: String, val cost: Double = 0.0) : TranslationCandidate
 }
+
+/** Launch-intent payloads still waiting on the user: the ACTION_NEW_REPORT
+ *  extras until AppNavHost parses them, a share until the chooser picks a
+ *  destination, and a staged external request until it's confirmed or
+ *  cancelled. Held by [AppViewModel.pendingLaunch] instead of MainActivity
+ *  fields / an AppNavHost `remember`, so a rotation (or dark-mode / locale
+ *  change) before the user decides no longer drops them — MainActivity only
+ *  reads its launch intent on a fresh start. Compose state; main thread only. */
+class PendingLaunchState {
+    val externalTitle = androidx.compose.runtime.mutableStateOf<String?>(null)
+    val externalSystem = androidx.compose.runtime.mutableStateOf<String?>(null)
+    val externalPrompt = androidx.compose.runtime.mutableStateOf<String?>(null)
+    val externalInstructions = androidx.compose.runtime.mutableStateOf<String?>(null)
+    val sharedContent = androidx.compose.runtime.mutableStateOf<com.ai.data.SharedContent?>(null)
+    val externalReport = androidx.compose.runtime.mutableStateOf<com.ai.ui.share.PendingExternalReport?>(null)
+}

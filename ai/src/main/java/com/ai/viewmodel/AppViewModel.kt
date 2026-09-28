@@ -96,6 +96,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     val reportViewModel: ReportViewModel by lazy { ReportViewModel(this) }
     val chatViewModel: ChatViewModel by lazy { ChatViewModel(this) }
 
+    /** Share / external-request payloads awaiting the user — survives an
+     *  Activity recreation. See [PendingLaunchState]. */
+    val pendingLaunch = PendingLaunchState()
+
     /** True once the zero-grace startup finalize has run for this
      *  AppViewModel. It survives Activity config changes (it's `viewModel()`-
      *  scoped) but not process death — so a false value means a genuine

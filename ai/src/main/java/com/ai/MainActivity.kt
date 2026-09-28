@@ -6,6 +6,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.viewModels
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -46,11 +47,16 @@ import com.ai.ui.theme.AppTheme
 import com.ai.viewmodel.AppViewModel
 
 class MainActivity : ComponentActivity() {
-    private val externalTitle = mutableStateOf<String?>(null)
-    private val externalSystem = mutableStateOf<String?>(null)
-    private val externalPrompt = mutableStateOf<String?>(null)
-    private val externalInstructions = mutableStateOf<String?>(null)
-    private val sharedContent = mutableStateOf<SharedContent?>(null)
+    // The same instance setContent's viewModel() returns (activity-scoped
+    // ViewModelStore). The pending launch payloads live on it, not on this
+    // Activity, so a rotation before the user picks a share destination or
+    // confirms an external request keeps them — see PendingLaunchState.
+    private val appViewModel: AppViewModel by viewModels()
+    private val externalTitle get() = appViewModel.pendingLaunch.externalTitle
+    private val externalSystem get() = appViewModel.pendingLaunch.externalSystem
+    private val externalPrompt get() = appViewModel.pendingLaunch.externalPrompt
+    private val externalInstructions get() = appViewModel.pendingLaunch.externalInstructions
+    private val sharedContent get() = appViewModel.pendingLaunch.sharedContent
 
     // statusBarColor / navigationBarColor are deprecated on API 35+ (ignored under
     // enableEdgeToEdge, where the window background is used instead — see the SideEffect),

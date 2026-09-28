@@ -131,9 +131,9 @@ fun AppNavHost(
     // model selection, email/share/browser the result, and finish()
     // the activity. That class of intent must pass through an explicit
     // confirmation screen before any of those side effects run.
-    val pendingExternalReport = remember {
-        mutableStateOf<com.ai.ui.share.PendingExternalReport?>(null)
-    }
+    // Held on AppViewModel (not a remember) so a rotation while the
+    // confirmation / prompt picker is up doesn't drop the staged request.
+    val pendingExternalReport = appViewModel.pendingLaunch.externalReport
     // Bare prompt — pre-fill the editor, no side effects. [system] is only
     // ever a `system` extra the user accepted on the confirmation screen.
     val openExternalPrefill: (String, String, String?) -> Unit = { title, prompt, system ->

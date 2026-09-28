@@ -254,7 +254,10 @@ The activity processes its launch intent only when `savedInstanceState`
 is null, and clears the staged source extras after navigation consumes them.
 Rotation does not replay a request the user already handled. Intents flagged
 `FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY` are skipped as well, so reopening AI
-from Recents (which re-delivers the task's base intent) doesn't replay it. This is
+from Recents (which re-delivers the task's base intent) doesn't replay it. The
+extras and the staged confirmation live in `AppViewModel.pendingLaunch`
+(`PendingLaunchState`), so a rotation while the confirmation or the saved-prompt
+picker is showing keeps the request instead of dropping it. This is
 separate from [share-target.md](share-target.md). See also
 [default-prompts.md](default-prompts.md), [system-prompts.md](system-prompts.md)
 and [parameters.md](parameters.md) for normal selection precedence.

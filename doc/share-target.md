@@ -85,8 +85,11 @@ activity.
 ## Snapshot
 
 `MainActivity.handleIntent` extracts the payload into a `SharedContent`
-data class (`data/SharedContent.kt`), held as
-`mutableStateOf<SharedContent?>` on the activity:
+data class (`data/SharedContent.kt`), held as a
+`mutableStateOf<SharedContent?>` in `AppViewModel.pendingLaunch`
+(`PendingLaunchState`, alongside the `ACTION_NEW_REPORT` extras and the
+staged external request) — not on the activity, so a rotation while the
+chooser is up keeps the share:
 
 ```kotlin
 data class SharedContent(
@@ -139,7 +142,9 @@ The launch intent is only processed when `savedInstanceState == null`,
 so a configuration change (rotation, locale switch) does **not**
 re-import shared content the user already consumed — otherwise the
 chooser or chat composer would re-populate with a payload that was
-just dismissed. Intents flagged `FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY`
+just dismissed. A share that is still *pending* survives the same
+configuration change because it lives on `AppViewModel`, which the
+recreated activity gets back. Intents flagged `FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY`
 are ignored too: reopening the app from Recents after its task was
 killed re-delivers the task's base intent, which would replay an old
 share (or external request) the user already handled.
