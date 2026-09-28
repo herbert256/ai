@@ -310,6 +310,35 @@ internal fun claudeEffortLevels(service: AppService, model: String): List<String
     else -> listOf("low", "medium", "high")
 }
 
+/** Mistral's adjustable-reasoning chat models (medium / small) accept only
+ *  reasoning_effort `none` or `high`; the API rejects low / medium with
+ *  "Must be one of none, high" (seen for mistral-medium-latest and
+ *  mistral-small-latest). */
+internal fun mistralNoneOrHighReasoning(service: AppService, model: String): Boolean =
+    service.id == "Mistral" && Regex("^mistral-(?:medium|small)(?:-|$)").containsMatchIn(model.lowercase())
+
+/** The reasoning_effort values [model] accepts when that set is known —
+ *  Claude's version-driven levels, Mistral's none / high — else null
+ *  (unknown: send the requested level as-is). */
+internal fun knownReasoningEffortLevels(service: AppService, model: String): List<String>? = when {
+    service.apiFormat == ApiFormat.ANTHROPIC -> claudeEffortLevels(service, model)
+    mistralNoneOrHighReasoning(service, model) -> listOf("none", "high")
+    else -> null
+}
+
+private val REASONING_EFFORT_SCALE = listOf("none", "minimal", "low", "medium", "high", "xhigh", "max")
+
+/** The level of [allowed] closest to [requested] on the none … max scale;
+ *  a tie goes to the lower (cheaper) level, so "low" on a none / high model
+ *  becomes "none" and "medium" becomes "high". Null when [requested] or
+ *  every allowed level is off the scale. */
+internal fun nearestReasoningEffort(requested: String, allowed: List<String>): String? {
+    val target = REASONING_EFFORT_SCALE.indexOf(requested.lowercase())
+    if (target < 0) return null
+    return allowed.map { it.lowercase() }.filter { it in REASONING_EFFORT_SCALE }
+        .minWithOrNull(compareBy({ kotlin.math.abs(REASONING_EFFORT_SCALE.indexOf(it) - target) }, { REASONING_EFFORT_SCALE.indexOf(it) }))
+}
+
 /** Build the OpenAI Responses-API `reasoning` field — `{effort: <value>}` —
  *  or null when the agent didn't set an effort, OR the layered
  *  capability lookup says the model doesn't accept it. */

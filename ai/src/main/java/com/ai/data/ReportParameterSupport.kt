@@ -85,11 +85,10 @@ internal fun AnalysisRepository.reportParameterError(service: AppService, model:
             }
         }
     }
-    if (service.id == "Mistral" && model == "mistral-medium-latest") {
-        unsupported(p.topK != null, "top K")
-        if (!p.reasoningEffort.isNullOrBlank() && p.reasoningEffort !in setOf("none", "high")) {
-            errors += "reasoning effort must be none or high"
-        }
+    if (service.id == "Mistral" && model == "mistral-medium-latest") unsupported(p.topK != null, "top K")
+    if (mistralNoneOrHighReasoning(service, model) &&
+        !p.reasoningEffort.isNullOrBlank() && p.reasoningEffort !in setOf("none", "high")) {
+        errors += "reasoning effort must be none or high"
     }
     // Native rejections observed in the parameter audit; do not generalize to other models.
     if (service.id == "xAI" && model == "grok-4.3") {

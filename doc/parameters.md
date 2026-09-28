@@ -152,8 +152,12 @@ execution config is captured (`withoutUnsupportedReportChips`, used by
 `preparePrimaryExecution`, `executeReportTask` and the Edit-models capture of
 added models in `applyStagedModelList`): a model that doesn't accept
 `reasoning_effort` or can't use web search runs without the chip's value, as the
-per-model retry already did. Values from presets / advanced parameters are not
-dropped — they still fail preflight when unsupported.
+per-model retry already did. A model that takes `reasoning_effort` but not the
+chip's level gets its nearest offered level instead (`knownReasoningEffortLevels`
+/ `nearestReasoningEffort`; ties go to the cheaper level): Mistral's medium /
+small models accept only none / high, so the chip's Low becomes none and Medium
+becomes high. Values from presets / advanced parameters are not dropped or
+mapped — they still fail preflight when unsupported.
 
 This bundle is **not** merged into the per-model presets during `buildReportTasks`.
 It is passed straight to `executeReportTask` as `overrideParams`, so the

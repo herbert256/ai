@@ -3345,7 +3345,11 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 (baseOverride ?: AgentParameters()).copy(webSearchTool = true)
             } else (baseOverride ?: AgentParameters()).copy(webSearchTool = false)
             val overrideParams = if (report.reasoningEffort != null && canReason) {
-                withWeb.copy(reasoningEffort = report.reasoningEffort)
+                // Same nearest-level mapping as a fresh run (Mistral none / high).
+                val levels = knownReasoningEffortLevels(provider, effectiveModel)
+                val effort = if (levels != null && report.reasoningEffort.lowercase() !in levels)
+                    nearestReasoningEffort(report.reasoningEffort, levels) else report.reasoningEffort
+                withWeb.copy(reasoningEffort = effort)
             } else withWeb.copy(reasoningEffort = null)
             val effectiveImage = if (canVision) report.imageBase64 else null
             val effectiveImageMime = if (canVision) report.imageMime else null
