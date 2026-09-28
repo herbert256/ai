@@ -714,8 +714,11 @@ fun SettingsScreen(
                 systemPrompt = sp,
                 existingNames = aiSettings.systemPrompts.filter { it.id != (sp?.id ?: "") }.map { it.name.lowercase(java.util.Locale.ROOT) }.toSet(),
                 onSave = { saved ->
-                    val updated = if (sp != null) aiSettings.copy(systemPrompts = aiSettings.systemPrompts.map { if (it.id == sp.id) saved else it })
-                    else aiSettings.copy(systemPrompts = aiSettings.systemPrompts + saved)
+                    // Upsert by the SAVED id: a 👯 copy carries a new id and
+                    // must be added, not replace the original.
+                    val list = aiSettings.systemPrompts
+                    val updated = if (list.any { it.id == saved.id }) aiSettings.copy(systemPrompts = list.map { if (it.id == saved.id) saved else it })
+                    else aiSettings.copy(systemPrompts = list + saved)
                     onSaveAi(updated)   // the form's Save then calls onBack (= goBack) itself — a second goBack here popped two screens
                 },
                 onBack = goBack, onNavigateHome = onNavigateHome
@@ -742,8 +745,10 @@ fun SettingsScreen(
                 ExamplePromptEditScreen(
                     examplePrompt = ep,
                     onSave = { saved ->
-                        val updated = if (ep != null) aiSettings.copy(examplePrompts = aiSettings.examplePrompts.map { if (it.id == ep.id) saved else it })
-                        else aiSettings.copy(examplePrompts = aiSettings.examplePrompts + saved)
+                        // Upsert by the SAVED id (a 👯 copy must not replace the original).
+                        val list = aiSettings.examplePrompts
+                        val updated = if (list.any { it.id == saved.id }) aiSettings.copy(examplePrompts = list.map { if (it.id == saved.id) saved else it })
+                        else aiSettings.copy(examplePrompts = list + saved)
                         onSaveAi(updated)   // the form's Save then calls onBack (= goBack) itself — a second goBack here popped two screens
                     },
                     onBack = goBack, onNavigateHome = onNavigateHome
