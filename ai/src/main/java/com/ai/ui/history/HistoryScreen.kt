@@ -78,7 +78,18 @@ fun HistoryScreenNav(
     // debounce is pending we keep showing the previous result.
     val filteredReports by produceState(initialValue = allReports, allReports, searchIndex, searchTitle, searchPrompt, searchReport) {
         if (!isSearchActive) { value = allReports; return@produceState }
-        if (searchIndex.size != allReports.size) { value = allReports; return@produceState }
+        if (searchIndex.size != allReports.size) {
+            // Index still rebuilding (open / resume / after a delete): filter
+            // the live list directly. Falling back to allReports showed every
+            // report during an active search — and "All" selects the visible
+            // list, so search → delete a match → All → Delete could wipe the
+            // whole history.
+            val snapshot = allReports
+            value = withContext(Dispatchers.Default) {
+                snapshot.filter { historyMatchesSearch(it, searchTitle, searchPrompt, searchReport) }
+            }
+            return@produceState
+        }
         kotlinx.coroutines.delay(250)
         value = withContext(Dispatchers.Default) {
             searchIndex.filter(searchTitle, searchPrompt, searchReport)
