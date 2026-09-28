@@ -251,7 +251,9 @@ Manage-side drill-in:
   after completion.
 - Matches mode shows each selected pair, consensus, and vote counts.
 - A judge can be added to the run; the model is also added to the underlying
-  `tournament` swarm.
+  `tournament` swarm. The new judge judges the run's **saved** answers and
+  question (the same texts the other judges saw), not the report's current
+  ones; a run without saved inputs refuses the add with a toast.
 - Removing a judge deletes its cells and removes it from that swarm.
 - Editing the swarm can trigger a rerun prompt if the current run no longer
   matches the active judge set.

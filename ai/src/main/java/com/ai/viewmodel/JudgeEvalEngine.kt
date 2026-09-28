@@ -576,21 +576,37 @@ class JudgeEvalEngine internal constructor(
      *  are left untouched (only the new judge's row appears / updates). No-op if
      *  the judge is already in the run or there are no matches yet. */
     fun addJudgeToRun(context: Context, reportId: String, provider: AppService, model: String): Job =
-        appViewModel.viewModelScope.launch(reportViewModel.reportLogContext()) {
-            val run = _runs.value[reportId] ?: return@launch
+        // launchItemRerun: crash-handler + toast on failure, and the dispatch
+        // registers as the run job like the other re-fire paths.
+        launchItemRerun(context, reportId) {
+            val run = _runs.value[reportId] ?: return@launchItemRerun
             val judgeKey = "${provider.id}/$model"
-            if (run.cells.values.any { it.judgeKey == judgeKey }) return@launch
-            val report = ReportStorage.getReport(context, reportId) ?: return@launch
+            if (run.cells.values.any { it.judgeKey == judgeKey }) return@launchItemRerun
+            val current = ReportStorage.getReport(context, reportId) ?: return@launchItemRerun
+            // The new judge must judge the SAME answers + question the run's
+            // other judges saw — the run's saved inputs — not the report's
+            // current (regenerated / edited) state, or its verdicts would be
+            // cross-compared against judgments of different texts. Same
+            // source redispatchRows uses; a run without saved inputs can't be
+            // extended faithfully, so it is refused with a message.
+            val snapshot = run.cells.values.firstOrNull()
+                ?.let { SecondaryResultStorage.get(context, reportId, it.id) }
+                ?.let { com.ai.data.ReportEvidenceStore.sources(it) }
+                ?: com.ai.data.ReportEvidenceStore.sources(
+                    reportId, com.ai.data.ReportEvidenceStore.run(reportId, run.runId)?.sourceSnapshotId)
+                ?: throw java.io.IOException(com.ai.data.ReportEvidenceStore.SOURCE_UNAVAILABLE_MESSAGE)
+            val report = com.ai.data.ReportEvidenceStore.historicalReport(current, snapshot)
             // Normally the new judge inherits the SAME matches as the others, so
             // re-derive them from the existing cells. But if every judge was
             // deleted the run has no cells left to derive from — fall back to a
-            // fresh random pick so adding a judge to an empty run still works.
+            // fresh random pick (from the saved answers) so adding a judge to an
+            // empty run still works.
             val matches = run.cells.values
                 .map { Triple(it.responseAId, it.responseBId, it.orientation) }.distinct()
                 .ifEmpty { pickJudgeMatches(report) }
-            if (matches.isEmpty()) return@launch
+            if (matches.isEmpty()) return@launchItemRerun
             val prompt = run.prompt
-            if (prompt.text.isBlank()) return@launch   // synthetic prompt — can't add a judge
+            if (prompt.text.isBlank()) return@launchItemRerun   // synthetic prompt — can't add a judge
             val runId = run.runId
             val scopeEncoded = SecondaryScope.AllReports.encode()
             val judge = ResolvedJudge(Worker(provider = provider.id, model = model), provider.id, model)
@@ -628,7 +644,7 @@ class JudgeEvalEngine internal constructor(
                 ReportStorage.bumpReportTimestamp(context, reportId)
                 AppLog.i("JudgeEval", "Added judge $judgeKey to run on $reportId (${matches.size} cells)")
                 withTracerTags(reportId = reportId, category = "after/judges", runId = runId) {
-                    dispatchCells(context, reportId, prompt, report.prompt, report.title, pending)
+                    dispatchCells(context, reportId, prompt, report.prompt, report.title, pending, sourceReport = report)
                 }
                 recomputeAggregate(context, reportId)
             } finally {
