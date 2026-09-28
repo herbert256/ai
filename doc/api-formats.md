@@ -530,6 +530,10 @@ A few cross-format hardening passes in `parseSseStream`:
   the response half-consumed.
 - **Cancellation propagation** — the retry interceptors bail on
   cancellation rather than retrying through a cancelled coroutine.
+  `parseSseStream` checks cancellation on every line (not only when it
+  emits text) and a watcher closes the response body when the collector
+  is cancelled, so Stop also ends a stream that is blocked in a read
+  during a long thinking phase.
 - **Tracing tags propagate** — `(reportId, category, runId, model)` are
   thread-locals (`ApiTracer.currentTags`) that propagate through
   OkHttp's dispatcher (`TagPropagatingExecutor`) so retries and

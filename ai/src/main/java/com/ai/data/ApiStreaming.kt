@@ -1,10 +1,15 @@
 package com.ai.data
 
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.asContextElement
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okhttp3.ResponseBody
 
@@ -175,32 +180,54 @@ internal fun parseSseStream(
             eventType = null
         }
 
-        var line: String?
-        while (reader.readLine().also { line = it } != null) {
-            val currentLine = line ?: continue
-            if (currentLine.isBlank()) { dispatch(); continue }
-            if (currentLine.startsWith("event:")) {
-                eventType = currentLine.removePrefix("event:").trim()
-                // Per-format terminator events. Anthropic ends with
-                // `event: message_stop`; OpenAI's Responses API ends
-                // with `event: response.completed` (and may or may not
-                // also send a trailing `data: [DONE]` for back-compat
-                // depending on which Responses API revision the
-                // upstream is on — recognising the event keeps us
-                // correct either way).
-                if (eventType == "message_stop"
-                    || eventType == "response.completed") sawTerminator = true
-                continue
+        // Stop must also end a read blocked in readLine(): a thinking phase
+        // emits nothing (and may send no line) for a long time, and a blocking
+        // socket read never sees coroutine cancellation. The watcher closes the
+        // body on cancellation (UNDISPATCHED arms it before the first read; IO
+        // runs its finally on a free worker while this thread is stuck
+        // reading, and never on the main thread that pressed Stop), which fails
+        // the read; the per-line ensureActive covers lines that do arrive.
+        coroutineScope {
+            val closeOnCancel = launch(Dispatchers.IO, start = CoroutineStart.UNDISPATCHED) {
+                try { awaitCancellation() } finally { runCatching { body.close() } }
             }
-            if (currentLine.startsWith(":")) continue  // SSE comment
-            if (currentLine.startsWith("data:")) {
-                val chunk = currentLine.removePrefix("data:").let {
-                    // SSE permits but doesn't require a leading space
-                    // after the colon; spec strips one if present.
-                    if (it.startsWith(" ")) it.substring(1) else it
+            try {
+                var line: String?
+                while (reader.readLine().also { line = it } != null) {
+                    ensureActive()
+                    val currentLine = line ?: continue
+                    if (currentLine.isBlank()) { dispatch(); continue }
+                    if (currentLine.startsWith("event:")) {
+                        eventType = currentLine.removePrefix("event:").trim()
+                        // Per-format terminator events. Anthropic ends with
+                        // `event: message_stop`; OpenAI's Responses API ends
+                        // with `event: response.completed` (and may or may not
+                        // also send a trailing `data: [DONE]` for back-compat
+                        // depending on which Responses API revision the
+                        // upstream is on — recognising the event keeps us
+                        // correct either way).
+                        if (eventType == "message_stop"
+                            || eventType == "response.completed") sawTerminator = true
+                        continue
+                    }
+                    if (currentLine.startsWith(":")) continue  // SSE comment
+                    if (currentLine.startsWith("data:")) {
+                        val chunk = currentLine.removePrefix("data:").let {
+                            // SSE permits but doesn't require a leading space
+                            // after the colon; spec strips one if present.
+                            if (it.startsWith(" ")) it.substring(1) else it
+                        }
+                        if (dataBuf.isNotEmpty()) dataBuf.append('\n')
+                        dataBuf.append(chunk)
+                    }
                 }
-                if (dataBuf.isNotEmpty()) dataBuf.append('\n')
-                dataBuf.append(chunk)
+            } catch (e: Exception) {
+                // A read that failed because Stop closed the body is a
+                // cancellation, not an I/O error to record as a failed answer.
+                ensureActive()
+                throw e
+            } finally {
+                closeOnCancel.cancel()
             }
         }
         // Flush a trailing event that ended via TCP close (no blank line).
