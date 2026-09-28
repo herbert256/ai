@@ -487,7 +487,9 @@ internal suspend fun computeReportStats(
     var withReasoning = 0
     var translated = 0
     for (r in all) {
-        val secs = SecondaryResultStorage.listForReport(context, r.id)
+        // Read-through: a pass over every report must not evict the open
+        // report from the 3-report row cache.
+        val secs = SecondaryResultStorage.listForReportWithoutCaching(context, r.id)
         val parameters = r.agents.mapNotNull { it.executionConfig?.parameters } +
             secs.mapNotNull { it.executionConfig?.parameters }
         if (r.webSearchTool || parameters.any { it.webSearchTool || it.searchEnabled }) withWebSearch++

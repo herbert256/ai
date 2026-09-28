@@ -1142,9 +1142,12 @@ private fun computeUsages(
     // opens View responses for that report, pre-scrolled to the
     // agent that actually used this provider/model.
     val out = mutableListOf<ViewUsageEntry>()
-    val reports = ReportStorage.getAllReports(context).sortedByDescending { it.timestamp }
-    for (report in reports) {
+    // Header index newest-first, parsing each report only when reached —
+    // getAllReports parsed every report although the loop stops at five hits.
+    val headers = ReportStorage.getReportHeaders(context).sortedByDescending { it.timestamp }
+    for (header in headers) {
         if (out.size >= 5) break
+        val report = ReportStorage.getReport(context, header.id) ?: continue
         val matchingAgent = report.agents.firstOrNull { it.provider == provider.id && it.model == model }
             ?: continue
         out += ViewUsageEntry(

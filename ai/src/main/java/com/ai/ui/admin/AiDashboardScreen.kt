@@ -101,6 +101,7 @@ import com.ai.viewmodel.AppViewModel
 import com.ai.viewmodel.ReportViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.withContext
 import java.util.Locale
 
@@ -771,19 +772,31 @@ fun AiStatReportsScreen(
     val context = LocalContext.current
     val refreshTick = resumeRefreshTick()
     val calendarDay = statisticsCalendarDay()
-    // Report-stat card refreshes when reports / secondaries actually change,
-    // not on a blind 10s timer (audit U12). translationRuns + problemReportIds
-    // below already cover the live-run deltas.
-    val reportDataVersion by com.ai.data.ReportDataVersion.version.collectAsState()
-    val secondaryDataVersion by com.ai.data.SecondaryDataVersion.version.collectAsState()
     val translationRuns by reportViewModel.translation.translationRuns.collectAsState()
     // Problems stat derives from the same Broken-work scan that drives the
     // hub card + the ⚠️ badge, so the three never disagree.
     val brokenBatches by reportViewModel.brokenBatches.collectAsState()
     val problemReportIds = remember(brokenBatches) { brokenBatches.mapTo(HashSet()) { it.reportId } }
-    LaunchedEffect(refreshTick) { reportViewModel.secondary.refreshBrokenBatches(context) }
-    val data by produceState<ReportSectionData?>(null, refreshTick, calendarDay, reportDataVersion, secondaryDataVersion, translationRuns, problemReportIds) {
-        value = computeReportStats(context, translationRuns, problemReportIds)
+    LaunchedEffect(refreshTick) { reportViewModel.secondary.refreshBrokenBatchesIfStale(context) }
+    val latestTranslationRuns by androidx.compose.runtime.rememberUpdatedState(translationRuns)
+    val latestProblemIds by androidx.compose.runtime.rememberUpdatedState(problemReportIds)
+    // Report-stat card refreshes when reports / secondaries actually change,
+    // not on a blind 10s timer (audit U12), plus translationRuns /
+    // problemReportIds for the live-run deltas. The data versions are global
+    // and tick on every write — many per second while any report generates —
+    // and each recompute parses every report and its rows, so it's
+    // throttled to one pass per 2 s instead of one per write.
+    val data by produceState<ReportSectionData?>(null, refreshTick, calendarDay) {
+        kotlinx.coroutines.flow.combine(
+            com.ai.data.ReportDataVersion.version,
+            com.ai.data.SecondaryDataVersion.version,
+            androidx.compose.runtime.snapshotFlow { latestTranslationRuns to latestProblemIds }
+        ) { _, _, inputs -> inputs }
+            .conflate()
+            .collect { inputs ->
+                value = computeReportStats(context, inputs.first, inputs.second)
+                kotlinx.coroutines.delay(2_000L)
+            }
     }
 
     Column(

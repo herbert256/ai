@@ -44,7 +44,6 @@ import com.ai.ui.shared.LocalMetadataIcons
 import com.ai.ui.shared.TitleBar
 import com.ai.viewmodel.AppViewModel
 import com.ai.viewmodel.ReportViewModel
-import com.ai.viewmodel.TranslationRunState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -200,32 +199,34 @@ internal fun HubCard(icon: String, title: String, onClick: () -> Unit, iconTint:
     }
 }
 
-/** Carries the two report lists the home-screen "Running reports"
- *  / "Reports with problems" cards consume. Produced by the
- *  HubScreen's `produceState` block; both lists naturally land
- *  newest-first because [ReportStorage.getAllReports] returns
- *  sorted-by-timestamp-descending. */
+/** The report-id sets the Reports hub / report picker mark as "running"
+ *  (spinning hourglass / Running card) and "with problems" (⚠️ / Problems
+ *  card). Each screen intersects them with its own report list. */
 data class HomeReportLists(
-    val running: List<Report>,
-    val problems: List<Report>
+    val runningIds: Set<String>,
+    val problemIds: Set<String>
 )
 
-/** Disk scan that powers both the home screen's Running / Problems
- *  cards and the Reports hub's Problems / Running list cards.
- *  Centralised here so the two screens stay in sync.
+/** Powers the Reports hub's running / broken row markers and the report
+ *  picker's Running / Problems cards. Centralised here so the two screens
+ *  stay in sync. No disk reads — both sets come from live state:
  *
- *  - **Running**: a not-yet-completed report with a PENDING / RUNNING
- *    agent, or an in-flight translation targeting it.
+ *  - **Running**: a report with primary work live in this process
+ *    ([ReportViewModel.generatingReportIds]: generation, regenerate,
+ *    regenerate batch) or an in-flight translation targeting it. This used
+ *    to be a full parse of every report JSON every 5 s looking for
+ *    PENDING / RUNNING agents; the live set also stops a report a process
+ *    kill stranded mid-run from spinning forever — that one is flagged by
+ *    the Broken-work scan instead.
  *  - **Problems**: exactly the reports the Broken-work scan flagged —
  *    the same list ([reportViewModel.brokenBatches]) that lights the
  *    top-bar ⚠️ badge, so the card and the badge can never disagree.
  *    One routine, two surfaces.
  *
- *  Both `translationRuns` and `brokenBatches` are pulled live from
- *  [reportViewModel]. The 5 s [cardsTick] catches background
- *  running-state changes; [refreshTick] keys onto the screen's resume
- *  lifecycle (and kicks a fresh Broken-work scan so Problems is current
- *  immediately rather than waiting for the 30 s background tick). */
+ *  The job maps behind Running aren't observable, so they're re-read every
+ *  2 s (in-memory, cheap). [refreshTick] keys onto the screen's resume
+ *  lifecycle and kicks a Broken-work scan (unless one just ran) so Problems
+ *  is current without waiting for the 30 s background tick. */
 @Composable
 fun rememberHomeReportLists(
     refreshTick: Int,
@@ -238,42 +239,20 @@ fun rememberHomeReportLists(
         brokenBatches.mapTo(HashSet()) { it.reportId }
     }
     LaunchedEffect(refreshTick) {
-        reportViewModel.secondary.refreshBrokenBatches(context)
-    }
-    val cardsTick by produceState(initialValue = 0) {
-        while (true) {
-            kotlinx.coroutines.delay(5_000L)
-            value = value + 1
-        }
+        reportViewModel.secondary.refreshBrokenBatchesIfStale(context)
     }
     return produceState(
-        initialValue = HomeReportLists(emptyList(), emptyList()),
-        refreshTick, cardsTick, translationRuns, problemReportIds
+        initialValue = HomeReportLists(emptySet(), emptySet()),
+        translationRuns, problemReportIds
     ) {
-        value = withContext(Dispatchers.IO) {
-            computeHomeReportLists(context, translationRuns, problemReportIds)
+        val activeTranslationReportIds = translationRuns.values
+            .filter { !it.isFinished && !it.cancelled }
+            .mapTo(HashSet()) { it.sourceReportId }
+        while (true) {
+            value = HomeReportLists(reportViewModel.generatingReportIds() + activeTranslationReportIds, problemReportIds)
+            kotlinx.coroutines.delay(2_000L)
         }
     }
-}
-
-/** Pure-IO computation that produces the Running + Problems splits for
- *  the home / hub list cards. Running is derived from agent / translation
- *  state; Problems is simply the reports the Broken-work scan flagged
- *  ([problemReportIds]). Run on [Dispatchers.IO] by
- *  [rememberHomeReportLists]. */
-internal fun computeHomeReportLists(
-    context: android.content.Context,
-    translationRuns: Map<String, TranslationRunState>,
-    problemReportIds: Set<String> = emptySet()
-): HomeReportLists {
-    val all = ReportStorage.getAllReports(context)
-    val activeTranslationReportIds = translationRuns.values
-        .filter { !it.isFinished && !it.cancelled }
-        .map { it.sourceReportId }
-        .toSet()
-    val running = all.filter { reportIsRunning(it, activeTranslationReportIds) }
-    val problems = all.filter { it.id in problemReportIds }
-    return HomeReportLists(running, problems)
 }
 
 /** True when [report] is still actively producing output — at
@@ -378,8 +357,8 @@ fun ReportsHubScreen(
             onOpenManage = onOpenReportManage,
             onOpenView = onOpenReportView,
             onDelete = bumpDelete,
-            runningIds = homeReportLists.running.mapTo(HashSet()) { it.id },
-            brokenIds = homeReportLists.problems.mapTo(HashSet()) { it.id }
+            runningIds = homeReportLists.runningIds,
+            brokenIds = homeReportLists.problemIds
         )
     ) {
     Column(modifier = Modifier

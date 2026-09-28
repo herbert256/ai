@@ -724,6 +724,18 @@ class SecondaryRunManager(
      *  30-second background tick. */
     suspend fun refreshBrokenBatches(context: Context) {
         appViewModel.setBrokenBatches(scanBrokenRunsForRecentReports(context))
+        lastBrokenScanAtMs = System.currentTimeMillis()
+    }
+
+    @Volatile private var lastBrokenScanAtMs = 0L
+
+    /** Screen-resume variant of [refreshBrokenBatches]: skips the scan when
+     *  one finished within the last 10 s (the 30 s background loop, a
+     *  recovery action, or the previous resume) — every hub / picker resume
+     *  used to start its own full scan on top of the background one. */
+    suspend fun refreshBrokenBatchesIfStale(context: Context) {
+        if (System.currentTimeMillis() - lastBrokenScanAtMs < 10_000L) return
+        refreshBrokenBatches(context)
     }
 
     /** The live "what's running right now in THIS process" snapshot the

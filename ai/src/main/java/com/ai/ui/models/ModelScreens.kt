@@ -89,14 +89,18 @@ private fun computeModelUsages(
     // every secondary file on every report on every Model Info open,
     // which dominated the screen open time once the user had a few
     // dozen reports on disk.
-    val reports = ReportStorage.getAllReports(context).sortedByDescending { it.timestamp }
+    // Walk the cached header index newest-first and parse each report only
+    // when it is reached — getAllReports parsed EVERY report up front even
+    // though the loop usually stops after a handful.
+    val headers = ReportStorage.getReportHeaders(context).sortedByDescending { it.timestamp }
     val candidateCap = 30
     // Cap only the report/secondary candidates (the chat candidates above are
     // already capped separately), so reports are always considered regardless
     // of how many chat sessions exist.
     val reportStartSize = out.size
-    for (report in reports) {
+    for (header in headers) {
         if (out.size - reportStartSize >= candidateCap) break
+        val report = ReportStorage.getReport(context, header.id) ?: continue
         report.agents.forEach { agent ->
             if (agent.provider == provider.id && agent.model == model) {
                 out += ModelUsageEntry(
@@ -106,7 +110,8 @@ private fun computeModelUsages(
                 )
             }
         }
-        SecondaryResultStorage.listForReport(context, report.id).forEach { sec ->
+        // Read-through: don't churn the 3-report row cache with every report.
+        SecondaryResultStorage.listForReportWithoutCaching(context, report.id).forEach { sec ->
             if (sec.providerId == provider.id && sec.model == model) {
                 val typeLabel = when (sec.kind) {
                     SecondaryKind.RERANK -> "Rerank"

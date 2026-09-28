@@ -107,7 +107,7 @@ fun ReportPickerScreen(
         value = if (filter == null) null
         else withContext(Dispatchers.IO) {
             allReports.filter { r ->
-                filter(r, SecondaryResultStorage.listForReport(context, r.id))
+                filter(r, SecondaryResultStorage.listForReportWithoutCaching(context, r.id))
             }.map { it.id }.toSet()
         }
     }
@@ -115,8 +115,12 @@ fun ReportPickerScreen(
     val homeLists by rememberHomeReportLists(refreshTick, reportViewModel)
     // "Latest" excludes anything already shown under "Running" or "with
     // problems" so a report surfaces in only one card.
+    // The shared hook hands back id sets; resolve them against this screen's
+    // own newest-first list so the cards keep that order.
+    val running = remember(allReports, homeLists) { allReports.filter { it.id in homeLists.runningIds } }
+    val problems = remember(allReports, homeLists) { allReports.filter { it.id in homeLists.problemIds } }
     val latest = remember(allReports, homeLists) {
-        val shown = (homeLists.running + homeLists.problems).mapTo(HashSet()) { it.id }
+        val shown = homeLists.runningIds + homeLists.problemIds
         allReports.filter { !it.pinned && it.id !in shown }
     }
     val examples by produceState(initialValue = emptyList<ExampleEntry>(), Unit) {
@@ -140,8 +144,8 @@ fun ReportPickerScreen(
             }
 
     val cards = listOf(
-        PickerCardData("⏳", AppColors.WarningAccent, "Running AI reports", reportEntries(homeLists.running)),
-        PickerCardData(com.ai.data.MetadataIconsHolder.current.statusWarning, AppColors.DangerAccent, "AI Reports with problems", reportEntries(homeLists.problems)),
+        PickerCardData("⏳", AppColors.WarningAccent, "Running AI reports", reportEntries(running)),
+        PickerCardData(com.ai.data.MetadataIconsHolder.current.statusWarning, AppColors.DangerAccent, "AI Reports with problems", reportEntries(problems)),
         PickerCardData(com.ai.data.MetadataIconsHolder.current.pin, AppColors.CautionAccent, "Pinned AI Reports", reportEntries(pinned)),
         PickerCardData(com.ai.data.MetadataIconsHolder.current.clockRecent, AppColors.InfoAccent, "Latest AI Reports", reportEntries(latest)),
         PickerCardData(com.ai.data.MetadataIconsHolder.current.tip, AppColors.PrimaryAccent, "Example AI Reports",

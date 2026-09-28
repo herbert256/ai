@@ -366,6 +366,10 @@ class RegenerateBatchEngine internal constructor(
     fun isActivelyRunning(reportId: String): Boolean =
         orchestratorJobs[reportId]?.isActive == true
 
+    /** [isActivelyRunning] for every report at once (hub "running" set). */
+    fun activelyRunningReportIds(): Set<String> =
+        orchestratorJobs.entries.filter { it.value.isActive }.mapTo(HashSet()) { it.key }
+
     /** Drop the persisted job + in-memory entry. Used by the
      *  detail screen's "delete" action (future). */
     fun deleteJob(context: Context, reportId: String): Job =

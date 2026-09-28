@@ -278,6 +278,15 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             regenerateJobs[reportId]?.any { it.isActive } == true ||
             regenerateBatchEngine.isActivelyRunning(reportId)
 
+    /** Every report [isReportGenerating] is true for, straight from the
+     *  in-memory job maps — the hub / picker "running" set, which used to
+     *  parse every report JSON every 5 s looking for PENDING/RUNNING agents. */
+    fun generatingReportIds(): Set<String> = buildSet {
+        generationJobs.forEach { (id, job) -> if (job.isActive) add(id) }
+        regenerateJobs.forEach { (id, jobs) -> if (jobs.any { it.isActive }) add(id) }
+        addAll(regenerateBatchEngine.activelyRunningReportIds())
+    }
+
     internal fun hasActiveReportCalls(context: Context, reportId: String): Boolean =
         appViewModel.runningInfoJobs.value.any { it.startsWith("$reportId|") } ||
         resumingMetaIds.any { SecondaryResultStorage.get(context,reportId,it) != null } ||
