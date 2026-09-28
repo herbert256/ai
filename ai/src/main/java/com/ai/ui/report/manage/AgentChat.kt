@@ -143,10 +143,14 @@ internal fun AgentChatScreen(
         userInput = ""; callError = null
         messages.add(ChatMessage(role = "user", content = text))
         val pendingMessages = messages.toList()
-        // Outgoing call = optional system message + the full conversation.
+        // Outgoing call = optional system message + the full conversation,
+        // minus user turns that failed without an answer (kept on screen with
+        // their interruption) — re-sending them puts two user messages back
+        // to back, which strict-alternation providers reject every turn.
         val outgoing = buildList {
             if (params.systemPrompt.isNotBlank()) add(ChatMessage(role = "system", content = params.systemPrompt))
-            addAll(messages.map { if (it.role == "assistant") it.copy(content = stripThinkSections(it.content)) else it })
+            addAll(messages.filterNot { it.role == "user" && it.interruption != null }
+                .map { if (it.role == "assistant") it.copy(content = stripThinkSections(it.content)) else it })
         }
         isStreaming = true
         streamingText = ""
