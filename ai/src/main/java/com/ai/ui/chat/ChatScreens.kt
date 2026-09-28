@@ -798,12 +798,15 @@ fun ChatSessionScreen(
             // in SUBJECT mode. Sub-cent costs render "<0.01c" so a
             // tiny cost reads differently from a literal zero.
             subject = totalCostSubject,
-            onInfo = { navToModelInfo(provider, model) }
+            // ℹ️ / model-name / 🐞 links navigate away, which disposes this
+            // screen — and the reply streaming in its coroutine scope with it.
+            // They're disabled until the turn ends.
+            onInfo = if (isStreaming) null else ({ navToModelInfo(provider, model) })
         )
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(com.ai.ui.shared.modelLabel(provider.id, model, separator = " / "),
                 fontSize = 12.sp, color = AppColors.TextTertiary,
-                modifier = Modifier.weight(1f).modelInfoClickable(provider, model))
+                modifier = Modifier.weight(1f).then(if (isStreaming) Modifier else Modifier.modelInfoClickable(provider, model)))
             // Knowledge attach chip — tap opens a multi-select
             // dialog over saved KBs. Shown only when at least one
             // KB exists. Per-turn injection happens in
@@ -875,7 +878,10 @@ fun ChatSessionScreen(
                             message = msg,
                             userName = userName,
                             traceFilename = msg.traceFilename ?: traceFilenameByMessageKey[chatMessageListKey(msg, idx)],
-                            onNavigateToTraceFile = onNavigateToTraceFile
+                            onNavigateToTraceFile = onNavigateToTraceFile,
+                            // Opening a trace mid-stream would dispose the
+                            // screen and stop the reply.
+                            traceEnabled = !isStreaming
                         )
                     }
                     if (isStreaming) {
@@ -1130,6 +1136,8 @@ private fun ChatMessageBubble(
     userName: String = "You",
     traceFilename: String? = null,
     onNavigateToTraceFile: (String) -> Unit = {},
+    /** False while a reply streams: the 🐞 shows dimmed and doesn't navigate. */
+    traceEnabled: Boolean = true,
 ) {
     val isUser = message.role == "user"
     Card(
@@ -1158,7 +1166,8 @@ private fun ChatMessageBubble(
                     Text(
                         com.ai.data.MetadataIconsHolder.current.traces, fontSize = 14.sp,
                         modifier = Modifier
-                            .clickable { onNavigateToTraceFile(traceFilename) }
+                            .alpha(if (traceEnabled) 1f else 0.4f)
+                            .clickable(enabled = traceEnabled) { onNavigateToTraceFile(traceFilename) }
                             .padding(start = 6.dp, top = 2.dp, bottom = 2.dp, end = 2.dp)
                     )
                 }
