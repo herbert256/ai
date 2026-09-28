@@ -1026,17 +1026,24 @@ data class ReplicateInput(
     val top_p: Double? = null
 )
 
-/** A Replicate prediction. With `Prefer: wait` the POST returns the completed
- *  object: `status` = succeeded/failed/processing, `output` = the result, and
- *  `metrics` carries token counts. For LLMs `output` is an array of token
- *  strings to join; some models return a single string instead — hence the
- *  raw [com.google.gson.JsonElement]. */
+/** A Replicate prediction. `Prefer: wait` holds the POST for at most ~60 s, so
+ *  the object may still be `starting` / `processing` (with partial `output`);
+ *  only `succeeded` is a finished answer. `urls.get` / `urls.cancel` poll or
+ *  stop it, and `metrics` carries token counts. For LLMs `output` is an array
+ *  of token strings to join; some models return a single string instead —
+ *  hence the raw [com.google.gson.JsonElement]. */
 data class ReplicatePredictionResponse(
     val id: String? = null,
     val status: String? = null,
     val output: com.google.gson.JsonElement? = null,
     val error: String? = null,
-    val metrics: ReplicateMetrics? = null
+    val metrics: ReplicateMetrics? = null,
+    val urls: ReplicatePredictionUrls? = null
+)
+
+data class ReplicatePredictionUrls(
+    @com.google.gson.annotations.SerializedName("get") val getUrl: String? = null,
+    @com.google.gson.annotations.SerializedName("cancel") val cancelUrl: String? = null
 )
 
 data class ReplicateMetrics(

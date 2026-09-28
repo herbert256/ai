@@ -344,9 +344,12 @@ not an OpenAI-style chat endpoint. Format-specific code lives in
   OPENAI_COMPATIBLE but a completely different body.
 - **Path**: `POST <baseUrl>/models/{owner}/{name}/predictions` with a
   `Prefer: wait` header — the model id is `owner/name` and is part of
-  the URL path, not the body. `Prefer: wait` blocks the call until the
-  prediction completes and returns it inline, so the app's one-shot
-  dispatch works without a separate poll loop.
+  the URL path, not the body. `Prefer: wait` holds the call for up to
+  ~60 s and returns the prediction inline. One still `starting` /
+  `processing` after that is polled every 3 s via its `urls.get` until
+  it ends, within the non-streaming read-timeout budget (measured from
+  the POST). A prediction the app abandons (budget spent, Stop, a thrown
+  poll) is cancelled via `urls.cancel`, so no unseen run keeps billing.
 - **Request shape**: `ReplicatePredictionRequest` wraps a single
   `ReplicateInput` carrying `prompt`, `system_prompt`, `max_tokens`
   (default 1024), `temperature`, `top_p`. No `messages` array — chat
@@ -354,13 +357,15 @@ not an OpenAI-style chat endpoint. Format-specific code lives in
   joins non-system turns as `"role: content"` lines and pulls the
   system turn(s) into `system_prompt`).
 - **Response shape**: `ReplicatePredictionResponse` — `status`
-  (`succeeded` / `failed` / `processing`), `output` (a `JsonElement`:
-  usually an array of token strings to join, sometimes a single
-  string), `error`, and `metrics` (`input_token_count`,
-  `output_token_count`) for token usage. A `status="processing"` body
-  (the `Prefer: wait` window elapsed before the model finished) and a
-  `status="failed"` / non-null `error` body are both surfaced as
-  explicit error messages rather than silently returning empty text.
+  (`starting` / `processing` / `succeeded` / `failed` / `canceled`),
+  `output` (a `JsonElement`: usually an array of token strings to join,
+  sometimes a single string), `error`, `metrics` (`input_token_count`,
+  `output_token_count`) for token usage, and `urls.get` / `urls.cancel`.
+  Only `succeeded` output is an answer — the partial `output` of a
+  running prediction is never saved as complete. A `failed` / `error`
+  body is an explicit (retryable) error; `succeeded` without text and a
+  run cancelled at the budget are failed generations (no automatic
+  retry that would start another equally long run).
 - **Scope**: text prompt only — no vision, no embeddings
   (`imageBase64` / `imageMime` params are accepted for signature
   parity with the other formats but ignored).

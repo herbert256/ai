@@ -457,9 +457,12 @@ as OPENAI_COMPATIBLE but a completely different body.</dd></div>
 <dd><code>POST &lt;baseUrl&gt;/models/{owner}/{name}/predictions</code>
 with a <code>Prefer: wait</code> header — the model id is
 <code>owner/name</code> and is part of the URL path, not the body.
-<code>Prefer: wait</code> blocks the call until the prediction
-completes and returns it inline, so the app's one-shot dispatch works
-without a separate poll loop.</dd></div>
+<code>Prefer: wait</code> holds the call for up to ~60 s and returns
+the prediction inline. One still <code>starting</code> /
+<code>processing</code> after that is polled every 3 s via
+<code>urls.get</code> within the non-streaming read-timeout budget; a
+prediction the app abandons (budget, Stop, a thrown poll) is cancelled
+via <code>urls.cancel</code>.</dd></div>
 <div><dt>Request shape</dt>
 <dd><code>ReplicatePredictionRequest</code> wraps a single
 <code>ReplicateInput</code> carrying <code>prompt</code>,
@@ -474,13 +477,14 @@ array — chat turns are flattened into one prompt string
 (<code>succeeded</code> / <code>failed</code> / <code>processing</code>),
 <code>output</code> (a <code>JsonElement</code>: usually an array of
 token strings to join, sometimes a single string), <code>error</code>,
-and <code>metrics</code> (<code>input_token_count</code>,
-<code>output_token_count</code>) for token usage. A
-<code>status="processing"</code> body (the <code>Prefer: wait</code>
-window elapsed before the model finished) and a
-<code>status="failed"</code> / non-null <code>error</code> body are
-both surfaced as explicit error messages rather than silently
-returning empty text.</dd></div>
+<code>metrics</code> (<code>input_token_count</code>,
+<code>output_token_count</code>) for token usage, and
+<code>urls.get</code> / <code>urls.cancel</code>. Only
+<code>succeeded</code> output is an answer; a running prediction's
+partial <code>output</code> is never saved as complete. A
+<code>failed</code> / <code>error</code> body is an explicit error;
+<code>succeeded</code> without text and a run cancelled at the budget
+are failed generations (no automatic retry).</dd></div>
 <div><dt>Scope</dt>
 <dd>Text prompt only — no vision, no embeddings
 (<code>imageBase64</code> / <code>imageMime</code> params are accepted

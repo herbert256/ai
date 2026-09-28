@@ -78,9 +78,9 @@ interface ClaudeApi {
 }
 
 /** Replicate async predictions API. The model id (owner/name) is part of
- *  the path, so we pass the full URL via [@Url]. `Prefer: wait` makes the
- *  POST block until the prediction completes and returns it inline — no
- *  separate poll. */
+ *  the path, so we pass the full URL via [@Url]. `Prefer: wait` holds the
+ *  POST for up to ~60 s; a prediction still running after that is polled
+ *  through its `urls.get` and, when abandoned, stopped via `urls.cancel`. */
 interface ReplicateApi {
     @POST
     suspend fun createPrediction(
@@ -89,6 +89,18 @@ interface ReplicateApi {
         @Header("Prefer") prefer: String,
         @Body request: ReplicatePredictionRequest
     ): Response<ReplicatePredictionResponse>
+
+    @GET
+    suspend fun getPrediction(
+        @Url url: String,
+        @Header("Authorization") authorization: String
+    ): Response<ReplicatePredictionResponse>
+
+    @POST
+    suspend fun cancelPrediction(
+        @Url url: String,
+        @Header("Authorization") authorization: String
+    ): Response<okhttp3.ResponseBody>
 }
 
 /** Google Gemini GenerativeAI API. */
