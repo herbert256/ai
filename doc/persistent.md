@@ -320,9 +320,10 @@ preferences payload, retaining compatibility with the existing backup format.
 
 ### `metadata_indexes/*.json`
 
-Rebuildable `api-traces-v1.json` and `report-headers-v1.json` indexes used by
-startup/recovery. Each entry records source filename, file identity, nanosecond
-mtime, length and small header fields. Every scan checks source metadata;
+Rebuildable `api-traces-v1.json` and `report-headers-v2.json` indexes used by
+startup/recovery (and the Reports hub's Pinned / Latest cards, which read the
+report headers' title / icon / pinned / timestamp). Each entry records source
+filename, file identity, nanosecond mtime, length and small header fields. Every scan checks source metadata;
 missing, changed, invalid or replaced entries are reparsed. Report/trace JSON
 remains authoritative. Clearing all reports/traces clears its corresponding
 index. Imported/restored files invalidate cached entries by file identity.

@@ -142,10 +142,14 @@ object ReportStorage {
     @Volatile private var importsRecovered = false
     @Volatile private var lastLoadFailures: List<ReportLoadFailure> = emptyList()
 
-    /** Small fields used by startup accounting and recovery scans. */
+    /** Small fields used by startup accounting and recovery scans, and by
+     *  the Reports hub's Pinned / Latest cards ([icon], [pinned]) — which
+     *  used to fully parse every report JSON on each visit. */
     data class Header(val id: String, val title: String, val timestamp: Long,
-        val ledgerComplete: Boolean, val ledgerVersion: Int)
-    private val headerIndex = JsonFileIndex("report-headers-v1", Header::class.java) { file, header ->
+        val ledgerComplete: Boolean, val ledgerVersion: Int,
+        val icon: String? = null, val pinned: Boolean = false)
+    // v2: + icon / pinned (a v1 entry would read them as null / false).
+    private val headerIndex = JsonFileIndex("report-headers-v2", Header::class.java) { file, header ->
         header.id == file.nameWithoutExtension && header.title != null && header.ledgerVersion >= 0
     }
 
@@ -160,6 +164,8 @@ object ReportStorage {
                     var timestamp = 0L
                     var complete = false
                     var version = 0
+                    var icon: String? = null
+                    var pinned = false
                     reader.beginObject()
                     while (reader.hasNext()) when (reader.nextName()) {
                         "id" -> id = reader.nextString()
@@ -167,11 +173,13 @@ object ReportStorage {
                         "timestamp" -> timestamp = reader.nextLong()
                         "apiCallCostsComplete" -> complete = reader.nextBoolean()
                         "apiCallCostsVersion" -> version = reader.nextInt()
+                        "icon" -> if (reader.peek() == com.google.gson.stream.JsonToken.NULL) reader.nextNull() else icon = reader.nextString()
+                        "pinned" -> if (reader.peek() == com.google.gson.stream.JsonToken.NULL) reader.nextNull() else pinned = reader.nextBoolean()
                         else -> reader.skipValue()
                     }
                     reader.endObject()
                     check(id == file.nameWithoutExtension && isSafeFlatId(id))
-                    Header(id, title, timestamp, complete, version)
+                    Header(id, title, timestamp, complete, version, icon, pinned)
                 }
             }.onFailure { AppLog.w("ReportStorage", "Cannot read report header: ${file.name}", it) }.getOrNull()
         }

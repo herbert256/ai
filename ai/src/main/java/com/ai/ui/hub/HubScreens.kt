@@ -337,8 +337,14 @@ fun ReportsHubScreen(
     // just-persisted report then takes the slot the placeholder row vacated.
     // Keying on the id set rather than ReportDataVersion avoids reloading on
     // every unrelated report mutation while the hub is open.
-    val allReports by produceState(initialValue = emptyList<Report>(), refreshTick, deleteTick, importingIds) {
-        value = withContext(Dispatchers.IO) { ReportStorage.getAllReports(context) }
+    // The Pinned / Latest cards show only id / title / icon / pinned /
+    // timestamp: read the cached header index instead of getAllReports,
+    // which fully parsed every report JSON on each visit (with ~150
+    // reports Latest stayed empty for 5-10 s).
+    val allReports by produceState(initialValue = emptyList<ReportStorage.Header>(), refreshTick, deleteTick, importingIds) {
+        value = withContext(Dispatchers.IO) {
+            ReportStorage.getReportHeaders(context).sortedByDescending { it.timestamp }
+        }
     }
     val pinnedReports = remember(allReports) {
         allReports.filter { it.pinned }.sortedByDescending { it.timestamp }.take(5)
@@ -441,7 +447,7 @@ private fun ReportsHubListCard(
     accentEmoji: String,
     accentColor: Color,
     label: String,
-    reports: List<Report>,
+    reports: List<ReportStorage.Header>,
     showEmptyHint: Boolean = true,
     importing: List<com.ai.data.ImportInProgress> = emptyList()
 ) {
@@ -481,7 +487,7 @@ private fun ReportsHubListCard(
                 importing.forEach { ImportingReportRow(it) }
                 reports.take(5).forEach { r ->
                     com.ai.ui.shared.ReportListRow(
-                        report = r,
+                        reportId = r.id, title = r.title, icon = r.icon,
                         onOpenManage = com.ai.ui.shared.LocalReportListIconBundle.current.onOpenManage,
                         onOpenView = com.ai.ui.shared.LocalReportListIconBundle.current.onOpenView,
                         onDelete = com.ai.ui.shared.LocalReportListIconBundle.current.onDelete

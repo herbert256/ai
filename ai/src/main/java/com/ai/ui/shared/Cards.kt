@@ -320,13 +320,35 @@ fun ReportListRow(
     selected: Boolean = false,
     onToggleSelect: ((String) -> Unit)? = null,
     onEnterSelection: ((String) -> Unit)? = null
+) = ReportListRow(
+    reportId = report.id, title = report.title, icon = report.icon,
+    onOpenManage = onOpenManage, onOpenView = onOpenView, onDelete = onDelete,
+    selectionMode = selectionMode, selected = selected,
+    onToggleSelect = onToggleSelect, onEnterSelection = onEnterSelection
+)
+
+/** [ReportListRow] from just the fields it shows — lets a list built from
+ *  [com.ai.data.ReportStorage.getReportHeaders] (the Reports hub) skip
+ *  parsing every full report. */
+@Composable
+fun ReportListRow(
+    reportId: String,
+    title: String,
+    icon: String?,
+    onOpenManage: (String) -> Unit,
+    onOpenView: (String) -> Unit,
+    onDelete: (String) -> Unit,
+    selectionMode: Boolean = false,
+    selected: Boolean = false,
+    onToggleSelect: ((String) -> Unit)? = null,
+    onEnterSelection: ((String) -> Unit)? = null
 ) {
-    var showDelete by remember(report.id) { mutableStateOf(false) }
+    var showDelete by remember(reportId) { mutableStateOf(false) }
     if (showDelete) {
         DeleteConfirmationDialog(
             entityType = "Report",
-            entityName = report.title.ifBlank { "Untitled" },
-            onConfirm = { showDelete = false; onDelete(report.id) },
+            entityName = title.ifBlank { "Untitled" },
+            onConfirm = { showDelete = false; onDelete(reportId) },
             onDismiss = { showDelete = false }
         )
     }
@@ -337,11 +359,11 @@ fun ReportListRow(
         modifier = Modifier.fillMaxWidth()
             .combinedClickable(
                 onClick = {
-                    if (selectionMode) onToggleSelect?.invoke(report.id)
-                    else onOpenManage(report.id)
+                    if (selectionMode) onToggleSelect?.invoke(reportId)
+                    else onOpenManage(reportId)
                 },
                 onLongClick = if (onEnterSelection != null && !selectionMode)
-                    ({ onEnterSelection(report.id) }) else null
+                    ({ onEnterSelection(reportId) }) else null
             )
             .padding(vertical = 2.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -349,22 +371,22 @@ fun ReportListRow(
         if (selectionMode) {
             Checkbox(
                 checked = selected,
-                onCheckedChange = { onToggleSelect?.invoke(report.id) }
+                onCheckedChange = { onToggleSelect?.invoke(reportId) }
             )
         }
         // A running report shows the spinning hourglass; a report with broken
         // work shows the warning icon; otherwise its own (or default) icon.
         when {
-            report.id in bundle.runningIds -> AnimatedHourglass(fontSize = 22.sp)
-            report.id in bundle.brokenIds -> Text(LocalMetadataIcons.current.statusWarning, fontSize = 22.sp)
+            reportId in bundle.runningIds -> AnimatedHourglass(fontSize = 22.sp)
+            reportId in bundle.brokenIds -> Text(LocalMetadataIcons.current.statusWarning, fontSize = 22.sp)
             else -> Text(
-                text = (if (iconGenEnabled) report.icon?.takeIf { it.isNotBlank() } else null) ?: defaultLogo,
+                text = (if (iconGenEnabled) icon?.takeIf { it.isNotBlank() } else null) ?: defaultLogo,
                 fontSize = 22.sp
             )
         }
         Spacer(modifier = Modifier.width(8.dp))
         Text(
-            text = report.title.ifBlank { "Untitled" },
+            text = title.ifBlank { "Untitled" },
             fontSize = 14.sp, color = AppColors.TextPrimary,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
@@ -372,10 +394,10 @@ fun ReportListRow(
         )
         if (!selectionMode) {
             ReportRowActionIcons(
-                onOpenManage = { onOpenManage(report.id) },
-                onOpenView = { onOpenView(report.id) },
+                onOpenManage = { onOpenManage(reportId) },
+                onOpenView = { onOpenView(reportId) },
                 onDelete = { showDelete = true },
-                reportId = report.id
+                reportId = reportId
             )
         }
     }
