@@ -251,8 +251,8 @@ fun TournamentPodiumViewScreen(
                 }
                 item {
                     // Names what the green number IS — the score column had
-                    // no header and its scale jumps per method (Copeland ~net
-                    // wins vs Elo ~1500 vs Colley ~0.5), which read as noise.
+                    // no header and its scale jumps per method (Copeland 0–100
+                    // win rate vs Elo ~1500), which read as noise.
                     Text(
                         methodScoreHint(currentMethod),
                         color = AppColors.TextTertiary, fontSize = 11.sp,
@@ -1004,7 +1004,7 @@ private fun TournamentTotalTable(matrixJson: String?, rankings: List<TournamentR
 /** One-line meaning + scale of the green score column for the active
  *  method — the number's magnitude jumps between methods, so name it. */
 private fun methodScoreHint(method: TournamentMethod): String = when (method) {
-    TournamentMethod.COPELAND -> "Score = Copeland points (net opponent wins) — higher is better."
+    TournamentMethod.COPELAND -> "Score = Copeland win rate, 0–100 (head-to-head wins ÷ opponents played; a draw counts half) — higher is better."
     TournamentMethod.ELO -> "Score = Elo rating (all start at 1500) — higher is better."
     TournamentMethod.DAVIDSON -> "Score = Davidson strength (tie-aware fit) — higher is better."
     TournamentMethod.MARKOV -> "Score = Markov visit share — higher is better."
