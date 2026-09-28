@@ -2313,14 +2313,18 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 val modelListOnly = pre.stagedChangesReportId == reportId &&
                     pre.stagedReportModels.isNotEmpty() &&
                     !pre.hasPendingPromptChange && !pre.hasPendingParametersChange
-                // The batch-size limit is checked BEFORE the staged list is
-                // written and the banner cleared: the engine's own check runs
-                // after, so an over-limit batch used to apply the edit, drop
-                // the pending banner and then start nothing.
-                val applied = applyStagedModelList(context, reportId) { added, removed ->
+                // The batch-size limit is checked BEFORE the staged additions
+                // are written and the banner cleared: the engine's own check
+                // runs after, so an over-limit batch used to apply the edit,
+                // drop the pending banner and then start nothing. The check
+                // runs after the staged REMOVALS, so the full count is exact:
+                // a removed model also takes its translations (and, under
+                // "Use report models", its batch cells) out of the task list,
+                // which "count − removed agents" overestimated.
+                val applied = applyStagedModelList(context, reportId) { added ->
                     regenerateBatchEngine.fitsSizeLimit(context,
                         if (modelListOnly) added
-                        else regenerateBatchEngine.taskCount(context, reportId) + added - removed)
+                        else regenerateBatchEngine.taskCount(context, reportId) + added)
                 }
                 if (applied.aborted) return@launch
                 val appliedNewIds = applied.newIds
@@ -2358,11 +2362,13 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
      *  Returns the ids of the newly appended agents (empty set when the
      *  edit was removals-only), or null when no staged list was applied
      *  at all — caller uses this for the additive model-list-only
-     *  regenerate. [fitsLimit] gets the (added, removed) agent counts
-     *  before anything is written; false → nothing applied, `aborted`. */
+     *  regenerate. [fitsLimit] gets the added agent count once the staged
+     *  removals are applied (they only shrink the batch) and before the
+     *  additions are written; false → the additions are not applied and
+     *  the staged list stays pending, `aborted`. */
     private suspend fun applyStagedModelList(
         context: Context, reportId: String,
-        fitsLimit: suspend (added: Int, removed: Int) -> Boolean
+        fitsLimit: suspend (added: Int) -> Boolean
     ): StagedModelListApply {
         val state = appViewModel.uiState.value
         val staged = state.stagedReportModels
@@ -2414,8 +2420,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 baseParameters = task.resolvedParams, refreshPrompt = true))
         }
         val removedIds = existingIds - tasks.map { it.resultId }.toSet()
-        if (!fitsLimit(newAgents.size, removedIds.size)) return StagedModelListApply(null, aborted = true)
-        withContext(Dispatchers.IO) {
+        if (removedIds.isNotEmpty()) withContext(Dispatchers.IO) {
             for (id in removedIds) {
                 val agent = report.agents.firstOrNull { it.agentId == id }
                 // "Use report models" unifies the report's answer models with
@@ -2427,6 +2432,14 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                     removeAgentInternal(context, reportId, id)
                 }
             }
+            ReportStorage.bumpReportTimestamp(context, reportId)
+        }
+        if (!fitsLimit(newAgents.size)) {
+            if (removedIds.isNotEmpty()) AuditLog.append(reportId,
+                "Applied edited model list removals only (-${removedIds.size} models); additions exceed the regenerate limit")
+            return StagedModelListApply(null, aborted = true)
+        }
+        withContext(Dispatchers.IO) {
             if (newAgents.isNotEmpty()) ReportStorage.appendAgents(context, reportId, newAgents)
             ReportStorage.bumpReportTimestamp(context, reportId)
         }
@@ -2446,8 +2459,8 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
     }
 
     /** [applyStagedModelList]'s result: [newIds] as documented there;
-     *  [aborted] = the regenerate would exceed the size limit, so nothing
-     *  was applied (already toasted). */
+     *  [aborted] = the regenerate would exceed the size limit, so only the
+     *  staged removals were applied (already toasted). */
     private class StagedModelListApply(val newIds: Set<String>?, val aborted: Boolean = false)
 
     /**
