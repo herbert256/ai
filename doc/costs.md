@@ -210,7 +210,10 @@ explicitly are the eight `SecondaryKind` strings — `rerank`,
 `moderation`, `meta`, `translate`, `tournament`, `judges`, `compare`,
 `transrank` (mapped in `SecondaryRunManager.kt:1747`) — plus `icon`,
 `title`, `language`, `language-icon`, the chat kinds (`Chat`, `Dual
-chat`, `chat/rag`), `all`, and `settings/icons`.
+chat`, `chat/rag`), `all`, `settings/icons`, and `Provider test` (the
+Refresh-all default-model probe, recorded with the provider-reported usage
+of each probe attempt — a billed failure included — and nothing when the
+provider reported none).
 
 `UsageStats` (`model/SettingsModels.kt:1070`) holds `callCount`,
 `inputTokens` / `outputTokens` (`Long`), `searchUnits`, `kind`, and

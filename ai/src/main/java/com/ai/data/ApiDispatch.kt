@@ -848,11 +848,18 @@ private suspend fun AnalysisRepository.chatGeminiResponse(
 // Model fetching implementations
 // ============================================================================
 
+/** Outcome of [testModel]: [error] null = reachable. [usage] is the
+ *  provider-reported usage of every probe attempt that reported one — a
+ *  billed failure included — so the caller records what was really spent
+ *  instead of a made-up token count. */
+data class ModelProbeOutcome(val error: String?, val usage: List<TokenUsage> = emptyList())
+
 suspend fun AnalysisRepository.testModel(
     service: AppService, apiKey: String, model: String,
     retryServiceUnavailable: Boolean = false
-): String? = withContext(Dispatchers.IO) {
+): ModelProbeOutcome = withContext(Dispatchers.IO) {
     withTraceCategory("Provider test") {
+        val usage = mutableListOf<TokenUsage>()
         try {
             // Reachability probe — only needs "OK" back, so cap tiny rather
             // than inheriting defaultMaxTokens (the model's full output window,
@@ -861,7 +868,7 @@ suspend fun AnalysisRepository.testModel(
             suspend fun probe() = analyze(
                 service, apiKey, AnalysisRepository.TEST_PROMPT, model,
                 params = AgentParameters(maxTokens = AnalysisRepository.TEST_MAX_TOKENS)
-            )
+            ).also { response -> response.tokenUsage?.let { usage += it } }
             var response = probe()
             // Refresh must not disable a working provider after one explicit
             // overload response. Retry only this worker, once; auth/model
@@ -872,10 +879,10 @@ suspend fun AnalysisRepository.testModel(
                 kotlinx.coroutines.delay(waitMs)
                 response = probe()
             }
-            if (ModelProbePolicy.reachable(response)) null else response.error ?: "Unknown error"
+            ModelProbeOutcome(if (ModelProbePolicy.reachable(response)) null else response.error ?: "Unknown error", usage.toList())
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
-        } catch (e: Exception) { e.message ?: "Connection error" }
+        } catch (e: Exception) { ModelProbeOutcome(e.message ?: "Connection error", usage.toList()) }
     }
 }
 

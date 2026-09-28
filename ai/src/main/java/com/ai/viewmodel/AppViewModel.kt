@@ -2312,8 +2312,14 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     ): String? {
         return try {
             val result = repository.testModel(service, apiKey, model, retryServiceUnavailable)
-            if (result == null) settingsPrefs.updateUsageStatsAsync(service, model, 10, 2, 12)
-            result
+            // Record the provider-reported usage of every probe attempt — a
+            // billed failure too — under the probe's own category. A probe
+            // that reported no usage records nothing rather than a guess.
+            result.usage.forEach {
+                settingsPrefs.updateUsageStatsAsync(service, model, it,
+                    kind = com.ai.data.TestCallTimeoutInterceptor.TEST_CALL_TRACE_CATEGORY)
+            }
+            result.error
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
         } catch (e: Exception) { e.message ?: "Test failed" }
