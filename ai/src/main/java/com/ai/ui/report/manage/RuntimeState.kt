@@ -503,10 +503,11 @@ internal fun HandleExternalReportInstructions(
         // creation): swiping to some other finished report while it runs
         // must not email / share / close on that report's behalf.
         if (isComplete && currentReportId != null && uiState.externalIntent.reportId == currentReportId) {
+            var acted = false
             val email = uiState.externalEmail
             if (email != null && email.isNotBlank()) {
                 emailReportAsHtml(context, currentReportId, email)
-                if (uiState.externalReturn) activity?.finish()
+                acted = true
             }
             val next = uiState.externalNextAction
             if (next != null) {
@@ -519,10 +520,14 @@ internal fun HandleExternalReportInstructions(
                         emailReportAsHtml(context, currentReportId, uiState.generalSettings.defaultEmail)
                     }
                 }
-                if (uiState.externalReturn) {
-                    delay(1000)
-                    activity?.finish()
-                }
+                acted = true
+            }
+            // <return>: finish ONCE, after every action was handed off. It used
+            // to finish right after opening the <email> chooser, so a <next>
+            // was cancelled with the effect or fired from a finishing activity.
+            if (uiState.externalReturn && acted) {
+                delay(1000)
+                activity?.finish()
             }
             if (
                 uiState.externalEmail != null ||
