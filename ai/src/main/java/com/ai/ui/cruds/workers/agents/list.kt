@@ -13,6 +13,7 @@ import com.ai.model.Agent
 import com.ai.model.Endpoint
 import com.ai.model.Settings
 import com.ai.ui.cruds.framework.CrudListPage
+import com.ai.ui.cruds.framework.workerRefsWarning
 
 private sealed interface Mode {
     data object List : Mode
@@ -79,7 +80,7 @@ fun AgentsCrud(
         AlertDialog(
             onDismissRequest = { confirmDelete = null },
             title = { Text("Delete agent?") },
-            text = { Text("Delete “${ag.name}”? This can't be undone.") },
+            text = { Text("Delete “${ag.name}”? This can't be undone." + workerRefsWarning("agent", aiSettings.removeAgent(ag.id).promptsNamingAgent(ag.name))) },
             confirmButton = {
                 TextButton(onClick = { confirmDelete = null; onSave(aiSettings.removeAgent(ag.id)); toList() }) { Text("Delete") }
             },

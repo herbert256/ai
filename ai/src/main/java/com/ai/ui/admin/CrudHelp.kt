@@ -27,8 +27,9 @@ private val workerNameRefsCard = HelpCard(
     "Renaming and deleting",
     "Worker prompts (and internal prompts bound to an agent) refer to agents, " +
         "flocks and swarms by name. Renaming one updates those references. " +
-        "Deleting one removes it from every worker chain; a prompt bound to a " +
-        "deleted agent falls back to *select."
+        "Deleting one leaves them naming it (the delete dialog lists those " +
+        "prompts); they work again once one with that name exists — e.g. a " +
+        "bundled one the app re-creates."
 )
 
 internal val crudHelp: Map<String, HelpContent> = mapOf(

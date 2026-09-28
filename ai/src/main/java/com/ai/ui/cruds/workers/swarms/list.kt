@@ -11,6 +11,7 @@ import androidx.compose.runtime.setValue
 import com.ai.model.Settings
 import com.ai.model.Swarm
 import com.ai.ui.cruds.framework.CrudListPage
+import com.ai.ui.cruds.framework.workerRefsWarning
 
 private sealed interface Mode {
     data object List : Mode
@@ -28,8 +29,8 @@ fun SwarmsCrud(
     var mode by remember { mutableStateOf<Mode>(Mode.List) }
     var confirmDelete by remember { mutableStateOf<Swarm?>(null) }
     val toList = { mode = Mode.List }
-    // Worker prompts refer to swarms by NAME: a rename re-points them, a
-    // delete drops their rows (see Settings.upsertSwarm / removeSwarm).
+    // Worker prompts refer to swarms by NAME: a rename re-points them; a
+    // delete leaves them naming it (see Settings.upsertSwarm / removeSwarm).
     val upsert: (Swarm) -> Unit = { saved -> onSave(aiSettings.upsertSwarm(saved)) }
     val remove: (Swarm) -> Unit = { onSave(aiSettings.removeSwarm(it.id)) }
 
@@ -65,7 +66,7 @@ fun SwarmsCrud(
         AlertDialog(
             onDismissRequest = { confirmDelete = null },
             title = { Text("Delete swarm?") },
-            text = { Text("Delete “${sw.name}”? This can't be undone.") },
+            text = { Text("Delete “${sw.name}”? This can't be undone." + workerRefsWarning("swarm", aiSettings.removeSwarm(sw.id).promptsNamingSwarm(sw.name))) },
             confirmButton = {
                 TextButton(onClick = { confirmDelete = null; remove(sw); toList() }) { Text("Delete") }
             },

@@ -951,9 +951,10 @@ data class Settings(
         pending?.let { (provider, ep) -> withEndpoints(provider, getEndpointsForProvider(provider) + ep) } ?: this
 
     fun removeProvider(service: AppService): Settings {
-        val removedAgents = agents.filter { it.provider.id == service.id }
-        val removedAgentIds = removedAgents.map { it.id }.toSet()
-        var next = copy(
+        val removedAgentIds = agents.filter { it.provider.id == service.id }.map { it.id }.toSet()
+        // Name-based worker-chain / InternalPrompt.agent references to the
+        // removed agents are left in place (see removeAgent).
+        return copy(
             providers = providers - service, endpoints = endpoints - service, providerStates = providerStates - service.id,
             agents = agents.filter { it.provider.id != service.id },
             flocks = flocks.map { it.copy(agentIds = it.agentIds.filter { id -> id !in removedAgentIds }) },
@@ -964,13 +965,6 @@ data class Settings(
                 if (it.provider == service.id) it.copy(provider = null, model = null) else it
             }
         )
-        // Clear the NAME-based references to the removed agents (worker
-        // chains, InternalPrompt.agent → "*select"), as removeAgent does —
-        // comparing those names against agent ids never matched.
-        removedAgents.map { it.name }.distinctBy { it.lowercase() }.forEach { name ->
-            next = next.clearWorkerRefsIfUnused(WorkerRefKind.AGENT, name)
-        }
-        return next
     }
 
     fun removeSystemPrompt(systemPromptId: String): Settings {
@@ -1047,18 +1041,17 @@ data class Settings(
         )
     }
 
-    fun removeAgent(agentId: String): Settings {
-        val removed = agents.firstOrNull { it.id == agentId }
-        val next = copy(
-            agents = agents.filter { it.id != agentId },
-            flocks = flocks.map { it.copy(agentIds = it.agentIds.filter { id -> id != agentId }) }
-        )
-        // Clear name-based references to this agent (worker-chain rows,
-        // InternalPrompt.agent → "*select") so a prompt doesn't keep
-        // pointing at "DeletedAgent". Those store the agent NAME — the old
-        // comparison against the id never matched.
-        return if (removed == null) next else next.clearWorkerRefsIfUnused(WorkerRefKind.AGENT, removed.name)
-    }
+    /** Delete an agent. Name-based references to it (worker-chain rows,
+     *  [InternalPrompt.agent]) are deliberately left dangling: the startup
+     *  seeds re-create bundled agents / flocks / swarms by NAME but never
+     *  re-seed the prompts, so clearing them would break those prompts for
+     *  good, while a dangling name heals once the entity is re-created.
+     *  The delete dialogs list the prompts that still name it
+     *  ([promptsNamingAgent]). */
+    fun removeAgent(agentId: String) = copy(
+        agents = agents.filter { it.id != agentId },
+        flocks = flocks.map { it.copy(agentIds = it.agentIds.filter { id -> id != agentId }) }
+    )
 
     /** Upsert [saved] by id. A rename re-points the name-based references
      *  (worker chains, [InternalPrompt.agent]) at the new name. */
@@ -1082,18 +1075,25 @@ data class Settings(
         return if (old == null) next else next.renameWorkerRefs(WorkerRefKind.SWARM, old.name, saved.name)
     }
 
-    /** Delete a flock and drop the worker-chain rows that named it. */
-    fun removeFlock(flockId: String): Settings {
-        val removed = flocks.firstOrNull { it.id == flockId }
-        val next = copy(flocks = flocks.filter { it.id != flockId })
-        return if (removed == null) next else next.clearWorkerRefsIfUnused(WorkerRefKind.FLOCK, removed.name)
-    }
+    /** Delete a flock; worker-chain rows naming it stay (see [removeAgent]). */
+    fun removeFlock(flockId: String) = copy(flocks = flocks.filter { it.id != flockId })
 
-    /** Delete a swarm and drop the worker-chain rows that named it. */
-    fun removeSwarm(swarmId: String): Settings {
-        val removed = swarms.firstOrNull { it.id == swarmId }
-        val next = copy(swarms = swarms.filter { it.id != swarmId })
-        return if (removed == null) next else next.clearWorkerRefsIfUnused(WorkerRefKind.SWARM, removed.name)
+    /** Delete a swarm; worker-chain rows naming it stay (see [removeAgent]). */
+    fun removeSwarm(swarmId: String) = copy(swarms = swarms.filter { it.id != swarmId })
+
+    /** Names of the internal prompts whose worker chain (or bound agent)
+     *  names [name] while no agent (flock / swarm) carries it any more — call on the
+     *  settings AFTER the delete, for the delete dialog's warning. */
+    fun promptsNamingAgent(name: String) = promptsNamingMissing(WorkerRefKind.AGENT, name)
+    fun promptsNamingFlock(name: String) = promptsNamingMissing(WorkerRefKind.FLOCK, name)
+    fun promptsNamingSwarm(name: String) = promptsNamingMissing(WorkerRefKind.SWARM, name)
+
+    private fun promptsNamingMissing(kind: WorkerRefKind, name: String): List<String> {
+        if (name.isBlank() || workerNameTaken(kind, name)) return emptyList()
+        return internalPrompts.filter { p ->
+            p.workers.any { workerRef(kind, it).equals(name, ignoreCase = true) } ||
+                (kind == WorkerRefKind.AGENT && p.agent.equals(name, ignoreCase = true))
+        }.map { it.name }
     }
 
     /** Which name a worker-chain row (or [InternalPrompt.agent]) refers by. */
@@ -1118,36 +1118,29 @@ data class Settings(
         return retargetWorkerRefs(kind, oldName, newName)
     }
 
-    /** After a delete (applied already): clear references to [name] unless
-     *  another entity still holds it. */
-    private fun clearWorkerRefsIfUnused(kind: WorkerRefKind, name: String): Settings =
-        if (name.isBlank() || workerNameTaken(kind, name)) this else retargetWorkerRefs(kind, name, null)
+    private fun workerRef(kind: WorkerRefKind, w: Worker) = when (kind) {
+        WorkerRefKind.AGENT -> w.agent
+        WorkerRefKind.FLOCK -> w.flock
+        WorkerRefKind.SWARM -> w.swarm
+    }
 
     /** Worker chains ([InternalPrompt.workers]) and [InternalPrompt.agent]
-     *  refer to agents / flocks / swarms by NAME, so a rename or delete
-     *  otherwise leaves them pointing at nothing (e.g. renaming the
-     *  bundled `workers` swarm broke every worker prompt). [newName] null
-     *  = deleted: matching chain rows are dropped (an empty chain keeps
-     *  its documented meaning) and [InternalPrompt.agent] resets to
-     *  "*select". */
-    private fun retargetWorkerRefs(kind: WorkerRefKind, oldName: String, newName: String?): Settings {
+     *  refer to agents / flocks / swarms by NAME, so a rename otherwise
+     *  leaves them pointing at nothing (e.g. renaming the bundled
+     *  `workers` swarm broke every worker prompt). Re-points every
+     *  reference to [oldName] at [newName]. */
+    private fun retargetWorkerRefs(kind: WorkerRefKind, oldName: String, newName: String): Settings {
         fun hit(v: String) = v.equals(oldName, ignoreCase = true)
-        fun ref(w: Worker) = when (kind) {
-            WorkerRefKind.AGENT -> w.agent
-            WorkerRefKind.FLOCK -> w.flock
-            WorkerRefKind.SWARM -> w.swarm
-        }
-        fun renamed(w: Worker, n: String) = when (kind) {
-            WorkerRefKind.AGENT -> w.copy(agent = n)
-            WorkerRefKind.FLOCK -> w.copy(flock = n)
-            WorkerRefKind.SWARM -> w.copy(swarm = n)
+        fun renamed(w: Worker) = when (kind) {
+            WorkerRefKind.AGENT -> w.copy(agent = newName)
+            WorkerRefKind.FLOCK -> w.copy(flock = newName)
+            WorkerRefKind.SWARM -> w.copy(swarm = newName)
         }
         return copy(internalPrompts = internalPrompts.map { p ->
             var np = p
-            if (p.workers.any { hit(ref(it)) }) np = np.copy(workers =
-                if (newName == null) p.workers.filterNot { hit(ref(it)) }
-                else p.workers.map { if (hit(ref(it))) renamed(it, newName) else it })
-            if (kind == WorkerRefKind.AGENT && hit(p.agent)) np = np.copy(agent = newName ?: "*select")
+            if (p.workers.any { hit(workerRef(kind, it)) }) np = np.copy(workers =
+                p.workers.map { if (hit(workerRef(kind, it))) renamed(it) else it })
+            if (kind == WorkerRefKind.AGENT && hit(p.agent)) np = np.copy(agent = newName)
             np
         })
     }

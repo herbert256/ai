@@ -11,6 +11,7 @@ import androidx.compose.runtime.setValue
 import com.ai.model.Flock
 import com.ai.model.Settings
 import com.ai.ui.cruds.framework.CrudListPage
+import com.ai.ui.cruds.framework.workerRefsWarning
 
 private sealed interface Mode {
     data object List : Mode
@@ -28,8 +29,8 @@ fun FlocksCrud(
     var mode by remember { mutableStateOf<Mode>(Mode.List) }
     var confirmDelete by remember { mutableStateOf<Flock?>(null) }
     val toList = { mode = Mode.List }
-    // Worker prompts refer to flocks by NAME: a rename re-points them, a
-    // delete drops their rows (see Settings.upsertFlock / removeFlock).
+    // Worker prompts refer to flocks by NAME: a rename re-points them; a
+    // delete leaves them naming it (see Settings.upsertFlock / removeFlock).
     val upsert: (Flock) -> Unit = { saved -> onSave(aiSettings.upsertFlock(saved)) }
     val remove: (Flock) -> Unit = { onSave(aiSettings.removeFlock(it.id)) }
 
@@ -65,7 +66,7 @@ fun FlocksCrud(
         AlertDialog(
             onDismissRequest = { confirmDelete = null },
             title = { Text("Delete flock?") },
-            text = { Text("Delete “${fl.name}”? This can't be undone.") },
+            text = { Text("Delete “${fl.name}”? This can't be undone." + workerRefsWarning("flock", aiSettings.removeFlock(fl.id).promptsNamingFlock(fl.name))) },
             confirmButton = {
                 TextButton(onClick = { confirmDelete = null; remove(fl); toList() }) { Text("Delete") }
             },

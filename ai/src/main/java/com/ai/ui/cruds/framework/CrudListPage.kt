@@ -155,3 +155,12 @@ private fun CrudRow(text: String, onClick: () -> Unit, trailing: (@Composable ()
         }
     }
 }
+
+/** Delete-dialog suffix for an agent / flock / swarm: worker prompts refer
+ *  to these by NAME and keep that name after the delete (so a re-created —
+ *  e.g. re-seeded — one with the same name heals them). Empty when none. */
+fun workerRefsWarning(kind: String, promptNames: List<String>): String =
+    if (promptNames.isEmpty()) ""
+    else "\n\nStill named by ${if (promptNames.size == 1) "prompt" else "prompts"} " +
+        promptNames.joinToString(", ") { "“$it”" } +
+        ". They keep the name and work again once a $kind with this name exists."

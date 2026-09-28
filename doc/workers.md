@@ -74,11 +74,15 @@ Field notes:
   (`Worker.agent` / `.flock` / `.swarm`) and `InternalPrompt.agent`
   store the entity's NAME. The CRUD saves go through
   `Settings.upsertAgent` / `upsertFlock` / `upsertSwarm`, which
-  re-point those references on a rename; `removeAgent` /
-  `removeFlock` / `removeSwarm` (and `removeProvider` for its agents)
-  drop the matching chain rows and reset `InternalPrompt.agent` to
-  `*select`. Both leave references alone while another entity still
-  carries the old name.
+  re-point those references on a rename (left alone while another
+  entity still carries the old name). `removeAgent` / `removeFlock` /
+  `removeSwarm` (and `removeProvider` for its agents) deliberately
+  leave the names dangling: the startup seeds re-create bundled
+  entities (the `workers` swarm, the chat-title agent) by name but
+  never re-seed the prompts, so clearing the chains would break those
+  prompts for good, while a dangling name heals once an entity with
+  that name exists again. The delete dialogs list the prompts that
+  still name the entity (`promptsNamingAgent` / `…Flock` / `…Swarm`).
 - A reserved flock named **`default agents`**
   (`DEFAULT_AGENTS_FLOCK_NAME`,
   [`SettingsModels.kt:123`](../ai/src/main/java/com/ai/model/SettingsModels.kt))
