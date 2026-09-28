@@ -2339,7 +2339,13 @@ object ReportStorage {
     }
 
     private fun extractTokenUsageFromTrace(trace: ApiTrace, provider: AppService): TokenUsage? {
-        val root = parseTraceResponseObject(trace.response.body) ?: return null
+        val body = trace.response.body
+        // A streamed body is SSE text whose usage rides on later events; the
+        // first data object (all the JSON path below reads) usually has none.
+        if (body != null && parseJsonObject(body) == null && body.lineSequence().any { it.trimStart().startsWith("data:") }) {
+            return streamedUsageFromTrace(body, provider)
+        }
+        val root = parseTraceResponseObject(body) ?: return null
         val usage = root.objectMember("usage")
             ?: root.objectMember("usageMetadata")
             ?: root.objectMember("response")?.objectMember("usage")
@@ -2355,6 +2361,45 @@ object ReportStorage {
         } catch (_: Exception) {
             null
         }
+    }
+
+    /** Replay a streamed trace through the same usage extractors the live
+     *  stream used, merged the same way: Anthropic splits input
+     *  (message_start) and output (message_delta) and Gemini's usageMetadata
+     *  is cumulative (field-wise max); the OpenAI include_usage chunk and the
+     *  Responses completed event carry complete counts (last one wins). */
+    private fun streamedUsageFromTrace(body: String, provider: AppService): TokenUsage? {
+        val extract: (String?, String) -> Pair<TokenUsage?, String?>? = when (provider.apiFormat) {
+            ApiFormat.ANTHROPIC -> extractClaudeUsage
+            ApiFormat.GOOGLE -> extractGeminiUsage
+            ApiFormat.OPENAI_COMPATIBLE -> openAiTraceUsageExtractor(provider)
+            ApiFormat.REPLICATE -> return null
+        }
+        val fieldMax = provider.apiFormat == ApiFormat.ANTHROPIC || provider.apiFormat == ApiFormat.GOOGLE
+        var usage: TokenUsage? = null
+        var eventType: String? = null
+        for (raw in body.lineSequence()) {
+            val line = raw.trim()
+            when {
+                line.isEmpty() -> eventType = null
+                line.startsWith("event:") -> eventType = line.removePrefix("event:").trim()
+                line.startsWith("data:") -> {
+                    val data = line.removePrefix("data:").trim()
+                    val obj = parseJsonObject(data) ?: continue
+                    // Anthropic / Responses payloads repeat the event name as `type`.
+                    val type = eventType ?: obj.get("type")?.takeIf { it.isJsonPrimitive }?.asString
+                    val next = extract(type, data)?.first ?: continue
+                    usage = if (fieldMax) mergeUsage(usage, next) else next
+                }
+            }
+        }
+        return usage
+    }
+
+    private fun openAiTraceUsageExtractor(provider: AppService): (String?, String) -> Pair<TokenUsage?, String?>? {
+        val responses = extractResponsesApiUsage(provider)
+        val chat = extractOpenAiUsage(provider)
+        return { event, data -> responses(event, data) ?: chat(event, data) }
     }
 
     private fun parseTraceResponseObject(body: String?): JsonObject? {
