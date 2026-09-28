@@ -326,7 +326,7 @@ internal fun NavGraphBuilder.developerRoutes(
                     LastReportTracker.record(reportId, view = false)
                     scope.launch {
                         reportViewModel.restoreCompletedReport(context, reportId)
-                        navController.navigate(NavRoutes.aiReportManage(ManagePickKind.COSTS.arg))
+                        navController.openReportRoute(NavRoutes.aiReportManage(ManagePickKind.COSTS.arg))
                     }
                 },
                 onNavigateToTraceReport = { reportId -> navController.navigate(NavRoutes.traceListForReport(reportId)) },
@@ -826,13 +826,13 @@ internal fun NavGraphBuilder.developerRoutes(
                 onOpenReport = { reportId ->
                     traceDetailScope.launch {
                         reportViewModel.restoreCompletedReport(traceDetailContext, reportId)
-                        navController.navigate(NavRoutes.aiReportManage())
+                        navController.openReportRoute(NavRoutes.aiReportManage())
                     }
                 },
                 onOpenReportView = { reportId ->
                     traceDetailScope.launch {
                         reportViewModel.restoreCompletedReport(traceDetailContext, reportId)
-                        navController.navigate(NavRoutes.aiReportView())
+                        navController.openReportRoute(NavRoutes.aiReportView())
                     }
                 },
                 onNavigateToTraceList = { navController.navigate(NavRoutes.TRACE_LIST) }
@@ -903,7 +903,7 @@ internal fun NavGraphBuilder.developerRoutes(
                     com.ai.data.LastReportTracker.record(reportId, view = false)
                     brokenWorkScope.launch {
                         reportViewModel.restoreCompletedReport(brokenWorkContext, reportId)
-                        navController.navigate(NavRoutes.aiReportManage())
+                        navController.openReportRoute(NavRoutes.aiReportManage())
                     }
                 },
                 // Card tap → the item's own screen (view-only PendingBatchOpen,
@@ -944,7 +944,7 @@ internal fun NavGraphBuilder.developerRoutes(
                         appViewModel.requestBatchOpen(
                             PendingBatchOpen(batch.reportId, batch.kind, key, fanOutName, viewOnly = true)
                         )
-                        navController.navigate(NavRoutes.aiReportManage())
+                        navController.openReportRoute(NavRoutes.aiReportManage())
                     }
                 },
                 onRestart = { batch, mode ->
@@ -965,7 +965,7 @@ internal fun NavGraphBuilder.developerRoutes(
                     com.ai.data.LastReportTracker.record(reportId, view = false)
                     brokenWorkScope.launch {
                         reportViewModel.restoreCompletedReport(brokenWorkContext, reportId)
-                        navController.navigate(NavRoutes.aiReportModel(reportId, agentId))
+                        navController.openReportRoute(NavRoutes.aiReportModel(reportId, agentId))
                     }
                 },
                 onOpenTrace = { filename -> navController.navigate(NavRoutes.traceDetail(filename)) },

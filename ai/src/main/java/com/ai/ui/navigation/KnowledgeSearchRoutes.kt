@@ -57,14 +57,14 @@ internal fun NavGraphBuilder.knowledgeSearchRoutes(
                     com.ai.data.LastReportTracker.record(reportId, view = false)
                     scope.launch {
                         reportViewModel.restoreCompletedReport(context, reportId)
-                        navController.navigate(NavRoutes.aiReportManage())
+                        navController.openReportRoute(NavRoutes.aiReportManage())
                     }
                 },
                 onOpenReportView = { reportId ->
                     com.ai.data.LastReportTracker.record(reportId, view = true)
                     scope.launch {
                         reportViewModel.restoreCompletedReport(context, reportId)
-                        navController.navigate(NavRoutes.aiReportView())
+                        navController.openReportRoute(NavRoutes.aiReportView())
                     }
                 }
             )
@@ -79,14 +79,14 @@ internal fun NavGraphBuilder.knowledgeSearchRoutes(
                     com.ai.data.LastReportTracker.record(reportId, view = false)
                     scope.launch {
                         reportViewModel.restoreCompletedReport(context, reportId)
-                        navController.navigate(NavRoutes.aiReportManage())
+                        navController.openReportRoute(NavRoutes.aiReportManage())
                     }
                 },
                 onOpenReportView = { reportId ->
                     com.ai.data.LastReportTracker.record(reportId, view = true)
                     scope.launch {
                         reportViewModel.restoreCompletedReport(context, reportId)
-                        navController.navigate(NavRoutes.aiReportView())
+                        navController.openReportRoute(NavRoutes.aiReportView())
                     }
                 },
                 onNavigateToTraceFile = { navController.navigate(NavRoutes.traceDetail(it)) }
@@ -102,14 +102,14 @@ internal fun NavGraphBuilder.knowledgeSearchRoutes(
                     com.ai.data.LastReportTracker.record(reportId, view = false)
                     scope.launch {
                         reportViewModel.restoreCompletedReport(context, reportId)
-                        navController.navigate(NavRoutes.aiReportManage())
+                        navController.openReportRoute(NavRoutes.aiReportManage())
                     }
                 },
                 onOpenReportView = { reportId ->
                     com.ai.data.LastReportTracker.record(reportId, view = true)
                     scope.launch {
                         reportViewModel.restoreCompletedReport(context, reportId)
-                        navController.navigate(NavRoutes.aiReportView())
+                        navController.openReportRoute(NavRoutes.aiReportView())
                     }
                 }
             )
@@ -124,14 +124,14 @@ internal fun NavGraphBuilder.knowledgeSearchRoutes(
                     com.ai.data.LastReportTracker.record(reportId, view = false)
                     scope.launch {
                         reportViewModel.restoreCompletedReport(context, reportId)
-                        navController.navigate(NavRoutes.aiReportManage())
+                        navController.openReportRoute(NavRoutes.aiReportManage())
                     }
                 },
                 onOpenReportView = { reportId ->
                     com.ai.data.LastReportTracker.record(reportId, view = true)
                     scope.launch {
                         reportViewModel.restoreCompletedReport(context, reportId)
-                        navController.navigate(NavRoutes.aiReportView())
+                        navController.openReportRoute(NavRoutes.aiReportView())
                     }
                 }
             )
@@ -159,14 +159,14 @@ internal fun NavGraphBuilder.knowledgeSearchRoutes(
                     com.ai.data.LastReportTracker.record(reportId, view = false)
                     scope.launch {
                         reportViewModel.restoreCompletedReport(context, reportId)
-                        navController.navigate(NavRoutes.aiReportManage())
+                        navController.openReportRoute(NavRoutes.aiReportManage())
                     }
                 },
                 onOpenReportView = { reportId ->
                     com.ai.data.LastReportTracker.record(reportId, view = true)
                     scope.launch {
                         reportViewModel.restoreCompletedReport(context, reportId)
-                        navController.navigate(NavRoutes.aiReportView())
+                        navController.openReportRoute(NavRoutes.aiReportView())
                     }
                 },
                 onDeleteReport = { reportId -> reportViewModel.deleteReport(context, reportId) },

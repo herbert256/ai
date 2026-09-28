@@ -162,7 +162,7 @@ internal fun NavGraphBuilder.reportRoutes(
                             }
                         } ?: return@launch
                         reportViewModel.restoreCompletedReport(hubContext, resolvedId)
-                        navController.navigate(
+                        navController.openReportRoute(
                             if (viewMode) NavRoutes.aiReportView()
                             else NavRoutes.aiReportManage()
                         )
@@ -262,14 +262,14 @@ internal fun NavGraphBuilder.reportRoutes(
                     com.ai.data.LastReportTracker.record(reportId, view = false)
                     scope.launch {
                         reportViewModel.restoreCompletedReport(context, reportId)
-                        navController.navigate(NavRoutes.aiReportManage())
+                        navController.openReportRoute(NavRoutes.aiReportManage())
                     }
                 },
                 onOpenReportView = { reportId ->
                     com.ai.data.LastReportTracker.record(reportId, view = true)
                     scope.launch {
                         reportViewModel.restoreCompletedReport(context, reportId)
-                        navController.navigate(NavRoutes.aiReportView())
+                        navController.openReportRoute(NavRoutes.aiReportView())
                     }
                 },
                 onNavigateToNewAiReport = { navController.navigate(NavRoutes.AI_NEW_REPORT_HUB) },
@@ -288,14 +288,14 @@ internal fun NavGraphBuilder.reportRoutes(
                     com.ai.data.LastReportTracker.record(rid, view = false)
                     scope.launch {
                         reportViewModel.restoreCompletedReport(context, rid)
-                        navController.navigate(NavRoutes.aiReportManage())
+                        navController.openReportRoute(NavRoutes.aiReportManage())
                     }
                 },
                 onOpenReportView = { rid ->
                     com.ai.data.LastReportTracker.record(rid, view = true)
                     scope.launch {
                         reportViewModel.restoreCompletedReport(context, rid)
-                        navController.navigate(NavRoutes.aiReportView())
+                        navController.openReportRoute(NavRoutes.aiReportView())
                     }
                 }
             )
@@ -332,14 +332,14 @@ internal fun NavGraphBuilder.reportRoutes(
                         com.ai.data.LastReportTracker.record(rid, view = false)
                         scope.launch {
                             reportViewModel.restoreCompletedReport(context, rid)
-                            navController.navigate(NavRoutes.aiReportManage())
+                            navController.openReportRoute(NavRoutes.aiReportManage())
                         }
                     },
                     onOpenView = { rid ->
                         com.ai.data.LastReportTracker.record(rid, view = true)
                         scope.launch {
                             reportViewModel.restoreCompletedReport(context, rid)
-                            navController.navigate(NavRoutes.aiReportView())
+                            navController.openReportRoute(NavRoutes.aiReportView())
                         }
                     }
                 )
@@ -620,6 +620,10 @@ internal fun NavGraphBuilder.reportRoutes(
                 onNavigateToAppLog = { filename, search ->
                     navController.navigate(NavRoutes.aiAppLogDetail(filename, search))
                 },
+                // Deliberately a plain navigate (not openReportRoute): these
+                // fire FROM this ai_reports entry (+Report picker row icons) and
+                // must push a fresh entry — launchSingleTop would reuse this
+                // one with the picker overlay still open.
                 onOpenReportManage = { rid ->
                     scope.launch {
                         reportViewModel.restoreCompletedReport(context, rid)
@@ -698,7 +702,7 @@ internal fun NavGraphBuilder.reportRoutes(
                     onOpenReportView = { rid ->
                         pickScope.launch {
                             reportViewModel.restoreCompletedReport(pickContext, rid)
-                            navController.navigate(NavRoutes.aiReportView())
+                            navController.openReportRoute(NavRoutes.aiReportView())
                         }
                     }
                 )
@@ -740,7 +744,7 @@ internal fun NavGraphBuilder.reportRoutes(
                                 ManagePickKind.FAN_OUT -> NavRoutes.aiReportView()
                                 else -> NavRoutes.aiReportManage(kind.arg)
                             }
-                            navController.navigate(dest)
+                            navController.openReportRoute(dest)
                         }
                     }
                 )
@@ -906,6 +910,15 @@ internal fun NavGraphBuilder.reportRoutes(
             }
         }
 }
+
+/** Open a report route (Manage / View / per-model) from a report list or
+ *  picker, after `restoreCompletedReport`. launchSingleTop: each tap
+ *  restores (suspending on disk) and then navigates, so a double tap pushed
+ *  the report twice — Back from the top copy cleared currentReportId and the
+ *  copy underneath showed an empty "Report - select models". Not for a jump
+ *  FROM an ai_reports entry to another report, which must push. */
+internal fun NavHostController.openReportRoute(route: String) =
+    navigate(route) { launchSingleTop = true }
 
 private const val KEY_OPEN_REPORT_ID = "openReportId"
 private const val KEY_OPEN_REPORT_OWNER = "openReportOwner"
