@@ -255,7 +255,10 @@ step-8 fallback. Together this is what makes OpenRouter's catalog
 - **Provides:** pricing snapshot maintained by Simon Willison. The
   per-vendor JSON files are fetched in sequence and merged. Current
   vendor list (10): `amazon`, `anthropic`, `deepseek`, `google`,
-  `minimax`, `mistral`, `moonshot-ai`, `openai`, `qwen`, `xai`.
+  `minimax`, `mistral`, `moonshot-ai`, `openai`, `qwen`, `xai`. A
+  vendor file that fails to download or parse keeps that vendor's
+  previously cached rows (logged as a warning); only when every vendor
+  fails does the refresh count as failed.
 - **Cache:** `<filesDir>/pricing/llmprices_pricing.json`;
   `llmprices_timestamp` in `pricing_cache`.
 

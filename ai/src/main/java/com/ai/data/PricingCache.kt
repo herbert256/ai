@@ -1302,13 +1302,25 @@ object PricingCache {
     suspend fun fetchLLMPricesOnline(context: Context): Int? = withTraceCategory("pricing/llm-prices") {
       withContext(kotlinx.coroutines.Dispatchers.IO) {
         try {
+            // A vendor file that fails to download / parse keeps that vendor's
+            // previously cached rows — dropping them would silently lose e.g.
+            // every Anthropic price while the refresh still reported success.
+            ensureLoaded(context)
+            val previous = llmPricesPricing.orEmpty()
             val combined = mutableMapOf<String, ModelPricing>()
+            val failed = mutableListOf<String>()
             for (vendor in llmPricesVendors) {
                 val url = "https://raw.githubusercontent.com/simonw/llm-prices/main/data/$vendor.json"
-                val json = ApiFactory.fetchUrlAsString(url) ?: continue
-                combined.putAll(parseLLMPricesVendorJson(vendor, json))
+                val rows = ApiFactory.fetchUrlAsString(url)
+                    ?.let { json -> runCatching { parseLLMPricesVendorJson(vendor, json) }.getOrNull() }
+                if (rows.isNullOrEmpty()) {
+                    failed += vendor
+                    combined.putAll(previous.filterKeys { it.startsWith("$vendor/") })
+                } else combined.putAll(rows)
             }
-            AppLog.i("PricingCache", "llm-prices parse: ${combined.size} entries from ${llmPricesVendors.size} vendors")
+            AppLog.i("PricingCache", "llm-prices parse: ${combined.size} entries from ${llmPricesVendors.size - failed.size}/${llmPricesVendors.size} vendors")
+            if (failed.size == llmPricesVendors.size) return@withContext null
+            if (failed.isNotEmpty()) AppLog.w("PricingCache", "llm-prices: ${failed.joinToString()} failed; kept their previous rows")
             if (combined.isEmpty()) return@withContext null
             synchronized(lock) {
                 llmPricesPricing = combined
