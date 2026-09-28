@@ -1228,7 +1228,8 @@ object ReportStorage {
      *  [titlesAtStart] = the (title, titleLong) the report had when the
      *  calls started. If either changed since (a manual rename or a
      *  Find-alt pick landed while the calls were in flight) the texts are
-     *  NOT overwritten — only the spend / trace / provenance is recorded.
+     *  NOT overwritten — only the spend (tokens / cost) is recorded; the
+     *  model / trace / prompt provenance stays that of the shown title.
      *  Returns true only when the new title was written. */
     fun updateReportTitleFromAi(
         context: Context, reportId: String, newTitle: String,
@@ -1258,24 +1259,29 @@ object ReportStorage {
                 // (the short + long worker calls fire concurrently) doesn't
                 // clobber a previously-good long title — mirrors
                 // updateReportLanguageIcon's languageIconModel fallback.
+                //
+                // Not applied → only the spend (tokens / cost) is added; the
+                // provenance (model, trace, duration, prompt) keeps describing
+                // the title actually shown — Get-info otherwise credited the
+                // user's own rename / alt pick to this AI worker.
                 title = if (apply) newTitle else report.title,
                 titleLong = if (apply) (titleLong ?: report.titleLong) else report.titleLong,
-                titleErrorMessage = null,
+                titleErrorMessage = if (apply) null else report.titleErrorMessage,
                 titleInputTokens = report.titleInputTokens + shortInputTokens,
                 titleOutputTokens = report.titleOutputTokens + shortOutputTokens,
                 titleInputCost = report.titleInputCost + shortInputCost,
                 titleOutputCost = report.titleOutputCost + shortOutputCost,
-                titleTraceFile = shortTraceFile,
-                titleModel = shortModel,
-                titleDurationMs = shortDurationMs ?: report.titleDurationMs,
+                titleTraceFile = if (apply) shortTraceFile else report.titleTraceFile,
+                titleModel = if (apply) shortModel else report.titleModel,
+                titleDurationMs = if (apply) shortDurationMs ?: report.titleDurationMs else report.titleDurationMs,
                 titleLongInputTokens = report.titleLongInputTokens + longInputTokens,
                 titleLongOutputTokens = report.titleLongOutputTokens + longOutputTokens,
                 titleLongInputCost = report.titleLongInputCost + longInputCost,
                 titleLongOutputCost = report.titleLongOutputCost + longOutputCost,
-                titleLongTraceFile = longTraceFile,
-                titleLongModel = longModel,
-                titleLongDurationMs = longDurationMs ?: report.titleLongDurationMs,
-                titlePromptUsed = promptUsed ?: report.titlePromptUsed,
+                titleLongTraceFile = if (apply) longTraceFile else report.titleLongTraceFile,
+                titleLongModel = if (apply) longModel else report.titleLongModel,
+                titleLongDurationMs = if (apply) longDurationMs ?: report.titleLongDurationMs else report.titleLongDurationMs,
+                titlePromptUsed = if (apply) promptUsed ?: report.titlePromptUsed else report.titlePromptUsed,
                 timestamp = System.currentTimeMillis()
             )
             updated.totalCost = computeReportTotalCost(updated)
