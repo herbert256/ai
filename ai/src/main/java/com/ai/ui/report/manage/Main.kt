@@ -177,7 +177,6 @@ fun ReportsScreen(
     onNextReport: () -> Unit = {},
     hasPrevReport: Boolean = false,
     hasNextReport: Boolean = false,
-    initialModels: List<ReportModel> = emptyList(),
     onGenerate: (List<ReportModel>, List<String>, ReportType, ReportWorkerConfig, Map<String, List<String>>) -> Unit,
     onDismiss: () -> Unit,
     onNavigateHome: () -> Unit = onDismiss,
@@ -476,11 +475,10 @@ fun ReportsScreen(
     // composition while the user is on the destination, so plain
     // remember{} state would reset on back-pop and the user would
     // land back at the report root instead of the overlay they came
-    // from. rememberSaveable persists through the back-stack.
-    val st = rememberReportsScreenState(initialModels,
-        skipModelSelection = uiState.externalModelReferences.isNotEmpty() ||
-            uiState.externalAgentNames.isNotEmpty() || uiState.externalFlockNames.isNotEmpty() ||
-            uiState.externalSwarmNames.isNotEmpty())
+    // from. rememberSaveable persists through the back-stack. Created by
+    // ReportsScreenNav (above its batch-overlay early returns) so a batch
+    // drill-in doesn't reset it either — see LocalReportsScreenState.
+    val st = LocalReportsScreenState.current!!
     // After starting a secondary (Meta/Rerank/Moderation), surface the
     // "Report - second results" screen — closing Get-info if it was open — so the
     // newly-running result is visible instead of staying on the overview.
@@ -654,15 +652,8 @@ fun ReportsScreen(
     // same handlers the old Row 2 "View" buttons fired, so every
     // destination is unchanged.
     var showViewReportScreen by st.showViewReportScreen
-    // Seed the View tile-grid overlay on first composition when the
-    // AI_REPORTS route was entered with `initialView=true`. Helper-
-    // hosted so the LaunchedEffect doesn't add bytecode to
-    // [ReportsScreen], which already sits at the JVM 64 KB
-    // per-method ceiling.
-    SeedInitialViewReportScreen { showViewReportScreen = true }
-    // Sibling seed for the 🗂️-pick re-entry: opens the Manage sub-overlay
-    // the report was picked from. Helper-hosted for the same 64 KB reason.
-    SeedInitialManageOverlay(st)
+    // The `initialView=true` (👁) and 🗂️ `initialManageOverlay` entry seeds
+    // run in ReportsScreenNav, next to where [st] is created.
     // Broken-work "Continue" one-shot: re-queue the chosen batch (build popup)
     // and open its own screen. Helper-hosted for the same 64 KB reason.
     ConsumePendingBatchOpen(st, currentReportId, armBuildStage)

@@ -340,6 +340,15 @@ fun ReportsScreenNav(
     // early-returns) so it survives opening a Nav-level batch drill-in; Back
     // from the drill-in then re-shows the second-results list.
     val showSecondResults = rememberSaveable { mutableStateOf(false) }
+    // ReportsScreen's whole overlay state (showViewReportScreen, the Meta /
+    // Edit / viewer flags, …) — held here for the same reason and handed down
+    // via LocalReportsScreenState. It used to be created inside ReportsScreen,
+    // so every batch drill-in below reset it: Back returned to Manage instead
+    // of the View grid it was opened from.
+    val reportsScreenState = rememberReportsScreenState(initialModels,
+        skipModelSelection = uiState.externalModelReferences.isNotEmpty() ||
+            uiState.externalAgentNames.isNotEmpty() || uiState.externalFlockNames.isNotEmpty() ||
+            uiState.externalSwarmNames.isNotEmpty())
     val exclusiveRegenerateBatchReportId = remember(
         openRegenerateBatchReportId, openTournamentReportId, openJudgeEvalReportId,
         openCompareReportId, openTransRankKey
@@ -464,11 +473,18 @@ fun ReportsScreenNav(
         com.ai.ui.shared.LocalTranslatorRankEngine provides reportViewModel.translatorRankEngine,
         com.ai.ui.shared.LocalTransRankOpenState provides exclusiveTransRankKey,
         com.ai.ui.shared.LocalShowSecondResults provides showSecondResults,
+        LocalReportsScreenState provides reportsScreenState,
         com.ai.ui.shared.LocalPendingBatchOpenController provides pendingBatchOpenController,
         com.ai.ui.shared.LocalMetaEditManager provides reportViewModel.metaEditManager,
         com.ai.ui.shared.LocalSecondaryModelSwitch provides reportViewModel.secondaryModelSwitch,
         com.ai.ui.shared.LocalAgentModelSwitch provides reportViewModel.agentModelSwitch
     ) {
+    // One-shot entry seeds (the 👁 route's View grid, the 🗂️ route's Manage
+    // sub-overlay). Composed here, above the batch-overlay early returns, so
+    // their consumed flags survive a batch drill-in — inside ReportsScreen
+    // they reset with it and re-opened Meta / Edit / Costs after every close.
+    SeedInitialViewReportScreen { reportsScreenState.showViewReportScreen.value = true }
+    SeedInitialManageOverlay(reportsScreenState)
     // Regenerate-batch overlay — layered here (inside the provider) so it
     // sees the report-context locals (ids/switch/neighbor nav, icon
     // bundle). Previously it early-returned above this block and got the
@@ -659,7 +675,6 @@ fun ReportsScreenNav(
         },
         hasPrevReport = hasPrevReport,
         hasNextReport = hasNextReport,
-        initialModels = initialModels,
         onRunSecondary = { reportId, metaPrompt, scopeChoice, languageScope, paramsIds, systemPromptId, overrideWorkers ->
             reportViewModel.secondary.runMetaPrompt(context, reportId, metaPrompt, scopeChoice, languageScope, paramsIds, systemPromptId, overrideWorkers)
         },
@@ -962,9 +977,9 @@ fun ReportsScreenNav(
  *  per-row 👁 icon on every report list. Reads the `initialView`
  *  flag bundled into [com.ai.ui.shared.LocalReportListIconBundle]
  *  by [ReportsScreenNav]; flips [onSeed] exactly once on first
- *  composition (LaunchedEffect keyed on Unit). Extracted out of
- *  [ReportsScreen] so its bytecode doesn't push that function past
- *  the JVM 64 KB per-method ceiling. */
+ *  composition (LaunchedEffect keyed on Unit). Composed by
+ *  [ReportsScreenNav] above its batch-overlay early returns, so the
+ *  consumed flag outlives a Tournament / Judges / … drill-in. */
 @Composable
 internal fun SeedInitialViewReportScreen(onSeed: () -> Unit) {
     val bundle = com.ai.ui.shared.LocalReportListIconBundle.current
@@ -986,8 +1001,9 @@ internal fun SeedInitialViewReportScreen(onSeed: () -> Unit) {
  *  Reads the `initialManageOverlay` token bundled into
  *  [com.ai.ui.shared.LocalReportListIconBundle] by [ReportsScreenNav];
  *  flips the matching `st.show*` flag exactly once on first composition.
- *  Hosted here (not inline in [ReportsScreen]) so the `when` block's
- *  bytecode stays out of that 64 KB-ceiling method. MANAGE / FAN_OUT
+ *  Composed by [ReportsScreenNav] above its batch-overlay early returns —
+ *  inside [ReportsScreen] the consumed flag reset with every batch drill-in
+ *  and the overlay re-opened each time one closed. MANAGE / FAN_OUT
  *  carry no overlay token (the picker routes them to the hub / View
  *  grid), so they never reach here. */
 @Composable

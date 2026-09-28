@@ -194,6 +194,16 @@ internal class ReportsScreenState(
     val modelSelectionPicks: com.ai.ui.report.start.ModelSelectionPicks,
 )
 
+/** The [ReportsScreenState] owned by [ReportsScreenNav], read by [ReportsScreen].
+ *  Created there — above the Nav-level batch-overlay early returns
+ *  (Regenerate / Tournament / Judges / Translator-rank / Compare) — so opening
+ *  one of those no longer discards every Manage / View flag with the
+ *  unmounted ReportsScreen: Back from the batch screen lands on the layer it
+ *  was opened from (e.g. the View grid), not a reset Manage screen. A
+ *  CompositionLocal rather than a parameter keeps ReportsScreen under the JVM
+ *  64 KB per-method ceiling. */
+internal val LocalReportsScreenState = staticCompositionLocalOf<ReportsScreenState?> { null }
+
 /** A pending "pick workers before running" request (see [InternalPrompt.modelSelection]
  *  == *SELECT). [initial] pre-seeds the picker with the prompt's configured chain. */
 internal data class RuntimeWorkerPick(
