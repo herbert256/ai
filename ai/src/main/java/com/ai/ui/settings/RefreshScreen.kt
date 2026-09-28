@@ -40,7 +40,9 @@ fun RefreshScreen(
     openRouterApiKey: String,
     artificialAnalysisApiKey: String,
     llmStatsApiKey: String,
-    onSave: (Settings) -> Unit,
+    /** A catalog changed: the view model rebuilds the derived price /
+     *  capability snapshots off the main thread against the latest settings. */
+    onCatalogRefreshed: () -> Unit,
     refreshAllState: RefreshAllState?,
     onStartRefreshAll: () -> Unit,
     onStartRefreshWorkers: () -> Unit,
@@ -62,7 +64,6 @@ fun RefreshScreen(
     BackHandler { onBack() }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val latestAiSettings by rememberUpdatedState(aiSettings)
 
     var progressTitle by remember { mutableStateOf("") }
     var progressText by remember { mutableStateOf("") }
@@ -469,7 +470,11 @@ fun RefreshScreen(
 
     // Each per-catalog refresh's core work lives in a suspend lambda
     // that captures the surrounding state. The Boolean parameter controls
-    // whether the per-step result dialog opens at the end.
+    // whether the per-step result dialog opens at the end. Every successful
+    // refresh — pricing-only tiers too, the snapshot carries each model's
+    // price — hands the derived-snapshot rebuild to the view model
+    // (onCatalogRefreshed): it runs off the main thread against the latest
+    // settings, so it can't ANR or overwrite a concurrent change.
     val runOpenRouter: suspend (Boolean) -> Unit = { showDialogAtEnd ->
         progressText = "Pulling OpenRouter catalog"
         withContext(Dispatchers.IO) {
@@ -478,81 +483,77 @@ fun RefreshScreen(
             val specs = PricingCache.fetchAndSaveModelSpecifications(context, openRouterApiKey)
             openRouterResult = Triple(pricing.size, specs?.first ?: 0, specs?.second ?: 0)
         }
+        if ((openRouterResult?.first ?: 0) > 0) onCatalogRefreshed()
         if (showDialogAtEnd) showOpenRouterDialog = true
     }
     val runLiteLLM: suspend (Boolean) -> Unit = { showDialogAtEnd ->
         progressText = "Downloading model_prices_and_context_window.json"
         val n = PricingCache.fetchLiteLLMPricingOnline(context)
         litellmResult = n
-        // Catalog answers may have shifted — refresh the precomputed
-        // vision / web-search sets so list renders pick up the new state.
-        if (n != null) onSave(latestAiSettings.recomputeAllCapabilities())
+        if (n != null) onCatalogRefreshed()
         if (showDialogAtEnd) showLiteLLMDialog = true
     }
     val runModelsDev: suspend (Boolean) -> Unit = { showDialogAtEnd ->
         progressText = "Downloading models.dev/api.json"
         val n = PricingCache.fetchModelsDevOnline(context)
         modelsDevResult = n
-        if (n != null) onSave(latestAiSettings.recomputeAllCapabilities())
+        if (n != null) onCatalogRefreshed()
         if (showDialogAtEnd) showModelsDevDialog = true
     }
     val runHelicone: suspend (Boolean) -> Unit = { showDialogAtEnd ->
         progressText = "Downloading helicone.ai/api/llm-costs"
         val n = PricingCache.fetchHeliconeOnline(context)
         heliconeResult = n
-        // Helicone is pricing-only — no capability flags, so no recompute.
+        if (n != null) onCatalogRefreshed()
         if (showDialogAtEnd) showHeliconeDialog = true
     }
     val runLLMPrices: suspend (Boolean) -> Unit = { showDialogAtEnd ->
         progressText = "Downloading simonw/llm-prices vendor files"
         val n = PricingCache.fetchLLMPricesOnline(context)
         llmPricesResult = n
+        if (n != null) onCatalogRefreshed()
         if (showDialogAtEnd) showLLMPricesDialog = true
     }
     val runArtificialAnalysis: suspend (Boolean) -> Unit = { showDialogAtEnd ->
         progressText = "Downloading artificialanalysis.ai/api/v2/data/llms/models"
         val n = PricingCache.fetchArtificialAnalysisOnline(context, artificialAnalysisApiKey)
         aaResult = n
+        if (n != null) onCatalogRefreshed()
         if (showDialogAtEnd) showAaDialog = true
     }
     val runRequesty: suspend (Boolean) -> Unit = { showDialogAtEnd ->
         progressText = "Downloading router.requesty.ai/v1/models"
         val n = PricingCache.fetchRequestyOnline(context)
         requestyResult = n
-        // Requesty carries vision / reasoning / web-search flags — refresh
-        // the precomputed capability sets so list renders pick them up.
-        if (n != null) onSave(latestAiSettings.recomputeAllCapabilities())
+        if (n != null) onCatalogRefreshed()
         if (showDialogAtEnd) showRequestyDialog = true
     }
     val runLlmStats: suspend (Boolean) -> Unit = { showDialogAtEnd ->
         progressText = "Downloading api.llm-stats.com/stats/v1/models"
         val n = PricingCache.fetchLlmStatsOnline(context, llmStatsApiKey)
         llmStatsResult = n
-        // llm-stats modalities feed the vision capability flag.
-        if (n != null) onSave(latestAiSettings.recomputeAllCapabilities())
+        if (n != null) onCatalogRefreshed()
         if (showDialogAtEnd) showLlmStatsDialog = true
     }
     val runGenaiPrices: suspend (Boolean) -> Unit = { showDialogAtEnd ->
         progressText = "Downloading pydantic/genai-prices data_slim.json"
         val n = PricingCache.fetchGenaiPricesOnline(context)
         genaiPricesResult = n
+        if (n != null) onCatalogRefreshed()
         if (showDialogAtEnd) showGenaiPricesDialog = true
     }
     val runTrueFoundry: suspend (Boolean) -> Unit = { showDialogAtEnd ->
         progressText = "Downloading the TrueFoundry repo archive"
         val n = PricingCache.fetchTrueFoundryOnline(context)
         trueFoundryResult = n
-        // TrueFoundry carries vision / tool / reasoning flags — refresh the
-        // precomputed capability sets so list renders pick them up.
-        if (n != null) onSave(latestAiSettings.recomputeAllCapabilities())
+        if (n != null) onCatalogRefreshed()
         if (showDialogAtEnd) showTrueFoundryDialog = true
     }
     val runCloudPrice: suspend (Boolean) -> Unit = { showDialogAtEnd ->
         progressText = "Downloading ai.cloudprice.net/api/v1/models"
         val n = PricingCache.fetchCloudPriceOnline(context)
         cloudPriceResult = n
-        // CloudPrice capability flags feed the capability chain.
-        if (n != null) onSave(latestAiSettings.recomputeAllCapabilities())
+        if (n != null) onCatalogRefreshed()
         if (showDialogAtEnd) showCloudPriceDialog = true
     }
 

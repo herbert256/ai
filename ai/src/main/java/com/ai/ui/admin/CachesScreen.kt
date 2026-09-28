@@ -95,9 +95,12 @@ data class CacheDescriptor(
  *  model (model lists, supported params, AA + OpenRouter pricing) are routed
  *  through [onRefreshKeyed]`(cacheId, entryId)`, dispatched by the nav layer
  *  (see DeveloperRoutes). The public pricing fetchers (LiteLLM / models.dev /
- *  llm-prices / Helicone) are key-free and awaited inline. */
+ *  llm-prices / Helicone) are key-free and awaited inline; a successful one
+ *  calls [onPricingTierChanged] so the view model rebuilds the derived
+ *  price / capability snapshots. */
 fun cacheRegistry(
     onRefreshKeyed: suspend (cacheId: String, entryId: String) -> Unit,
+    onPricingTierChanged: () -> Unit = {},
 ): List<CacheDescriptor> = listOf(
     CacheDescriptor(
         id = "prompts", icon = "🔖", title = "Prompts", helpTopic = "cache_prompts",
@@ -208,16 +211,17 @@ fun cacheRegistry(
                         }
                         val ipEnabled = ipId == null || (com.ai.model.SettingsHolder.current?.isInfoProviderEnabled(ipId) ?: true)
                         if (!ipEnabled) null else when (s.name) {
-                            "LiteLLM" -> { ctx -> PricingCache.fetchLiteLLMPricingOnline(ctx) }
-                            "models.dev" -> { ctx -> PricingCache.fetchModelsDevOnline(ctx) }
-                            "llm-prices" -> { ctx -> PricingCache.fetchLLMPricesOnline(ctx) }
-                            "Helicone" -> { ctx -> PricingCache.fetchHeliconeOnline(ctx) }
-                            "Requesty" -> { ctx -> PricingCache.fetchRequestyOnline(ctx) }
-                            "genai-prices" -> { ctx -> PricingCache.fetchGenaiPricesOnline(ctx) }
-                            "TrueFoundry" -> { ctx -> PricingCache.fetchTrueFoundryOnline(ctx) }
-                            "CloudPrice" -> { ctx -> PricingCache.fetchCloudPriceOnline(ctx) }
+                            "LiteLLM" -> { ctx -> if (PricingCache.fetchLiteLLMPricingOnline(ctx) != null) onPricingTierChanged() }
+                            "models.dev" -> { ctx -> if (PricingCache.fetchModelsDevOnline(ctx) != null) onPricingTierChanged() }
+                            "llm-prices" -> { ctx -> if (PricingCache.fetchLLMPricesOnline(ctx) != null) onPricingTierChanged() }
+                            "Helicone" -> { ctx -> if (PricingCache.fetchHeliconeOnline(ctx) != null) onPricingTierChanged() }
+                            "Requesty" -> { ctx -> if (PricingCache.fetchRequestyOnline(ctx) != null) onPricingTierChanged() }
+                            "genai-prices" -> { ctx -> if (PricingCache.fetchGenaiPricesOnline(ctx) != null) onPricingTierChanged() }
+                            "TrueFoundry" -> { ctx -> if (PricingCache.fetchTrueFoundryOnline(ctx) != null) onPricingTierChanged() }
+                            "CloudPrice" -> { ctx -> if (PricingCache.fetchCloudPriceOnline(ctx) != null) onPricingTierChanged() }
                             // AA / llm-stats need their API key, OpenRouter pricing the
-                            // OpenRouter key — all routed through the view model.
+                            // OpenRouter key — all routed through the view model (which
+                            // rebuilds the snapshots itself).
                             "Artificial Analysis", "llm-stats", "OpenRouter" -> { _ -> onRefreshKeyed("pricing", s.name) }
                             else -> null
                         }

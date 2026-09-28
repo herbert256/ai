@@ -396,7 +396,7 @@ internal fun NavGraphBuilder.developerRoutes(
         }
         composable(NavRoutes.AI_CACHES) {
             com.ai.ui.admin.CachesHubScreen(
-                registry = com.ai.ui.admin.cacheRegistry(cacheRefreshDispatcher(appViewModel)),
+                registry = com.ai.ui.admin.cacheRegistry(cacheRefreshDispatcher(appViewModel)) { appViewModel.recomputeCatalogSnapshots() },
                 onOpenCache = { id -> navController.navigate(NavRoutes.aiCacheEntries(id)) },
                 onBack = safePopBack
             )
@@ -406,7 +406,7 @@ internal fun NavGraphBuilder.developerRoutes(
             arguments = listOf(navArgument("cacheId") { type = NavType.StringType })
         ) { backStackEntry ->
             com.ai.ui.admin.CacheEntriesScreen(
-                registry = com.ai.ui.admin.cacheRegistry(cacheRefreshDispatcher(appViewModel)),
+                registry = com.ai.ui.admin.cacheRegistry(cacheRefreshDispatcher(appViewModel)) { appViewModel.recomputeCatalogSnapshots() },
                 initialCacheId = backStackEntry.arguments?.getString("cacheId") ?: "prompts",
                 onBack = safePopBack
             )
@@ -999,10 +999,14 @@ private fun cacheRefreshDispatcher(appViewModel: AppViewModel): suspend (String,
             appViewModel.fetchModelsAwait(svc, appViewModel.uiState.value.aiSettings.getApiKey(svc))
         }
         "params" -> appViewModel.refreshSupportedParamsCacheAwait()
-        "pricing" -> when (entryId) {
-            "Artificial Analysis" -> appViewModel.refreshAaPricingCacheAwait()
-            "llm-stats" -> appViewModel.refreshLlmStatsPricingCacheAwait()
-            "OpenRouter" -> appViewModel.refreshOpenRouterPricingCacheAwait()
+        "pricing" -> {
+            when (entryId) {
+                "Artificial Analysis" -> appViewModel.refreshAaPricingCacheAwait()
+                "llm-stats" -> appViewModel.refreshLlmStatsPricingCacheAwait()
+                "OpenRouter" -> appViewModel.refreshOpenRouterPricingCacheAwait()
+            }
+            // The derived price / capability snapshots follow the catalog.
+            appViewModel.recomputeCatalogSnapshots()
         }
     }
 }

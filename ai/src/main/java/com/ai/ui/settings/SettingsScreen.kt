@@ -114,6 +114,9 @@ fun SettingsScreen(
     refreshAllState: com.ai.viewmodel.RefreshAllState? = null,
     onStartRefreshAll: () -> Unit = {},
     onStartRefreshWorkers: () -> Unit = {},
+    /** A single info-provider catalog was refreshed on the Refresh screen —
+     *  rebuild the derived price / capability snapshots in the view model. */
+    onCatalogRefreshed: () -> Unit = {},
     onClearRefreshAllState: () -> Unit = {},
     /** When true and the initial sub-screen is AI_REFRESH, open straight on
      *  the Info Providers sub-page (Manage-data → Info providers → Refresh). */
@@ -871,7 +874,7 @@ fun SettingsScreen(
                 openRouterApiKey = generalSettings.openRouterApiKey,
                 artificialAnalysisApiKey = generalSettings.artificialAnalysisApiKey,
                 llmStatsApiKey = generalSettings.llmStatsApiKey,
-                onSave = onSaveAi,
+                onCatalogRefreshed = onCatalogRefreshed,
                 refreshAllState = refreshAllState,
                 onStartRefreshAll = onStartRefreshAll,
                 onStartRefreshWorkers = onStartRefreshWorkers,

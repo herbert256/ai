@@ -1764,6 +1764,28 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    private var catalogRecomputeJob: Job? = null
+
+    /** After a single info-provider catalog changed (Refresh → Info providers,
+     *  Caches → Pricing tiers 🔄 / 🗑): rebuild every provider's derived price
+     *  and capability snapshot OFF the main thread, against the LATEST
+     *  settings (a concurrent Test-all-models / edit is never overwritten),
+     *  and persist only the derived fields. Pricing-only tiers need this too —
+     *  the snapshot carries each model's resolved price. A newer call
+     *  supersedes a running one (callers may be on Main or IO). */
+    @Synchronized
+    fun recomputeCatalogSnapshots() {
+        catalogRecomputeJob?.cancel()
+        catalogRecomputeJob = viewModelScope.launch(Dispatchers.IO + com.ai.data.CrashReporter.coroutineHandler) {
+            val app: Application = getApplication()
+            PricingCache.ensureLoadedBlocking(app)
+            drainSnapshotsBeforePreload()   // the full pass below covers them
+            recomputeRefreshedCapabilities()
+            val settings = _uiState.value.aiSettings
+            settingsPrefs.saveDerivedCapabilities(settings, PricingCache.snapshotRevision(app, settings.disabledInfoProviders))
+        }
+    }
+
     fun fetchModels(service: AppService, apiKey: String, flipToApiOnSuccess: Boolean = false) {
         viewModelScope.launch { fetchModelsAwait(service, apiKey, flipToApiOnSuccess) }
     }

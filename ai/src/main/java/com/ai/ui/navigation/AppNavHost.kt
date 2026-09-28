@@ -654,6 +654,7 @@ fun SettingsScreenNav(
         refreshAllState = refreshAllState,
         onStartRefreshAll = { viewModel.startRefreshAll() },
         onStartRefreshWorkers = { viewModel.startRefreshWorkers() },
+        onCatalogRefreshed = { viewModel.recomputeCatalogSnapshots() },
         onClearRefreshAllState = { viewModel.clearRefreshAllState() },
         refreshOpenInfoProviders = refreshOpenInfoProviders,
         onNavigateToRefresh = onNavigateToRefresh,

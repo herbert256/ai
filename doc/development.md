@@ -808,11 +808,14 @@ because the config cache made it go stale.)
 
 ## Capability precompute
 
-`Settings` keeps precomputed vision / web-search / reasoning sets
-(`recomputeAllCapabilities` / `recomputeCapabilities`), refreshed
-after a LiteLLM or models.dev catalog refresh so the picker badges
-pick up new catalog answers (Helicone is pricing-only — no
-recompute). `withModels` funnels every model list through
+`Settings` keeps precomputed vision / web-search / reasoning sets and
+per-model prices (`recomputeAllCapabilities` / `recomputeCapabilities`),
+rebuilt after every catalog refresh — pricing-only tiers included, since
+the snapshot carries each model's resolved price. Single-catalog
+refreshes (Refresh → Info providers, Caches → Pricing tiers 🔄) go
+through `AppViewModel.recomputeCatalogSnapshots()`, which runs off the
+main thread against the latest settings and persists only the derived
+fields. `withModels` funnels every model list through
 `List.distinct` so duplicates can't crash the keyed LazyColumns.
 Explicit catalog refreshes still recompute the affected derived fields.
 At startup, `capabilities_snapshot_revision` avoids repeating the full pass
