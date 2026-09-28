@@ -86,8 +86,11 @@ internal fun NavGraphBuilder.reportRoutes(
             val uiState by appViewModel.uiState.collectAsState()
             if (uiState.generalSettings.appHomeMode == AppHomeMode.HOME_BAR) {
                 LaunchedEffect(hubContext) {
+                    // Newest id from the cached header index — this runs on
+                    // every cold start and Home tap, and getAllReports fully
+                    // parsed every report JSON just to pick one id.
                     val latestId = withContext(Dispatchers.IO) {
-                        ReportStorage.getAllReports(hubContext).firstOrNull()?.id
+                        ReportStorage.getReportHeaders(hubContext).maxByOrNull { it.timestamp }?.id
                     }
                     if (latestId == null) {
                         // No reports: an already-configured user (has API keys)
@@ -135,15 +138,18 @@ internal fun NavGraphBuilder.reportRoutes(
                     // been deleted.
                     hubScope.launch {
                         val tracked = com.ai.data.LastReportTracker.read()
+                        // A file-exists check for the tracked id and the
+                        // header index for the fallback — no full parse of
+                        // every report on each tap.
                         val (resolvedId, viewMode) = withContext(Dispatchers.IO) {
-                            val all = ReportStorage.getAllReports(hubContext)
                             val pick = tracked
-                                ?.takeIf { (id, _) -> all.any { it.id == id } }
+                                ?.takeIf { (id, _) -> ReportStorage.reportFileExists(hubContext, id) }
                             if (pick != null) {
                                 pick
                             } else {
                                 if (tracked != null) com.ai.data.LastReportTracker.clear()
-                                val fallback = all.firstOrNull()?.id
+                                val fallback = ReportStorage.getReportHeaders(hubContext)
+                                    .maxByOrNull { it.timestamp }?.id
                                     ?: return@withContext null
                                 fallback to false
                             }
