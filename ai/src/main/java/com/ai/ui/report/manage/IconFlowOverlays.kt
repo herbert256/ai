@@ -428,6 +428,7 @@ internal fun ReportIconFlowOverlays(
             effectiveReportIcon = runtime.effectiveReportIcon,
             loadedReportTitle = runtime.loadedReportTitle,
             agentRecordsByAgentId = runtime.agentRecordsByAgentId,
+            recordsLoaded = runtime.loaded,
             agentIconFanOutByAgent = agentIconFanOutByAgent,
             onNavigateToTraceFile = onNavigateToTraceFile,
             onFindAlternativeIcons = { hasActiveAgentFanOut ->

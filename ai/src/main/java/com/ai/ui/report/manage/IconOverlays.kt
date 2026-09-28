@@ -374,6 +374,10 @@ internal fun AgentIconDetailOverlay(
     /** Hide "Find alternative icons" when false (the standalone
      *  Report-model route can't host the alternatives picker). */
     showFindAlternatives: Boolean = true,
+    /** False while [agentRecordsByAgentId] is still loading for
+     *  [currentReportId] (a report swipe): a missing row then shows a
+     *  placeholder instead of returning false. */
+    recordsLoaded: Boolean = true,
 ): Boolean {
     val iconPrompt = aiSettings.internalPrompts.firstOrNull {
         it.category == "workers" && it.name == "model-icons"
@@ -381,7 +385,20 @@ internal fun AgentIconDetailOverlay(
     val altPrompt = aiSettings.internalPrompts.firstOrNull {
         it.category == "alt" && it.name == "report"
     }
-    val agent = agentRecordsByAgentId[agentId] ?: return false
+    val agent = agentRecordsByAgentId[agentId]
+    if (agent == null) {
+        if (recordsLoaded) return false
+        // The records are handed out empty while a swiped-to report loads —
+        // not "row gone". Returning false made the caller clear the overlay
+        // flag and ejected the user to Manage even when the new report has
+        // this model too; hold the overlay on a placeholder until they land.
+        BackHandler { onClose() }
+        Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+            TitleBar(helpTopic = "icon_lookup_agent", title = "Icon lookup", onBackClick = onClose)
+            Text("Loading…", color = AppColors.TextTertiary, fontSize = 14.sp)
+        }
+        return true
+    }
     val provider = AppService.findById(agent.provider) ?: return false
     val hasActiveAgentFanOut = agentIconFanOutByAgent[agentId].orEmpty().isNotEmpty()
     val agentIconTraceFilename = rememberAgentIconTrace(
