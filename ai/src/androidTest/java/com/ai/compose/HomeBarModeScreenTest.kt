@@ -77,21 +77,16 @@ class HomeBarModeScreenTest {
                     onImportApiKeys = {},
                     onAiSetup = {},
                     onExampleReports = {},
-                    onHousekeeping = {},
-                    onSettings = {},
-                    onMainHelp = {},
-                    onAbout = {}
+                    onMainHelp = {}
                 )
             }
         }
 
         rule.onNodeWithText("First launch").assertIsDisplayed()
         rule.onNodeWithText("Import API keys").assertIsDisplayed()
-        rule.onNodeWithText("AI Setup").assertIsDisplayed()
-        rule.onNodeWithText("Example reports").assertIsDisplayed()
-        rule.onNodeWithText("Housekeeping").assertIsDisplayed()
-        rule.onNodeWithText("Settings").assertIsDisplayed()
+        rule.onNodeWithText("Try an example").assertIsDisplayed()
+        rule.onNodeWithText("Connect a provider").assertIsDisplayed()
         rule.onNodeWithText("Help").assertIsDisplayed()
-        rule.onNodeWithText("About").assertIsDisplayed()
+        rule.onNodeWithText("Other setup options").assertDoesNotExist()
     }
 }

@@ -125,8 +125,8 @@ wins:
 | 13 | Helicone | `HELICONE` | last resort (known data-quality issues) |
 | 14 | DEFAULT | `DEFAULT` | `ModelPricing("default", 25e-6, 75e-6)` = **$25/M in, $75/M out** |
 
-(**CloudPrice** is a capabilities-only info-provider — no pricing — so
-it never appears in this lookup; it feeds the capability chain only.)
+(**HuggingFace** is a capabilities-only info-provider — no pricing — so
+it never appears in this lookup.)
 
 Two precedence facts are easy to get wrong (the class-level KDoc at
 `PricingCache.kt:17-26` now describes the full layered order correctly,
@@ -526,9 +526,8 @@ an empty map so it does not recreate deleted overrides.
 `getTierBreakdown` also backs the per-model layered-cost view and the
 🐞 pricing trace; `pricesConflict` (`data/PricingCache.kt:869`) flags
 when ≥2 catalog tiers disagree by >1 % (override + default excluded),
-and `catalogStats` lists the info-provider catalog tiers (incl. the
-capabilities-only CloudPrice) in lookup order with entry counts +
-timestamps for the Monitor hub. `clearInfoProviderTiers` resets the
+and `catalogStats` lists the info-provider catalog tiers in lookup
+order with entry counts + timestamps for the Monitor hub. `clearInfoProviderTiers` resets the
 catalog tiers to their bundled `assets/info-providers/` snapshots (drops
 the refreshed blobs, reloads off the main thread with `preloadCompleted`
 cleared meanwhile) but preserves manual + Together-native pricing;

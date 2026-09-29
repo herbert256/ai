@@ -32,13 +32,12 @@ Backup half of the screen is hidden and only Restore is offered.
 ```
 ai-backup-YYYYMMDD-HHMMSS.zip
 ├── manifest.json                       # version, timestamp, appVersion, packageName
-├── prefs/                              # one per PREFS_TO_BACKUP entry (8 files)
+├── prefs/                              # one per PREFS_TO_BACKUP entry (7 files)
 │   ├── eval_prefs.json
 │   ├── provider_registry.json
 │   ├── pricing_cache.json
 │   ├── dual_chat_prefs.json
 │   ├── huggingface_cache.json
-│   ├── cloudprice_model_cache.json
 │   ├── model_cooldowns.json
 │   └── view_screen_prefs.json
 ├── files/                              # all of filesDir except
@@ -112,7 +111,7 @@ Exceeding either throws `IllegalStateException` and leaves
 
 ### Prefs (`PREFS_TO_BACKUP`)
 
-Only **8 of the app's 11 SharedPreferences files** are backed up:
+Only **7 of the app's 11 SharedPreferences files** are backed up:
 
 | Pref file | What it carries |
 |---|---|
@@ -121,14 +120,14 @@ Only **8 of the app's 11 SharedPreferences files** are backed up:
 | `pricing_cache` | Per-tier timestamps + the user's **manual** price overrides. The bulk pricing JSON itself lives in `files/pricing/` (below). |
 | `dual_chat_prefs` | Last-used Dual Chat configuration plus the recent-subjects / recent-prompts ring buffers. |
 | `huggingface_cache` | 7-day-TTL HuggingFace model-info lookups (positive **and** negative — a cached miss avoids a re-fetch storm on a model HF doesn't have). |
-| `cloudprice_model_cache` | 7-day-TTL per-model CloudPrice detail lookups (positive and negative), the direct sibling of the HuggingFace cache — backs the lazy CloudPrice call on Model Info. |
 | `model_cooldowns` | Models auto-benched after a 429 with a long retry-after, plus the per-model trace filename of the benching 429 (see [model-states.md](model-states.md)). |
 | `view_screen_prefs` | The reorderable View-grid tile order — single string key `tile_order` holding a comma-separated list of tile ids. The user explicitly arranged the grid (e.g. "Costs first"), so the order survives a round-trip. |
 
-The **3 prefs files NOT backed up** are all recomputable or
+The **4 prefs files NOT backed up** are all recomputable or
 device-local: `provider_field_timestamps` (a null lookup just
 means "refresh this field from the asset on next boot"),
-`last_report_tracker`, and `update_from_cloud`.
+`last_report_tracker`, `update_from_cloud`, and
+`model_test_migration` (a recomputable startup-repair marker).
 `WebViewChromiumPrefs` (Chromium cookies / web-process state) is
 also intentionally excluded, but it's created by the WebView
 system rather than app code, so it isn't counted among the 11.
@@ -177,8 +176,7 @@ Notable contents:
   remote semantic search (distinct from KB chunks).
 - `pricing/` — the LiteLLM, models.dev, OpenRouter, Together,
   Helicone, llm-prices, Artificial Analysis, Requesty, llm-stats,
-  genai-prices and TrueFoundry tier blobs, plus CloudPrice's
-  capabilities-only catalog blob and the top-level
+  genai-prices and TrueFoundry tier blobs, plus the top-level
   `model_supported_parameters.json` catalog.
 - `model_lists/` — the most recent `/models` raw JSON per
   provider.

@@ -61,14 +61,13 @@ Backup half of the screen is hidden and only Restore is offered.</p>
 <li><strong>ai-backup-YYYYMMDD-HHMMSS.zip</strong>
   <ul>
     <li>manifest.json <span class="note">— version, timestamp, appVersion, packageName</span></li>
-    <li>prefs/ <span class="note">— one per PREFS_TO_BACKUP entry, 8 files</span>
+    <li>prefs/ <span class="note">— one per PREFS_TO_BACKUP entry, 7 files</span>
       <ul>
         <li>eval_prefs.json</li>
         <li>provider_registry.json</li>
         <li>pricing_cache.json</li>
         <li>dual_chat_prefs.json</li>
         <li>huggingface_cache.json</li>
-        <li>cloudprice_model_cache.json</li>
         <li>model_cooldowns.json</li>
         <li>view_screen_prefs.json</li>
       </ul>
@@ -161,7 +160,7 @@ leaves <code>filesDir</code> untouched.</p>
 
 <h3>Prefs (PREFS_TO_BACKUP)</h3>
 
-<p>Only <strong>8 of the app's 11 SharedPreferences files</strong> are
+<p>Only <strong>7 of the app's 11 SharedPreferences files</strong> are
 backed up:</p>
 
 <dl class="kv">
@@ -201,12 +200,6 @@ recent-prompts ring buffers.</dd>
 on a model HF doesn't have).</dd>
 </div>
 <div>
-<dt>cloudprice_model_cache</dt>
-<dd>7-day-TTL per-model CloudPrice detail lookups (positive and
-negative), the direct sibling of the HuggingFace cache — backs the
-lazy CloudPrice call on Model Info.</dd>
-</div>
-<div>
 <dt>model_cooldowns</dt>
 <dd>Models auto-benched after a 429 with a long retry-after, plus the
 per-model trace filename of the benching 429. See
@@ -221,11 +214,12 @@ order survives a round-trip.</dd>
 </div>
 </dl>
 
-<p>The <strong>3 prefs files NOT backed up</strong> are all
+<p>The <strong>4 prefs files NOT backed up</strong> are all
 recomputable or device-local: <code>provider_field_timestamps</code>
 (a null lookup just means "refresh this field from the asset on next
-boot"), <code>last_report_tracker</code>, and
-<code>update_from_cloud</code>. <code>WebViewChromiumPrefs</code>
+boot"), <code>last_report_tracker</code>,
+<code>update_from_cloud</code>, and <code>model_test_migration</code>
+(a recomputable startup-repair marker). <code>WebViewChromiumPrefs</code>
 (Chromium cookies / web-process state) is also intentionally excluded,
 but it's created by the WebView system rather than app code, so it
 isn't counted among the 11. New prefs files added to the app must be
@@ -265,8 +259,7 @@ worst case for the per-entry cap.</li>
 backs remote semantic search (distinct from KB chunks).</li>
 <li><code>pricing/</code> — the LiteLLM, models.dev, OpenRouter,
 Together, Helicone, llm-prices, Artificial Analysis, Requesty,
-llm-stats, genai-prices and TrueFoundry tier blobs, plus CloudPrice's
-capabilities-only catalog blob and the top-level
+llm-stats, genai-prices and TrueFoundry tier blobs, plus the top-level
 <code>model_supported_parameters.json</code> catalog.</li>
 <li><code>model_lists/</code> — the most recent <code>/models</code>
 raw JSON per provider.</li>

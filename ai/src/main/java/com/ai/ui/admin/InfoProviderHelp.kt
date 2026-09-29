@@ -111,14 +111,4 @@ internal val infoProviderHelp: Map<String, HelpContent> = mapOf(
             HelpCard("Pitfalls", "Keys are `<provider>/<model>` from the repo's directory layout. The refresh is heavier than the JSON catalogs (archive download + on-device unzip + YAML parse of ~1000 files). Provider-level `default.yaml` files are skipped — only per-model files carry costs."),
         )
     ),
-    "info_provider_cloudprice" to HelpContent(
-        title = "Help - CloudPrice (info provider)",
-        cards = listOf(
-            HelpCard("Overview", "CloudPrice (ai.cloudprice.net) is a unified LLM specs / pricing / cost-calculator API covering ~2800 models. We use only its model catalog: capability flags, modalities, and context windows."),
-            HelpCard("What we use it for", "Capabilities only — NOT a pricing tier. CloudPrice's bulk model list carries no inline pricing (its prices live behind per-model calculator endpoints), so it never joins the cost lookup. Its vision / tool-calling / reasoning / web-search flags + context windows feed the capability chain, like a richer HuggingFace."),
-            HelpCard("Endpoint", "`https://ai.cloudprice.net/api/v1/models` — anonymous, paginated via `next_token`. Refreshed on demand from Refresh → CloudPrice (and as part of Refresh all)."),
-            HelpCard("Freshness", "Aggregated catalog, updated regularly upstream. A bundled snapshot ships with the app so the capability flags work on a fresh install before the first refresh."),
-            HelpCard("Pitfalls", "Capabilities only — you'll never see CloudPrice in the per-model Costs breakdown, by design. Keys are `<creator>/<name>`, matched via the prefix-bucket logic. The bulk list is paginated, so a refresh walks several pages."),
-        )
-    ),
 )

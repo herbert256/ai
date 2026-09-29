@@ -83,7 +83,7 @@ data class</code>es local to the package:</p>
 internal data class HelpContent(val title: String, val cards: List&lt;HelpCard&gt;)</code></pre>
 
 <details class="entity" open>
-<summary>Per-domain map sizes<span class="badge">~355 base entries</span></summary>
+<summary>Per-domain map sizes<span class="badge">~354 base entries</span></summary>
 <div class="body">
 <dl class="kv">
 <div><dt>ReportsHelp.kt</dt><div class="meta">111 entries</div>
@@ -107,7 +107,7 @@ shared <code>crud()</code> helper.</dd></div>
 <dd>RAG knowledge bases + on-device runtime.</dd></div>
 <div><dt>ProviderSettingsHelp.kt</dt><div class="meta">12 entries</div>
 <dd>Provider setup / config cards.</dd></div>
-<div><dt>InfoProviderHelp.kt</dt><div class="meta">12 entries</div>
+<div><dt>InfoProviderHelp.kt</dt><div class="meta">11 entries</div>
 <dd>One <code>info_provider_*</code> page per metadata repository.</dd></div>
 <div><dt>ModelsHelp.kt</dt><div class="meta">10 entries</div>
 <dd>Model lists, base-model statistics, Model Info.</dd></div>
@@ -116,12 +116,12 @@ shared <code>crud()</code> helper.</dd></div>
 <div><dt>SearchHelp.kt</dt><div class="meta">4 entries</div>
 <dd>Search / local semantic search.</dd></div>
 </dl>
-<p class="muted">Sums to ~355 base <code>HelpContent</code> entries.
+<p class="muted">Sums to ~354 base <code>HelpContent</code> entries.
 On top of those, <code>ICON_HELP_TOPIC_CONTENT</code> auto-builds an
 empty-bodied <code>&lt;topic&gt;_icons</code> page for each of the 20
 <code>ICON_HELP_AS_PAGE</code> members (the table itself is rendered
 by <code>HelpScreen</code>, not stored in the <code>HelpContent</code>)
-— roughly <strong>375 topics</strong> total. A few more screen-related
+— roughly <strong>374 topics</strong> total. A few more screen-related
 topics (e.g. <code>blocked_models</code>, <code>test_excluded_models</code>)
 live inside <code>SettingsAdminHelp.kt</code> / <code>DeveloperHelp.kt</code>
 rather than <code>ModelsHelp.kt</code>, despite the name.</p>
@@ -160,7 +160,7 @@ pages.</dd></div>
 <div><dt>Per-provider</dt><dd><code>provider_edit</code> plus one
 <code>provider_*</code> page per major cloud provider — see
 <a href="#provider-repo">below</a>.</dd></div>
-<div><dt>Per-repository</dt><dd>12 <code>info_provider_*</code> pages —
+<div><dt>Per-repository</dt><dd>11 <code>info_provider_*</code> pages —
 see <a href="#provider-repo">below</a>.</dd></div>
 </dl>
 </div>
@@ -350,14 +350,14 @@ infrastructure helper so each card has a uniform layout
 <details class="entity">
 <summary>Per-repository help</summary>
 <div class="body">
-<p>12 <code>info_provider_*</code> pages, one per external metadata
+<p>11 <code>info_provider_*</code> pages, one per external metadata
 source (HuggingFace / OpenRouter / LiteLLM / models.dev / Helicone /
 llm-prices.com / Artificial Analysis / Requesty / llm-stats /
-genai-prices / TrueFoundry / CloudPrice) with endpoint, auth, what it
+genai-prices / TrueFoundry) with endpoint, auth, what it
 provides, when fetched, where cached. Reachable from every Source
 button on Model Info and from the Trace detail ℹ.</p>
 <p>The Trace detail screen's ℹ resolves the trace's URL + category to
-one of the 12 topics via the free function
+one of the 11 topics via the free function
 <code>infoProviderForTrace(url, category)</code>
 (<code>HelpScreen.kt</code>) — not a <code>HelpResolver</code> class
 (there is none). It calls <code>infoProviderForUrl</code> (host match,

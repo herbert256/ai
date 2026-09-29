@@ -33,7 +33,6 @@ internal fun GsonBuilder.registerPricingTierAdapters(): GsonBuilder = this
     .registerTypeAdapter(PricingCache.ModelPricing::class.java, gsonAdapter(::readModelPricing, ::writeModelPricing))
     .registerTypeAdapter(ModelCapabilities::class.java, gsonAdapter(::readModelCapabilities, ::writeModelCapabilities))
     .registerTypeAdapter(PricingCache.ModelsDevMeta::class.java, gsonAdapter(::readModelsDevMeta, ::writeModelsDevMeta))
-    .registerTypeAdapter(PricingCache.CloudPriceMeta::class.java, gsonAdapter(::readCloudPriceMeta, ::writeCloudPriceMeta))
     .registerTypeAdapter(PricingCache.RequestyMeta::class.java, gsonAdapter(::readRequestyMeta, ::writeRequestyMeta))
     .registerTypeAdapter(PricingCache.TrueFoundryMeta::class.java, gsonAdapter(::readTrueFoundryMeta, ::writeTrueFoundryMeta))
     .registerTypeAdapter(PricingCache.LiteLLMMeta::class.java, gsonAdapter(::readLiteLLMMeta, ::writeLiteLLMMeta))
@@ -304,38 +303,6 @@ private fun writeModelsDevMeta(out: JsonWriter, value: PricingCache.ModelsDevMet
     out.opt("supportsVision", value.supportsVision)
     out.opt("supportsToolCall", value.supportsToolCall)
     out.opt("supportsReasoning", value.supportsReasoning)
-    out.opt("maxInputTokens", value.maxInputTokens)
-    out.opt("maxOutputTokens", value.maxOutputTokens)
-    out.endObject()
-}
-
-internal fun readCloudPriceMeta(r: TierJson): PricingCache.CloudPriceMeta {
-    var vision: Boolean? = null; var reasoning: Boolean? = null; var toolCalling: Boolean? = null
-    var webSearch: Boolean? = null; var computerUse: Boolean? = null
-    var maxIn: Int? = null; var maxOut: Int? = null
-    r.readObject { name ->
-        when (name) {
-            "supportsVision" -> vision = r.optBoolean()
-            "supportsReasoning" -> reasoning = r.optBoolean()
-            "supportsToolCalling" -> toolCalling = r.optBoolean()
-            "supportsWebSearch" -> webSearch = r.optBoolean()
-            "supportsComputerUse" -> computerUse = r.optBoolean()
-            "maxInputTokens" -> maxIn = r.optInt()
-            "maxOutputTokens" -> maxOut = r.optInt()
-            else -> return@readObject false
-        }
-        true
-    }
-    return PricingCache.CloudPriceMeta(vision, reasoning, toolCalling, webSearch, computerUse, maxIn, maxOut)
-}
-
-private fun writeCloudPriceMeta(out: JsonWriter, value: PricingCache.CloudPriceMeta) {
-    out.beginObject()
-    out.opt("supportsVision", value.supportsVision)
-    out.opt("supportsReasoning", value.supportsReasoning)
-    out.opt("supportsToolCalling", value.supportsToolCalling)
-    out.opt("supportsWebSearch", value.supportsWebSearch)
-    out.opt("supportsComputerUse", value.supportsComputerUse)
     out.opt("maxInputTokens", value.maxInputTokens)
     out.opt("maxOutputTokens", value.maxOutputTokens)
     out.endObject()

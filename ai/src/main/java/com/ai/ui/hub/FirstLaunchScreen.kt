@@ -7,11 +7,10 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.runtime.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.runtime.Composable
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.ai.data.MetadataDefaults
@@ -23,12 +22,8 @@ fun FirstLaunchScreen(
     onImportApiKeys: () -> Unit,
     onAiSetup: () -> Unit,
     onExampleReports: () -> Unit,
-    onHousekeeping: () -> Unit,
-    onSettings: () -> Unit,
-    onMainHelp: () -> Unit,
-    onAbout: () -> Unit
+    onMainHelp: () -> Unit
 ) {
-    var advanced by remember { mutableStateOf(false) }
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -46,17 +41,12 @@ fun FirstLaunchScreen(
             onBackClick = null
         )
         Spacer(modifier = Modifier.height(4.dp))
+        HubCard(icon = MetadataDefaults.KEY, title = "Import API keys", onClick = onImportApiKeys)
+        Text("Pick a JSON file like {\"OpenAI\": \"sk-...\"} to add several provider keys at once. The app then refreshes its catalogs and providers and asks for a restart.")
         HubCard(icon = MetadataDefaults.REPORT_ICON, title = "Try an example", onClick = onExampleReports)
         Text("Open a bundled report without an API key. Read the saved answers, compare them, and try choosing a conclusion.")
         HubCard(icon = MetadataDefaults.AGENT, title = "Connect a provider", onClick = onAiSetup)
         Text("Add one provider key in AI Setup, select a chat model, then open Reports → Create report. Start with one or two models and use Answers only in the work review.")
-        TextButton(onClick={advanced=!advanced}) { Text(if(advanced) "Hide other setup options" else "Other setup options") }
-        if(advanced) {
-            HubCard(icon = MetadataDefaults.KEY, title = "Import API keys", onClick = onImportApiKeys)
-            HubCard(icon = MetadataDefaults.HOUSEKEEPING, title = "Housekeeping", onClick = onHousekeeping)
-            HubCard(icon = MetadataDefaults.SETTINGS, title = "Settings", onClick = onSettings)
-            HubCard(icon = MetadataDefaults.INFO, title = "About", onClick = onAbout)
-        }
         HubCard(icon = MetadataDefaults.HELP, title = "Help", onClick = onMainHelp)
     }
 }

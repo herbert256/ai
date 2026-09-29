@@ -25,7 +25,6 @@ class PricingTierAdaptersTest {
 
     @Test fun metaRecordsMatchTheReflectiveFormat() {
         roundTrips(PricingCache.ModelsDevMeta(true, null, false, 128000, null))
-        roundTrips(PricingCache.CloudPriceMeta(true, false, null, true, null, 200000, 8192))
         roundTrips(PricingCache.RequestyMeta(null, true, false, true, null, 1000, 2000))
         roundTrips(PricingCache.TrueFoundryMeta(true, true, null, null, 4096))
         roundTrips(PricingCache.LiteLLMMeta(mode = "chat", supportsVision = true, supportedEndpoints = listOf("/v1/chat/completions", "/v1/responses"), toolUseSystemPromptTokens = 346))
@@ -76,6 +75,5 @@ class PricingTierAdaptersTest {
         check("requesty_meta", object : TypeToken<Map<String, PricingCache.RequestyMeta>>() {}.type, ::readRequestyMeta)
         check("genaiprices_meta", object : TypeToken<Map<String, PricingCache.GenaiPricesMeta>>() {}.type, ::readGenaiPricesMeta)
         check("truefoundry_meta", object : TypeToken<Map<String, PricingCache.TrueFoundryMeta>>() {}.type, ::readTrueFoundryMeta)
-        check("cloudprice_meta", object : TypeToken<Map<String, PricingCache.CloudPriceMeta>>() {}.type, ::readCloudPriceMeta)
     }
 }

@@ -189,7 +189,7 @@ fun cacheRegistry(
     CacheDescriptor(
         id = "pricing", icon = "💲", title = "Pricing tiers", helpTopic = "cache_pricing",
         subject = "Per-source model pricing catalogs",
-        stats = { c -> val s = PricingCache.catalogStats(c); CacheStats(s.count { it.entries > 0 }, dirSize(c, "pricing"), "11 sources") },
+        stats = { c -> val s = PricingCache.catalogStats(c); CacheStats(s.count { it.entries > 0 }, dirSize(c, "pricing"), "${s.size} sources") },
         list = { c ->
             PricingCache.catalogStats(c).map { s ->
                 CacheEntryVM(
@@ -206,7 +206,7 @@ fun cacheRegistry(
                             "LiteLLM" -> "litellm"; "models.dev" -> "modelsdev"; "llm-prices" -> "llmprices"
                             "Artificial Analysis" -> "aa"; "llm-stats" -> "llmstats"; "OpenRouter" -> "openrouter"
                             "Requesty" -> "requesty"; "Helicone" -> "helicone"
-                            "genai-prices" -> "genaiprices"; "TrueFoundry" -> "truefoundry"; "CloudPrice" -> "cloudprice"
+                            "genai-prices" -> "genaiprices"; "TrueFoundry" -> "truefoundry"
                             else -> null
                         }
                         val ipEnabled = ipId == null || (com.ai.model.SettingsHolder.current?.isInfoProviderEnabled(ipId) ?: true)
@@ -218,7 +218,6 @@ fun cacheRegistry(
                             "Requesty" -> { ctx -> if (PricingCache.fetchRequestyOnline(ctx) != null) onPricingTierChanged() }
                             "genai-prices" -> { ctx -> if (PricingCache.fetchGenaiPricesOnline(ctx) != null) onPricingTierChanged() }
                             "TrueFoundry" -> { ctx -> if (PricingCache.fetchTrueFoundryOnline(ctx) != null) onPricingTierChanged() }
-                            "CloudPrice" -> { ctx -> if (PricingCache.fetchCloudPriceOnline(ctx) != null) onPricingTierChanged() }
                             // AA / llm-stats need their API key, OpenRouter pricing the
                             // OpenRouter key — all routed through the view model (which
                             // rebuilds the snapshots itself).

@@ -12,13 +12,12 @@
 
 <h1>External repositories</h1>
 
-<p>The app consults <strong>twelve external metadata repositories</strong>
+<p>The app consults <strong>eleven external metadata repositories</strong>
 for model pricing, capabilities, and model-card info. Ten are
 <em>pricing catalogs</em> that feed the layered
-<code>PricingCache.getPricing</code> lookup. The other two &mdash;
-<strong>CloudPrice</strong> and <strong>HuggingFace</strong> &mdash;
-are capability/metadata-only and sit outside that price chain
-entirely.</p>
+<code>PricingCache.getPricing</code> lookup. The eleventh &mdash;
+<strong>HuggingFace</strong> &mdash; is capability/metadata-only and
+sits outside that price chain entirely.</p>
 
 <nav class="toc">
 <strong>Jump to</strong>
@@ -27,7 +26,7 @@ entirely.</p>
 <li><a href="#cost">Cost computation</a></li>
 <li><a href="#capabilities">Capabilities</a></li>
 <li><a href="#storage">Storage</a></li>
-<li><a href="#repos">The twelve repositories</a></li>
+<li><a href="#repos">The eleven repositories</a></li>
 <li><a href="#refresh-all">Refresh All</a></li>
 <li><a href="#per-provider">Per-provider /models endpoints</a></li>
 <li><a href="#help">Help &amp; trace wiring</a></li>
@@ -75,9 +74,6 @@ Helicone). It used to sit <em>behind</em> LiteLLM, so an override added
 specifically to correct a stale catalog entry was silently ignored
 &mdash; the opposite of what the Cost Config UI implies. Implemented in
 <code>PricingCache.findPricingMatch</code>.</p>
-<p><strong>CloudPrice is not in this list</strong> &mdash; its bulk
-model list carries no inline pricing, so it contributes capability
-flags only (see its entry below).</p>
 </div>
 
 <p><code>DEFAULT_PRICING = ModelPricing("default", 25.00e-6, 75.00e-6,
@@ -149,8 +145,7 @@ response wins when it self-reports the field (stored on
 <code>ProviderConfig.modelCapabilities</code>), then a manual
 Model-Type-Override flag (can only <strong>add</strong> a capability,
 never clear one), then LiteLLM, then a naming heuristic. Requesty,
-genai-prices, TrueFoundry and CloudPrice all feed capability flags too
-even though only the first three of those also carry pricing &mdash;
+genai-prices and TrueFoundry feed capability flags too &mdash;
 see <a href="model-states.html">model states</a> for the full chain.</p>
 
 <h2 id="storage">Storage</h2>
@@ -174,7 +169,7 @@ filesDir, so its timestamp stays unset (the UI still reads "never
 refreshed") and the next Refresh overwrites both file and timestamp.
 Every catalog tier ships a bundled snapshot except Together-native
 (harvested at runtime from the provider's own response, not a fetched
-external repo &mdash; so it isn't one of the twelve) and HuggingFace
+external repo &mdash; so it isn't one of the eleven) and HuggingFace
 (lazy, per-model, never bundled). See
 <a href="persistent.html">persistent state</a> for the full file list.</p>
 
@@ -186,7 +181,7 @@ external repo &mdash; so it isn't one of the twelve) and HuggingFace
 it); the cache-clear path still deletes one left behind on older
 installs.</p>
 
-<h2 id="repos">The twelve repositories</h2>
+<h2 id="repos">The eleven repositories</h2>
 
 <details class="entity" open>
 <summary>1. LiteLLM<span class="badge">precedence step 3</span></summary>
@@ -487,57 +482,7 @@ download + on-device unzip + ~1000 YAML parses).</dd></div>
 </details>
 
 <details class="entity">
-<summary>11. CloudPrice<span class="badge">capabilities only &mdash; no pricing</span></summary>
-<div class="body">
-<p>Like HuggingFace, CloudPrice is <strong>not</strong> a pricing
-source &mdash; its bulk <code>/models</code> list carries no inline
-pricing (prices live behind per-model calculator endpoints). It
-contributes <strong>capabilities + context only</strong>, so it never
-joins the layered price lookup. It has <strong>two</strong> lookups: a
-bulk, eagerly-cached, bundled catalog (below) that feeds the
-capability chain, plus a lazy per-model live lookup (like
-HuggingFace's).</p>
-<dl class="kv">
-<div><dt>Endpoint</dt>
-<dd><code>ai.cloudprice.net/api/v1/models?page_size=100</code>,
-paginated via <code>pagination.next_token</code> (capped at 40
-pages).</dd></div>
-<div><dt>Auth</dt><dd>None.</dd></div>
-<div><dt>Provides</dt>
-<dd>Per model: <code>modalities</code> (image &rarr; vision),
-<code>context_window</code>, <code>max_output_tokens</code>, and a
-<code>capabilities</code> block (<code>function_calling</code> &rarr;
-tool-calling, <code>reasoning</code>, <code>web_search</code>,
-<code>computer_use</code>). Feeds
-<code>Settings.isVisionCapable</code> / <code>isWebSearchCapable</code>
-/ <code>isReasoningCapable</code>.</dd></div>
-<div><dt>Key format</dt>
-<dd><code>&lt;creator&gt;/&lt;name&gt;</code> (creator-slug style, like
-AA), matched via the prefix-bucket scan.</dd></div>
-<div><dt>Cache</dt>
-<dd><code>cloudprice_meta.json</code> (no pricing blob);
-<code>cloudprice_timestamp</code> in <code>pricing_cache</code>.
-Bundled snapshot.</dd></div>
-</dl>
-<p><strong>Per-model live lookup</strong>
-(<code>data/CloudPriceModelCache.kt</code>, the direct sibling of the
-HuggingFace lookup): independently of the bulk catalog above, the
-Model Info screen also hits
-<code>GET ai.cloudprice.net/api/v1/models/{id}</code> directly &mdash;
-richer / fresher than the bulk list and able to resolve aliases the
-bulk keying misses. The candidate id is probed in three forms (bare
-id, then dash&rarr;dot and dot&rarr;dash variants); the first 2xx wins.
-Traced under <code>info/cloudprice</code> (distinct from the bulk
-fetch's <code>pricing/CloudPrice</code>). Results (including
-negative/404 misses) are cached for 7 days keyed
-<code>${providerId}::${modelId}</code> in the
-<code>cloudprice_model_cache</code> SharedPreferences file, which
-round-trips through the backup zip like <code>huggingface_cache</code>.</p>
-</div>
-</details>
-
-<details class="entity">
-<summary>12. HuggingFace<span class="badge">capabilities only &mdash; no pricing</span></summary>
+<summary>11. HuggingFace<span class="badge">capabilities only &mdash; no pricing</span></summary>
 <div class="body">
 <p>Unlike the catalog tiers, HuggingFace is <strong>not</strong> part
 of Refresh All, <strong>not</strong> bundled, and <strong>not</strong>
@@ -586,12 +531,12 @@ agents</code> flock:</p>
 
 <ol>
 <li>the <strong>catalog phase</strong> (<code>runCatalogPhase</code>)
-fans <strong>eleven catalog sources</strong> out in parallel
+fans <strong>ten catalog sources</strong> out in parallel
 (<code>async(Dispatchers.IO)</code> + <code>awaitAll</code>, since they
 touch disjoint disk paths). OpenRouter, Artificial Analysis and
 llm-stats are skipped when their key is absent (LiteLLM, models.dev,
-llm-prices, Helicone, Requesty, genai-prices, TrueFoundry and
-CloudPrice are keyless, so they always run). When the catalogs settle
+llm-prices, Helicone, Requesty, genai-prices and TrueFoundry are
+keyless, so they always run). When the catalogs settle
 it recomputes the precomputed vision/web-search/reasoning capability
 sets (<code>recomputeAllCapabilities</code>) and saves settings;</li>
 <li>the <strong>per-provider Worker phase</strong>
@@ -623,18 +568,13 @@ freshness timestamps in the same preferences edit as the list. Restart
 uses that cache; manual edits and metadata propagation do not renew
 timestamps. Failed or empty fetches retain the previous list.</p>
 
-<p>CloudPrice publishes only after every page completes. A failed page
-(including HTTP 429), invalid pagination, repeated token, or reaching
-the 40-page limit with more pages pending fails the refresh and retains
-the previous cache and timestamp.</p>
-
 <p>A sibling <strong>Refresh</strong> button runs only the Worker phase
 (model list &rarr; default-model test &rarr; default agent), skipping every
 external catalog.</p>
 
 <h2 id="per-provider">Per-provider /models endpoints</h2>
 
-<p>Independently of the twelve repositories, every active provider's
+<p>Independently of the eleven repositories, every active provider's
 own <code>/models</code> (or equivalent) endpoint is consulted at
 fetch time to discover the model list. The response is parsed for the
 capabilities the provider self-reports &mdash; Mistral's
@@ -654,7 +594,7 @@ revision can mine extra fields without forcing a re-fetch.</p>
 
 <h2 id="help">Help &amp; trace wiring</h2>
 
-<p>Each repository has a help page &mdash; the twelve
+<p>Each repository has a help page &mdash; the eleven
 <code>info_provider_*</code> topics in
 <code>ui/admin/InfoProviderHelp.kt</code> &mdash; deep-linked from
 every entry point: the &#8505; icon beside a Source button on the
@@ -663,7 +603,7 @@ Trace detail page when a captured trace matches a known fetch
 category. The trace&rarr;repository resolver is
 <code>infoProviderForTrace(url, category)</code>
 (<code>ui/admin/HelpScreen.kt</code>), backed by the canonical
-12-entry <code>INFO_PROVIDERS</code> list; OpenRouter's spec fetch is
+11-entry <code>INFO_PROVIDERS</code> list; OpenRouter's spec fetch is
 additionally gated on a chat-category check plus a <code>pricing/</code>
 category prefix. See <a href="help.html">Help system</a>.</p>
 

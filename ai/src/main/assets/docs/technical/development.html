@@ -615,7 +615,7 @@ icons, add it to <code>ICON_HELP_AS_PAGE</code>
 <p>Trace ℹ deep-links resolve through
 <code>infoProviderForTrace(url, category)</code> in
 <code>HelpScreen.kt</code> (backed by <code>infoProviderForUrl</code>
-+ the canonical 12-entry <code>INFO_PROVIDERS</code> list) — there is
++ the canonical 11-entry <code>INFO_PROVIDERS</code> list) — there is
 <strong>no</strong> <code>HelpResolver</code> class.</p>
 <div class="callout">
 <p><strong>Memory rule:</strong> every new screen needs a help topic.
@@ -846,12 +846,11 @@ recomputable cache.</li>
 <code>FILES_DIR_BACKUP_EXCLUDES</code> subdirs
 (<code>local_llms/</code>, <code>local_models/</code>,
 <code>native/</code>, <code>applog/</code>), plus the
-<strong>8</strong> SharedPreferences files in
+<strong>7</strong> SharedPreferences files in
 <code>PREFS_TO_BACKUP</code> (<code>eval_prefs</code>,
 <code>provider_registry</code>, <code>pricing_cache</code>,
 <code>dual_chat_prefs</code>, <code>huggingface_cache</code>,
-<code>cloudprice_model_cache</code>, <code>model_cooldowns</code>,
-<code>view_screen_prefs</code>), plus a <code>cacheDir</code> mirror
+<code>model_cooldowns</code>, <code>view_screen_prefs</code>), plus a <code>cacheDir</code> mirror
 minus the in-flight temp prefixes (<code>ai-restore-</code>,
 <code>reset_keys_</code>, <code>ai-backup-</code> —
 <code>reset_keys_</code> holds plaintext keys and must never be

@@ -76,7 +76,9 @@ bottom bar, exactly as in Home screen mode.</p>
 if you have a report it lands on the newest one&#39;s <strong>Manage</strong> screen; if
 you have no report but have API keys it opens the <strong>AI Reports</strong> hub;
 and a freshly-installed, unconfigured app opens <strong>First launch</strong>, with
-two main choices: <strong>Try an example</strong> and <strong>Connect a provider</strong>. Other setup options expands key import, Housekeeping, Settings and About. Help remains visible.</p>
+three choices: <strong>Import API keys</strong> (pick a JSON file of provider keys;
+the app then runs Refresh all and asks for a restart), <strong>Try an example</strong>
+and <strong>Connect a provider</strong>. Help sits below them.</p>
 <h2 id="reports">Reports</h2>
 <p>Reports are the killer feature. A report = one prompt run against many
 models in parallel.</p>
@@ -546,7 +548,7 @@ help page.</li>
 <li><strong>Sources</strong> — buttons that open the model&#39;s page on each external
 repository (HuggingFace / OpenRouter / LiteLLM / models.dev /
 Helicone / llm-prices / Artificial Analysis / Requesty / llm-stats
-/ genai-prices / TrueFoundry / CloudPrice), each with an ℹ
+/ genai-prices / TrueFoundry), each with an ℹ
 button next to it that deep-links to that repository&#39;s help
 page. <strong>Show all</strong> opens a side-by-side raw-JSON dump of every
 source.</li>
@@ -762,9 +764,9 @@ translators</a>; Find-alternative variants
 live in <strong>Alternative prompts</strong>.</p>
 </blockquote>
 <h3 id="refresh">Refresh</h3>
-<p>Refreshing the <strong>eleven catalog sources</strong> (OpenRouter, LiteLLM,
+<p>Refreshing the <strong>ten catalog sources</strong> (OpenRouter, LiteLLM,
 models.dev, Helicone, llm-prices, Artificial Analysis, Requesty,
-llm-stats, genai-prices, TrueFoundry, CloudPrice — HuggingFace isn&#39;t
+llm-stats, genai-prices, TrueFoundry — HuggingFace isn&#39;t
 bulk-refreshed, it&#39;s looked up per model on demand) is reached from
 <strong>Housekeeping → Manage data</strong>. The <strong>Whole app</strong> card&#39;s <strong>Refresh
 all</strong> button runs a full-screen progress page that fetches every
@@ -774,7 +776,7 @@ provider, then offers a <strong>Restart application</strong> banner to pick up
 the freshly-persisted caches. The <strong>Providers / models / agents</strong>
 card&#39;s <strong>Refresh</strong> button runs just the worker pass, skipping the
 catalog fetches. The <strong>Info providers</strong> card&#39;s <strong>Refresh</strong> drills
-into a sub-page listing all eleven catalog sources individually,
+into a sub-page listing all ten catalog sources individually,
 each with its own button and an ℹ deep-link to that source&#39;s help
 page (disabled when the source is switched off under AI Setup →
 Info providers, or its key is missing). Both Refresh-all variants

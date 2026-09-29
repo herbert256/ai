@@ -76,11 +76,6 @@ object PricingCache {
     private const val KEY_TRUEFOUNDRY_PRICING = "truefoundry_pricing"
     private const val KEY_TRUEFOUNDRY_META = "truefoundry_meta"
     private const val KEY_TRUEFOUNDRY_TIMESTAMP = "truefoundry_timestamp"
-    // CloudPrice — capabilities + context catalog (ai.cloudprice.net/api/v1/
-    // models, paginated). Metadata ONLY — no inline pricing in the bulk list,
-    // so it never joins the layered price lookup. Keyless.
-    private const val KEY_CLOUDPRICE_META = "cloudprice_meta"
-    private const val KEY_CLOUDPRICE_TIMESTAMP = "cloudprice_timestamp"
     private const val KEY_MANUAL_PRICING = "manual_pricing"
     /** Together AI native pricing — extracted from each model entry's
      *  `pricing.{input, output, cached_input}` block during a Together
@@ -158,11 +153,6 @@ object PricingCache {
     @Volatile private var trueFoundryPricing: Map<String, ModelPricing>? = null
     @Volatile private var trueFoundryMeta: Map<String, TrueFoundryMeta>? = null
     @Volatile private var trueFoundryTimestamp: Long = 0
-    /** CloudPrice capability sidecar — keyed `<creator>/<name>`. Metadata
-     *  only (vision / reasoning / tool-calling / web-search / computer-use +
-     *  context window); there is no CloudPrice pricing map. */
-    @Volatile private var cloudPriceMeta: Map<String, CloudPriceMeta>? = null
-    @Volatile private var cloudPriceTimestamp: Long = 0
     @Volatile private var openRouterTimestamp: Long = 0
     @Volatile private var litellmTimestamp: Long = 0
     @Volatile private var modelsDevTimestamp: Long = 0
@@ -412,7 +402,7 @@ object PricingCache {
                     " llmPrices=${llmPricesPricing?.size ?: 0}, aa=${aaPricing?.size ?: 0}," +
                     " llmStats=${llmStatsPricing?.size ?: 0}, openrouter=${openRouterPricing?.size ?: 0}," +
                     " requesty=${requestyPricing?.size ?: 0}, genaiPrices=${genaiPricesPricing?.size ?: 0}," +
-                    " trueFoundry=${trueFoundryPricing?.size ?: 0}, cloudPrice=${cloudPriceMeta?.size ?: 0}," +
+                    " trueFoundry=${trueFoundryPricing?.size ?: 0}," +
                     " helicone=${heliconePricing?.size ?: 0}, manual=${manualPricing?.size ?: 0})"
             )
         }
@@ -839,8 +829,7 @@ object PricingCache {
 
     /** Entry count + retrieval timestamp for each external pricing / capability
      *  info-provider, in lookup-precedence order. Drives the Monitor hub's
-     *  "Pricing cache" table. Cheap — map sizes + volatile longs. CloudPrice
-     *  is metadata-only, so its count is meta entries, not priced models. */
+     *  "Pricing cache" table. Cheap — map sizes + volatile longs. */
     fun catalogStats(context: Context): List<CatalogStat> {
         ensureLoaded(context)
         return listOf(
@@ -853,7 +842,6 @@ object PricingCache {
             CatalogStat("Requesty", requestyPricing?.size ?: 0, requestyTimestamp),
             CatalogStat("genai-prices", genaiPricesPricing?.size ?: 0, genaiPricesTimestamp),
             CatalogStat("TrueFoundry", trueFoundryPricing?.size ?: 0, trueFoundryTimestamp),
-            CatalogStat("CloudPrice", cloudPriceMeta?.size ?: 0, cloudPriceTimestamp),
             CatalogStat("Helicone", heliconePricing?.size ?: 0, heliconeTimestamp),
         )
     }
@@ -968,7 +956,6 @@ object PricingCache {
             "llmstats" -> llmStatsPricing to llmStatsTimestamp
             "genaiprices" -> genaiPricesPricing to genaiPricesTimestamp
             "truefoundry" -> trueFoundryPricing to trueFoundryTimestamp
-            "cloudprice" -> cloudPriceMeta to cloudPriceTimestamp
             else -> return null
         }
         val map = cache ?: return null
@@ -1537,7 +1524,7 @@ object PricingCache {
                     cursor?.let { append("&cursor="); append(java.net.URLEncoder.encode(it, "UTF-8")) }
                 }
                 val json = ApiFactory.fetchUrlAsString(url, headers = mapOf("Authorization" to "Bearer $apiKey"))
-                // A missing page must fail the whole refresh (like CloudPrice):
+                // A missing page must fail the whole refresh:
                 // saving + timestamping the pages before it would silently
                 // drop the rest of the catalog until the next refresh.
                 check(!json.isNullOrBlank()) {
@@ -1812,82 +1799,6 @@ object PricingCache {
         return pretty.toJson(mapOf("pricing" to pricing, "meta" to meta))
     }
 
-    // ============================================================================
-    // CloudPrice — capabilities + context catalog (keyless, paginated).
-    // Metadata ONLY: the bulk /models list carries no inline pricing, so
-    // CloudPrice never joins the layered price lookup.
-    // Endpoint: ai.cloudprice.net/api/v1/models?page_size=100&next_token=…
-    // ============================================================================
-
-    /** Walk every page of CloudPrice's /models list (paginated via
-     *  pagination.next_token, capped at 40 pages) and replace the CloudPrice
-     *  capability sidecar. Returns the number of meta entries, or null on
-     *  network / parse failure. */
-    suspend fun fetchCloudPriceOnline(context: Context): Int? = withTraceCategory("pricing/CloudPrice") {
-      withContext(kotlinx.coroutines.Dispatchers.IO) {
-        try {
-            val meta = mutableMapOf<String, CloudPriceMeta>()
-            var token: String? = null
-            var pages = 0
-            val seenTokens = mutableSetOf<String>()
-            do {
-                val url = buildString {
-                    append("https://ai.cloudprice.net/api/v1/models?page_size=100")
-                    token?.let { append("&next_token="); append(java.net.URLEncoder.encode(it, "UTF-8")) }
-                }
-                val json = ApiFactory.fetchCatalogPage(url)
-                check(!json.isNullOrBlank()) {
-                    "CloudPrice download incomplete at page ${pages + 1}; previous cache retained"
-                }
-                val (m, next) = parseCloudPriceJson(json)
-                meta.putAll(m)
-                token = next
-                pages++
-                if (token != null) {
-                    check(seenTokens.add(token)) { "CloudPrice repeated a page token; previous cache retained" }
-                    check(pages < 40) { "CloudPrice download exceeds 40 pages; previous cache retained" }
-                }
-            } while (token != null)
-            AppLog.i("PricingCache", "CloudPrice parse: ${meta.size} meta entries ($pages pages)")
-            if (meta.isEmpty()) return@withContext null
-            commitTier(context, listOf(KEY_CLOUDPRICE_META to meta), KEY_CLOUDPRICE_TIMESTAMP) { now ->
-                cloudPriceMeta = meta
-                cloudPriceTimestamp = now
-            }
-            meta.size
-        } catch (e: kotlinx.coroutines.CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            AppLog.e("PricingCache", "CloudPrice refresh failed: ${e.message}", e)
-            null
-        }
-      }
-    }
-
-    /** CloudPrice keys are `<creator>/<name>` (creator-slug style, like AA). */
-    private fun findCloudPriceMeta(provider: AppService, model: String): CloudPriceMeta? {
-        if (!isInfoProviderEnabled(InfoProvider.CLOUDPRICE)) return null
-        val meta = cloudPriceMeta ?: return null
-        meta[model]?.let { return it }
-        return findBestPrefixedMatch(meta, provider, model, useLitellmPrefix = true)
-            ?: findLatestAliasKey(meta.keys, model, provider.litellmPrefix, provider.id.lowercase())?.let { meta[it] }
-    }
-
-    fun cloudPriceSupportsVision(provider: AppService, model: String): Boolean? =
-        findCloudPriceMeta(provider, model)?.supportsVision
-
-    fun cloudPriceSupportsReasoning(provider: AppService, model: String): Boolean? =
-        findCloudPriceMeta(provider, model)?.supportsReasoning
-
-    fun cloudPriceSupportsWebSearch(provider: AppService, model: String): Boolean? =
-        findCloudPriceMeta(provider, model)?.supportsWebSearch
-
-    fun cloudPriceSupportsToolCalling(provider: AppService, model: String): Boolean? =
-        findCloudPriceMeta(provider, model)?.supportsToolCalling
-
-    fun cloudPriceMaxInputTokens(provider: AppService, model: String): Int? =
-        findCloudPriceMeta(provider, model)?.maxInputTokens
-
     // ── Public capability-sidecar getters for the Model Info detail cards.
     //    Each returns null when the tier is disabled or has no entry for the
     //    (provider, model), so the corresponding card auto-hides. ──
@@ -2152,17 +2063,6 @@ object PricingCache {
             if (trueFoundryPricing == null) trueFoundryPricing = emptyMap()
             if (trueFoundryMeta == null) trueFoundryMeta = emptyMap()
         }
-        // CloudPrice — capability sidecar only (no pricing). Bundled asset
-        // ships a snapshot so the capability flags work on a fresh install.
-        if (cloudPriceMeta == null) {
-            cloudPriceTimestamp = getPrefs(context).getLong(KEY_CLOUDPRICE_TIMESTAMP, 0)
-            loadBlob(context, KEY_CLOUDPRICE_META)?.use { json ->
-                try {
-                    cloudPriceMeta = parseTierMap(json, ::readCloudPriceMeta)
-                } catch (_: Exception) {}
-            }
-            if (cloudPriceMeta == null) cloudPriceMeta = emptyMap()
-        }
         // Once we've finished loading every tier, mark the cache
         // primed so the main-thread guard in ensureLoaded() stops
         // short-circuiting future getPricing calls. Previously only
@@ -2242,19 +2142,6 @@ object PricingCache {
         val supportsVision: Boolean? = null,
         val supportsToolCalling: Boolean? = null,
         val supportsReasoning: Boolean? = null,
-        val maxInputTokens: Int? = null,
-        val maxOutputTokens: Int? = null
-    )
-
-    /** Capability sidecar derived from CloudPrice's /models capabilities
-     *  block + modalities. CloudPrice carries no pricing in the bulk list, so
-     *  this is the tier's only contribution — it feeds the capability chain. */
-    data class CloudPriceMeta(
-        val supportsVision: Boolean? = null,
-        val supportsReasoning: Boolean? = null,
-        val supportsToolCalling: Boolean? = null,
-        val supportsWebSearch: Boolean? = null,
-        val supportsComputerUse: Boolean? = null,
         val maxInputTokens: Int? = null,
         val maxOutputTokens: Int? = null
     )
@@ -2398,7 +2285,7 @@ object PricingCache {
      *  snapshot bundled with the app: drops the refreshed blob file(s),
      *  timestamp and in-memory state, then reloads — [loadBlob] falls back
      *  to `assets/info-providers/`, so the tier returns to a fresh install's
-     *  data, it is not left empty. The other ten tiers stay intact.
+     *  data, it is not left empty. The other nine tiers stay intact.
      *  Per-source sibling of [clearInfoProviderTiers], wired to the
      *  Caches → Pricing tiers screen's 🗑. Call off the main thread: the
      *  reload parses the bundled JSON. */
@@ -2414,7 +2301,6 @@ object PricingCache {
             "llm-stats" -> listOf(KEY_LLMSTATS_PRICING, KEY_LLMSTATS_META)
             "genai-prices" -> listOf(KEY_GENAIPRICES_PRICING, KEY_GENAIPRICES_META)
             "TrueFoundry" -> listOf(KEY_TRUEFOUNDRY_PRICING, KEY_TRUEFOUNDRY_META)
-            "CloudPrice" -> listOf(KEY_CLOUDPRICE_META)
             "Helicone" -> listOf(KEY_HELICONE_PRICING, KEY_HELICONE_PATTERNS)
             else -> emptyList()
         }
@@ -2429,7 +2315,6 @@ object PricingCache {
             "llm-stats" -> KEY_LLMSTATS_TIMESTAMP
             "genai-prices" -> KEY_GENAIPRICES_TIMESTAMP
             "TrueFoundry" -> KEY_TRUEFOUNDRY_TIMESTAMP
-            "CloudPrice" -> KEY_CLOUDPRICE_TIMESTAMP
             "Helicone" -> KEY_HELICONE_TIMESTAMP
             else -> null
         }
@@ -2445,7 +2330,6 @@ object PricingCache {
             "llm-stats" -> { llmStatsPricing = null; llmStatsMeta = null; llmStatsTimestamp = 0 }
             "genai-prices" -> { genaiPricesPricing = null; genaiPricesMeta = null; genaiPricesTimestamp = 0 }
             "TrueFoundry" -> { trueFoundryPricing = null; trueFoundryMeta = null; trueFoundryTimestamp = 0 }
-            "CloudPrice" -> { cloudPriceMeta = null; cloudPriceTimestamp = 0 }
             "Helicone" -> { heliconePricing = null; heliconePatterns = null; heliconeTimestamp = 0 }
         }
         // Main-thread readers use the startup prices instead of waiting on
@@ -2456,9 +2340,9 @@ object PricingCache {
       if (dropped) ensureLoaded(context)
     }
 
-    /** Reset the eleven Info-provider catalog tiers (OpenRouter, LiteLLM,
+    /** Reset the ten Info-provider catalog tiers (OpenRouter, LiteLLM,
      *  models.dev, Helicone, llm-prices, Artificial Analysis, Requesty,
-     *  llm-stats, genai-prices, TrueFoundry, CloudPrice) to the snapshots
+     *  llm-stats, genai-prices, TrueFoundry) to the snapshots
      *  bundled with the app — the refreshed blobs are dropped and each tier
      *  reloads from `assets/info-providers/` — and delete the OpenRouter
      *  model-specs cache (no bundled copy). Manual cost overrides and the
@@ -2475,8 +2359,7 @@ object PricingCache {
             KEY_REQUESTY_PRICING, KEY_REQUESTY_META,
             KEY_LLMSTATS_PRICING, KEY_LLMSTATS_META,
             KEY_GENAIPRICES_PRICING, KEY_GENAIPRICES_META,
-            KEY_TRUEFOUNDRY_PRICING, KEY_TRUEFOUNDRY_META,
-            KEY_CLOUDPRICE_META
+            KEY_TRUEFOUNDRY_PRICING, KEY_TRUEFOUNDRY_META
         )
         tierBlobs.forEach { key ->
             try { blobFile(context, key).delete() } catch (_: Exception) {}
@@ -2499,7 +2382,6 @@ object PricingCache {
             remove(KEY_LLMSTATS_TIMESTAMP)
             remove(KEY_GENAIPRICES_TIMESTAMP)
             remove(KEY_TRUEFOUNDRY_TIMESTAMP)
-            remove(KEY_CLOUDPRICE_TIMESTAMP)
         }
         openRouterPricing = null; openRouterTimestamp = 0
         litellmPricing = null; litellmMeta = null; litellmTimestamp = 0
@@ -2511,7 +2393,6 @@ object PricingCache {
         llmStatsPricing = null; llmStatsMeta = null; llmStatsTimestamp = 0
         genaiPricesPricing = null; genaiPricesMeta = null; genaiPricesTimestamp = 0
         trueFoundryPricing = null; trueFoundryMeta = null; trueFoundryTimestamp = 0
-        cloudPriceMeta = null; cloudPriceTimestamp = 0
 
         supportedParametersCache = null
         // Main-thread readers use the startup prices instead of waiting on
@@ -2567,7 +2448,6 @@ object PricingCache {
         genaiPricesMeta = null
         trueFoundryPricing = null
         trueFoundryMeta = null
-        cloudPriceMeta = null
         openRouterTimestamp = 0
         litellmTimestamp = 0
         modelsDevTimestamp = 0
@@ -2578,7 +2458,6 @@ object PricingCache {
         llmStatsTimestamp = 0
         genaiPricesTimestamp = 0
         trueFoundryTimestamp = 0
-        cloudPriceTimestamp = 0
         preloadCompleted = false
 
         supportedParametersCache = null

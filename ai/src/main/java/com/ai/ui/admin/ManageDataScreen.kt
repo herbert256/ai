@@ -69,11 +69,11 @@ fun ManageDataScreen(
                 clearLabel = "Restore",
                 onClear = onRestoreProviders
             )
-            // Info providers — the one true dual subject (eleven pricing/capability catalogs).
+            // Info providers — the one true dual subject (ten pricing/capability catalogs).
             DualActionCard(
                 icon = MetadataDefaults.INFO,
                 title = "Info providers",
-                subtitle = "The eleven pricing/capability catalogs (OpenRouter, LiteLLM, models.dev, Helicone, llm-prices, Artificial Analysis, Requesty, llm-stats, genai-prices, TrueFoundry, CloudPrice)",
+                subtitle = "The ten pricing/capability catalogs (OpenRouter, LiteLLM, models.dev, Helicone, llm-prices, Artificial Analysis, Requesty, llm-stats, genai-prices, TrueFoundry)",
                 refreshLabel = "Refresh",
                 onRefresh = onRefreshInfoProviders,
                 clearLabel = "Reset",

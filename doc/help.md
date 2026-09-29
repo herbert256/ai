@@ -63,7 +63,7 @@ adding 12 per-domain maps plus one auto-built map:
 | Map file | Entries | Covers |
 |---|---:|---|
 | `ProviderSettingsHelp.kt` | 12 | Provider setup / config cards |
-| `InfoProviderHelp.kt` | 12 | One `info_provider_*` page per metadata repository |
+| `InfoProviderHelp.kt` | 11 | One `info_provider_*` page per metadata repository |
 | `GlossaryHelp.kt` | 18 | The Help-home reference topics (see below) + `about` / `dependencies` / `manual` / `technical_documentation` |
 | `ReportsHelp.kt` | 115 | The whole reports flow + every report-Manage drill-in |
 | `SearchHelp.kt` | 4 | Search / local semantic search |
@@ -75,11 +75,11 @@ adding 12 per-domain maps plus one auto-built map:
 | `ProviderCatalogHelp.kt` | 38 | `providers` + `providers_predefined` + `provider_edit` + 35 `provider_*` per-provider pages |
 | `CrudHelp.kt` | 15 | `crud_generic` overview + 14 per-CRUD topics (via the shared `crud()` helper) |
 
-That is **366 base `HelpContent` entries**. On top of those,
+That is **365 base `HelpContent` entries**. On top of those,
 `ICON_HELP_TOPIC_CONTENT` auto-builds **22** empty-bodied
 `<topic>_icons` pages (one per `ICON_HELP_AS_PAGE` member; the table
 itself is rendered by `HelpScreen`, not stored in the `HelpContent`),
-for **388 topics** total.
+for **387 topics** total.
 
 Topics group, roughly, into:
 
@@ -115,10 +115,10 @@ Topics group, roughly, into:
   issues. Reachable from every ℹ icon next to a provider name (the
   page id is `providerHelpTopicId(serviceId)` = `"provider_" +
   lowercased, alphanumeric-only id`).
-- **Per-repository** — 12 `info_provider_*` pages, one per external
+- **Per-repository** — 11 `info_provider_*` pages, one per external
   metadata source (HuggingFace / OpenRouter / LiteLLM / models.dev /
   Helicone / llm-prices.com / Artificial Analysis / Requesty /
-  llm-stats / genai-prices / TrueFoundry / CloudPrice) with endpoint,
+  llm-stats / genai-prices / TrueFoundry) with endpoint,
   auth, what it provides, when fetched, where cached. Reachable from
   every Source button on Model Info and from the Trace detail ℹ (see
   *Routing*).
@@ -294,13 +294,13 @@ with no `RELATED_HOME_HELP` entry render no footer.
 ### Trace → repository help
 
 The Trace detail screen's ℹ icon resolves the trace's URL +
-category to one of the 12 repository topics via the free function
+category to one of the 11 repository topics via the free function
 **`infoProviderForTrace(url, category)`** (`HelpScreen.kt`) — *not*
 a `HelpResolver` class (there is none). It calls `infoProviderForUrl`
 (host match, disambiguating shared hosts like `raw.githubusercontent.com`
 via `urlPathPrefix`) and then, for dual-purpose services, gates on
 category so a plain chat completion doesn't hijack the ℹ. The canonical
-12-entry `INFO_PROVIDERS` list and all the resolver helpers
+11-entry `INFO_PROVIDERS` list and all the resolver helpers
 (`infoProviderForUrl`, `infoProviderForTrace`, `infoProviderForDisplayName`)
 live in `HelpScreen.kt`. Only OpenRouter sets
 `requiresChatCategoryGate = true`; its gate set is

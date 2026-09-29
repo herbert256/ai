@@ -57,7 +57,7 @@ Anything operational beyond this file is in `doc/`:
 - `doc/backup-restore.md` — backup zip format, validate-then-write restore, exclude/preserve list
 - `doc/persistent.md` — every prefs key, every file under `<filesDir>`
 - `doc/providers.md` — all 91 providers
-- `doc/repositories.md` — the twelve external metadata repos
+- `doc/repositories.md` — the eleven external metadata repos
 - `doc/help.md` — in-app Help system (per-screen topics, per-provider pages)
 - `doc/applog.md` + `doc/log-details.md` — the in-app file logger + every call site
 - `doc/README.md` — index with reading order
@@ -188,10 +188,10 @@ Two non-obvious conventions:
   TrueFoundry → Helicone → DEFAULT. Manual override comes **before**
   the curated tiers — a user adding a manual override specifically to
   correct a stale catalog entry would otherwise be silently ignored.
-  **CloudPrice** is an info-provider too but capabilities-only (no
-  pricing), so it's absent from this chain — like HuggingFace it only
-  feeds the capability lookups. 12 info-provider repos total (10
-  pricing catalogs + CloudPrice + HuggingFace); see `doc/repositories.md`.
+  **HuggingFace** is an info-provider too but capabilities-only (no
+  pricing), so it's absent from this chain — it only feeds the
+  capability lookups. 11 info-provider repos total (10 pricing
+  catalogs + HuggingFace); see `doc/repositories.md`.
 - **`PricingCache.ensureLoaded` short-circuits on the main
   thread** when called before `preloadCompleted`. UI callers
   get `DEFAULT_PRICING` during the cold window — recomposition

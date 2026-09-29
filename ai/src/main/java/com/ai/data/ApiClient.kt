@@ -253,19 +253,6 @@ interface HuggingFaceApi {
     ): Response<HuggingFaceModelInfo>
 }
 
-/** CloudPrice per-model detail (capabilities, modalities, context window,
- *  deprecation, provider ids). Keyless. Returns the raw JSON body — the
- *  object is large and we only display it on Model Info, so there's no typed
- *  model. A non-2xx (e.g. 404 for a model CloudPrice doesn't carry) surfaces
- *  as `Response.isSuccessful == false` with no log/toast — the caller treats
- *  it as a cached miss, exactly like the HuggingFace lookup. */
-interface CloudPriceApi {
-    @GET("api/v1/models/{id}")
-    suspend fun getModel(
-        @Path("id", encoded = true) id: String
-    ): Response<okhttp3.ResponseBody>
-}
-
 // ============================================================================
 // ApiFactory — creates cached Retrofit instances
 // ============================================================================
@@ -402,36 +389,6 @@ object ApiFactory {
         }
     }
 
-    /** Required catalog pages must survive a short upstream rate limit.
-     *  Unlike optional raw model-list sidecars, retry 429/503 twice, honoring
-     *  Retry-After. Close the response and release its network permits before
-     *  suspending, so other providers continue throughout the backoff. */
-    suspend fun fetchCatalogPage(url: String): String? = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-        val request = okhttp3.Request.Builder().url(url).get().build().withCapturedOkHttpCallContext()
-        try {
-            for (attempt in 0..2) {
-                kotlinx.coroutines.currentCoroutineContext().ensureActive()
-                val retryDelay = rawFetchClient.newCall(request).execute().use { response ->
-                    if (response.isSuccessful) return@withContext response.body.string()
-                    if (response.code !in setOf(429, 503) || attempt == 2) {
-                        AppLog.w("ApiClient", "Catalog page failed: HTTP ${response.code} on ${request.url.host}")
-                        return@withContext null
-                    }
-                    resolveRetryAfter(response, 1_000L shl attempt, request.url.host).also {
-                        AppLog.w("ApiClient", "Catalog page HTTP ${response.code} on ${request.url.host}; retry ${attempt + 1}/2 in ${it}ms")
-                    }
-                }
-                kotlinx.coroutines.delay(retryDelay)
-            }
-            null
-        } catch (e: kotlinx.coroutines.CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            AppLog.w("ApiClient", "Catalog page failed on ${request.url.host}: ${e.message}")
-            null
-        }
-    }
-
     /** Plain GET that returns the raw response body as a ByteArray — used by
      *  the TrueFoundry tier to download the whole-repo `.tar.gz` archive for
      *  on-device unpacking. Follows redirects (the GitHub archive URL bounces
@@ -464,5 +421,4 @@ object ApiFactory {
     fun createCohereRerankApi(): CohereRerankApi = getRetrofit("https://api.cohere.com/", CohereRerankApi::class.java.name).create(CohereRerankApi::class.java)
     fun createMistralModerationApi(): MistralModerationApi = getRetrofit("https://api.mistral.ai/", MistralModerationApi::class.java.name).create(MistralModerationApi::class.java)
     fun createHuggingFaceApi(): HuggingFaceApi = getRetrofit("https://huggingface.co/api/", HuggingFaceApi::class.java.name).create(HuggingFaceApi::class.java)
-    fun createCloudPriceApi(): CloudPriceApi = getRetrofit("https://ai.cloudprice.net/", CloudPriceApi::class.java.name).create(CloudPriceApi::class.java)
 }

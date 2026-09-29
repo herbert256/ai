@@ -85,7 +85,9 @@ Pressing the Home/About logo opens whatever makes sense for your state:
 if you have a report it lands on the newest one's **Manage** screen; if
 you have no report but have API keys it opens the **AI Reports** hub;
 and a freshly-installed, unconfigured app opens **First launch**, with
-two main choices: **Try an example** and **Connect a provider**. Other setup options expands key import, Housekeeping, Settings and About. Help remains visible.
+three choices: **Import API keys** (pick a JSON file of provider keys;
+the app then runs Refresh all and asks for a restart), **Try an example**
+and **Connect a provider**. Help sits below them.
 
 ## Reports
 
@@ -626,7 +628,7 @@ Cards stacked top-to-bottom:
 4. **Sources** — buttons that open the model's page on each external
    repository (HuggingFace / OpenRouter / LiteLLM / models.dev /
    Helicone / llm-prices / Artificial Analysis / Requesty / llm-stats
-   / genai-prices / TrueFoundry / CloudPrice), each with an ℹ
+   / genai-prices / TrueFoundry), each with an ℹ
    button next to it that deep-links to that repository's help
    page. **Show all** opens a side-by-side raw-JSON dump of every
    source.
@@ -826,9 +828,9 @@ doesn't lose typed changes.
 
 ### Refresh
 
-Refreshing the **eleven catalog sources** (OpenRouter, LiteLLM,
+Refreshing the **ten catalog sources** (OpenRouter, LiteLLM,
 models.dev, Helicone, llm-prices, Artificial Analysis, Requesty,
-llm-stats, genai-prices, TrueFoundry, CloudPrice — HuggingFace isn't
+llm-stats, genai-prices, TrueFoundry — HuggingFace isn't
 bulk-refreshed, it's looked up per model on demand) is reached from
 **Housekeeping → Manage data**. The **Whole app** card's **Refresh
 all** button runs a full-screen progress page that fetches every
@@ -838,7 +840,7 @@ provider, then offers a **Restart application** banner to pick up
 the freshly-persisted caches. The **Providers / models / agents**
 card's **Refresh** button runs just the worker pass, skipping the
 catalog fetches. The **Info providers** card's **Refresh** drills
-into a sub-page listing all eleven catalog sources individually,
+into a sub-page listing all ten catalog sources individually,
 each with its own button and an ℹ deep-link to that source's help
 page (disabled when the source is switched off under AI Setup →
 Info providers, or its key is missing). Both Refresh-all variants

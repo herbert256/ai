@@ -10,7 +10,7 @@
 > For *how the logger works* (levels, rotation, redaction, viewer), see
 > **[applog.md](applog.md)**.
 
-**559 call sites** — 103 ERROR, 199 WARN, 93 INFO, 164 DEBUG.
+**557 call sites** — 102 ERROR, 199 WARN, 92 INFO, 164 DEBUG.
 
 > **Four severities — TRACE is gone.** `LogLevel` is now
 > `DEBUG / INFO / WARN / ERROR` (plus the `OFF` sentinel). The old
@@ -62,7 +62,7 @@ captured crash report — the message is the `report` string, not a literal.
 
 ---
 
-## ERROR (103)
+## ERROR (102)
 
 ### `data/ApiTracer.kt`
 
@@ -113,7 +113,6 @@ captured crash report — the message is the `report` string, not a literal.
 - **L1532** `"PricingCache"` — "llm-stats refresh failed: ${e.message}"
 - **L1597** `"PricingCache"` — "genai-prices refresh failed: ${e.message}"
 - **L1664** `"PricingCache"` — "TrueFoundry refresh failed: ${e.message}"
-- **L1827** `"PricingCache"` — "CloudPrice refresh failed: ${e.message}"
 - **L2303** `"PricingCache"` — "Failed: ${e.message}"
 
 ### `data/ProviderRegistry.kt`
@@ -595,7 +594,7 @@ captured crash report — the message is the `report` string, not a literal.
 - **L239** `"Workers"` — "miss '${prompt.name}' via ${agent.name}: ${resp.error?.take(80)}"
 
 
-## INFO (93)
+## INFO (92)
 
 ### `data/AnalysisRepository.kt`
 
@@ -635,7 +634,6 @@ captured crash report — the message is the `report` string, not a literal.
 - **L1520** `"PricingCache"` — "llm-stats parse: ${pricing.size} priced, ${meta.size} meta entries ($pages pages)"
 - **L1585** `"PricingCache"` — "genai-prices parse: ${pricing.size} priced, ${meta.size} meta entries"
 - **L1652** `"PricingCache"` — "TrueFoundry parse: ${pricing.size} priced, ${meta.size} meta entries (${bytes.size} archive bytes)"
-- **L1817** `"PricingCache"` — "CloudPrice parse: ${meta.size} meta entries ($pages pages)"
 
 ### `data/PromptTranslationStore.kt`
 
@@ -847,7 +845,7 @@ captured crash report — the message is the `report` string, not a literal.
 ### `data/PricingCache.kt`
 
 - **L400** `"PricingCache"` — "preload start"
-- **L403** `"PricingCache"` — "preload done in ${System.currentTimeMillis() - t0}ms" + " (litellm=${litellmPricing?.size ?: 0}, modelsDev=${modelsDevPricing?.size ?: 0}," + " llmPrices=${llmPricesPricing?.size ?: 0}, aa=${aaPricing?.size ?: 0}," + " llmStats=${llmStatsPricing?.size ?: 0}, openrouter=${openRouterPricing?.size ?: 0}," + " requesty=${requestyPricing?.size ?: 0}, genaiPrices=${genaiPricesPricing?.size ?: 0}," + " trueFoundry=${trueFoundryPricing?.size ?: 0}, cloudPrice=${cloudPriceMeta?.size ?: 0}," + " helicone=${heliconePricing?.size ?: 0}, manual=${manualPricing?.size ?: 0})"
+- **L403** `"PricingCache"` — "preload done in ${System.currentTimeMillis() - t0}ms" + " (litellm=${litellmPricing?.size ?: 0}, modelsDev=${modelsDevPricing?.size ?: 0}," + " llmPrices=${llmPricesPricing?.size ?: 0}, aa=${aaPricing?.size ?: 0}," + " llmStats=${llmStatsPricing?.size ?: 0}, openrouter=${openRouterPricing?.size ?: 0}," + " requesty=${requestyPricing?.size ?: 0}, genaiPrices=${genaiPricesPricing?.size ?: 0}," + " trueFoundry=${trueFoundryPricing?.size ?: 0}," + " helicone=${heliconePricing?.size ?: 0}, manual=${manualPricing?.size ?: 0})"
 - **L452** `"PricingCache"` — "miss ${provider.id}/$model → DEFAULT"
 - **L459** `"PricingCache"` — "match ${provider.id}/$model → $tier in=${p.promptPrice * 1_000_000} out=${p.completionPrice * 1_000_000}"
 

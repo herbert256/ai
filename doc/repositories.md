@@ -1,12 +1,11 @@
 # External Repositories
 
-The app consults **twelve external metadata repositories** for model
+The app consults **eleven external metadata repositories** for model
 pricing, capabilities, and model-card information. Ten of them are
 *pricing catalogs* that feed the layered `PricingCache.getPricing`
-lookup. The other two are capability/metadata-only and stay out of
-the price lookup: **CloudPrice** (a bulk capability + context catalog,
-cached like the others) and **HuggingFace** (a lazy, per-model
-card-metadata source surfaced only on the Model Info screen).
+lookup. The eleventh, **HuggingFace**, is metadata-only and stays out
+of the price lookup (a lazy, per-model card-metadata source surfaced
+only on the Model Info screen).
 
 The catalog tiers all round-trip through the backup zip
 ([backup-restore.md](backup-restore.md)) and ship a **bundled
@@ -43,9 +42,7 @@ wins**:
 
 genai-prices and TrueFoundry are broad community catalogs added as
 fallbacks *above* the last-resort Helicone tier; they don't perturb
-the precedence of the established tiers above them. **CloudPrice is
-not in this list** — its bulk model list carries no inline pricing, so
-it contributes capability flags only (see §11 below).
+the precedence of the established tiers above them.
 
 Two things are easy to get wrong here, so spell them out:
 
@@ -146,7 +143,6 @@ the next Refresh overwrites both file and timestamp. See
 | Requesty | `requesty_pricing.json` + `requesty_meta.json` | `requesty_timestamp` | yes |
 | genai-prices | `genaiprices_pricing.json` + `genaiprices_meta.json` | `genaiprices_timestamp` | yes |
 | TrueFoundry | `truefoundry_pricing.json` + `truefoundry_meta.json` | `truefoundry_timestamp` | yes |
-| CloudPrice | `cloudprice_meta.json` (no pricing blob) | `cloudprice_timestamp` | yes |
 | Together-native | `together_pricing.json` | `together_timestamp` | no (harvested at runtime) |
 
 In addition, the OpenRouter spec fetch writes one **top-level**
@@ -306,7 +302,7 @@ step-8 fallback. Together this is what makes OpenRouter's catalog
 - **Paginated:** walk `next_cursor` (the fetcher loops, ≤20 pages of
   200). A page that fails mid-walk, or a catalog past the cap, fails the
   refresh and keeps the previous cache — a partial catalog is never
-  saved (same rule as CloudPrice).
+  saved.
 - **Provides:**
   - `providers[]` — each upstream provider's `input_price_per_m` /
     `output_price_per_m` ($/M). Collapsed to **one** representative
@@ -396,51 +392,7 @@ step-8 fallback. Together this is what makes OpenRouter's catalog
   than the JSON catalogs (archive download + on-device unzip + ~1000
   YAML parses).
 
-## 11. CloudPrice
-
-Like HuggingFace, CloudPrice is **not** a pricing source — its bulk
-`/models` list carries no inline pricing (prices live behind per-model
-calculator endpoints). It contributes **capabilities + context only**,
-so it never joins the layered price lookup. CloudPrice actually has
-**two** lookups: a bulk, eagerly-cached, bundled catalog (below) that
-feeds the capability chain, plus a lazy per-model live lookup (like
-HuggingFace's) used on Model Info — see "Per-model live lookup" below.
-
-- **Endpoint:** `https://ai.cloudprice.net/api/v1/models?page_size=100`,
-  paginated via `pagination.next_token` (capped at 40 pages).
-- **Auth:** none.
-- **Provides:** per model — `modalities` (image → vision),
-  `context_window`, `max_output_tokens`, and a `capabilities` block
-  (`function_calling` → tool-calling, `reasoning`, `web_search`,
-  `computer_use`). These feed the capability chain
-  (`Settings.isVisionCapable` / `isWebSearchCapable` /
-  `isReasoningCapable`).
-- **Key format:** `<creator>/<name>` (creator-slug style, like AA),
-  matched via the prefix-bucket scan.
-- **Cache:** `<filesDir>/pricing/cloudprice_meta.json` (no pricing
-  blob); `cloudprice_timestamp` in `pricing_cache`. Bundled snapshot in
-  `assets/info-providers/`.
-
-The bulk refresh publishes only after pagination finishes. A failed page
-(including HTTP 429), malformed pagination, a repeated token, or reaching
-the 40-page limit with more pages pending fails the refresh and preserves
-the previous cache and timestamp. An incomplete download is never shown
-as a successful refresh.
-
-**Per-model live lookup** (`data/CloudPriceModelCache.kt`, the direct
-sibling of the HuggingFace lookup in §12): independently of the bulk
-catalog above, the Model Info screen also hits
-`GET https://ai.cloudprice.net/api/v1/models/{id}` directly — richer /
-fresher than the bulk list and able to resolve aliases the bulk keying
-misses. The candidate id is probed in three forms (bare id, then its
-dash→dot and dot→dash variants); the first 2xx wins. Traced under the
-`info/cloudprice` category (distinct from the bulk fetch's
-`pricing/CloudPrice`). Results (including negative/404 misses) are
-cached for 7 days keyed `${providerId}::${modelId}` in the
-`cloudprice_model_cache` SharedPreferences file, which round-trips
-through the backup zip like `huggingface_cache`.
-
-## 12. HuggingFace
+## 11. HuggingFace
 
 Unlike the catalog tiers, HuggingFace is **not** part of Refresh
 All, **not** bundled, and **not** a pricing source — it's a lazy,
@@ -478,12 +430,12 @@ full-screen progress page (`coroutineScope { catJob; wrkJob; join }`),
 after first clearing every provider-default agent and emptying the
 `default agents` flock:
 
-1. the **catalog phase** (`runCatalogPhase`) fans the **eleven catalog
+1. the **catalog phase** (`runCatalogPhase`) fans the **ten catalog
    sources out in parallel** (`async(Dispatchers.IO)` + `awaitAll`,
    because they touch disjoint disk paths). OpenRouter, Artificial
    Analysis and llm-stats are skipped when their key is absent (LiteLLM,
-   models.dev, llm-prices, Helicone, Requesty, genai-prices, TrueFoundry
-   and CloudPrice are keyless, so they always run). When the catalogs
+   models.dev, llm-prices, Helicone, Requesty, genai-prices and
+   TrueFoundry are keyless, so they always run). When the catalogs
    settle it recomputes the precomputed vision / web-search /
    reasoning capability sets (`recomputeAllCapabilities`) and saves
    settings;
@@ -519,7 +471,7 @@ default-model test → default agent), skipping every external catalog.
 
 ## Per-provider `/models` endpoints
 
-Independently of the twelve repositories, every active provider's own
+Independently of the eleven repositories, every active provider's own
 `/models` (or equivalent) endpoint is consulted at fetch time to
 discover the model list. The response is parsed for the capabilities
 the provider self-reports — Mistral's `capabilities` object, Cohere's
@@ -538,13 +490,13 @@ mine extra fields without forcing a re-fetch.
 
 ## Help & trace wiring
 
-Each repository has a help page (the twelve `info_provider_*` topics
+Each repository has a help page (the eleven `info_provider_*` topics
 in `ui/admin/InfoProviderHelp.kt`) deep-linked from every entry
 point: the ℹ icon beside a Source button on the Model Info screen,
 the per-tier card on the Refresh screen, and the Trace detail page
 when a captured trace matches a known fetch category. The
 trace→repository resolver is `infoProviderForTrace(url, category)`
-(`ui/admin/HelpScreen.kt`), backed by the canonical 12-entry
+(`ui/admin/HelpScreen.kt`), backed by the canonical 11-entry
 `INFO_PROVIDERS` list; OpenRouter's spec fetch is gated on
 `INFO_FETCH_CATEGORIES = {"OpenRouter model specs"}` plus a
 `pricing/` category prefix. See [help.md](help.md).

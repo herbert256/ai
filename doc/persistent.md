@@ -9,10 +9,10 @@ atomic `writeTextAtomic` helper. The backup-eligible slots
 round-trip through `BackupManager` (Settings → Housekeeping → Backup
 & Restore) into a single `.zip` — see [backup-restore.md](backup-restore.md).
 
-## SharedPreferences (12 files)
+## SharedPreferences (11 files)
 
-All under `/data/data/com.ai/shared_prefs/<name>.xml`. **Eight** of
-the twelve are captured in `BackupManager.PREFS_TO_BACKUP`:
+All under `/data/data/com.ai/shared_prefs/<name>.xml`. **Seven** of
+the eleven are captured in `BackupManager.PREFS_TO_BACKUP`:
 
 | Prefs file | Owner | In backup? |
 |---|---|---|
@@ -21,7 +21,6 @@ the twelve are captured in `BackupManager.PREFS_TO_BACKUP`:
 | `pricing_cache` | `PricingCache` | ✅ |
 | `dual_chat_prefs` | `DualChatScreen` | ✅ |
 | `huggingface_cache` | `HuggingFaceCache` | ✅ |
-| `cloudprice_model_cache` | `CloudPriceModelCache` (per-model CloudPrice detail lookups) | ✅ |
 | `model_cooldowns` | `ModelCooldownStore` | ✅ |
 | `view_screen_prefs` | View-grid tile order (`tile_order`) | ✅ |
 | `provider_field_timestamps` | `ProviderFieldTimestamps` (recomputable) | ❌ |
@@ -178,7 +177,7 @@ definition (`AppService.defaultModel` / `defaultModelSource`), so
 | `ai_test_excluded_models` | JSON List<String> | skipped by "Test all models"; auto-added when a probe would cost > 5 cents; seeded from `assets/excluded.json` (sweep-only, no picker effect) |
 | `ai_inaccessible_models` | JSON List<String> | not reachable on this account; dimmed `🔒` in pickers; seeded from `assets/inaccessible.json` |
 | `ai_default_meta_items` | JSON List<DefaultMetaItem> | configurable default secondary/meta items |
-| `ai_disabled_info_providers` | JSON List<String> | info-provider ids (`litellm`, `openrouter`, `cloudprice`, …) the user switched off under AI Setup → Info providers; a disabled tier is skipped by refresh and by `PricingCache.getPricing` |
+| `ai_disabled_info_providers` | JSON List<String> | info-provider ids (`litellm`, `openrouter`, …) the user switched off under AI Setup → Info providers; a disabled tier is skipped by refresh and by `PricingCache.getPricing` |
 
 #### Caches and bookkeeping
 | Key | Type | Notes |
@@ -239,7 +238,6 @@ consulted on demand.
 | `llmstats_timestamp` | Long | last llm-stats fetch ms |
 | `genaiprices_timestamp` | Long | last genai-prices fetch ms |
 | `truefoundry_timestamp` | Long | last TrueFoundry fetch ms |
-| `cloudprice_timestamp` | Long | last CloudPrice fetch ms |
 | `manual_pricing` | JSON Map<String, ModelPricing> | per-`<providerId>:<model>` user overrides (source `"OVERRIDE"`); an absent key seeds `ManualPriceDefaults`, an existing/empty map is preserved |
 
 The `_v2` suffix on the AA timestamp exists to invalidate older
@@ -354,7 +352,6 @@ Tier blobs for `PricingCache`. One file per (tier, payload):
 | `genaiprices_meta.json` | genai-prices context-window sidecar |
 | `truefoundry_pricing.json` | TrueFoundry community model registry |
 | `truefoundry_meta.json` | TrueFoundry capabilities sidecar |
-| `cloudprice_meta.json` | CloudPrice capabilities + context catalog (no pricing — metadata only) |
 
 Reads go through `PricingCache.loadBlob` (a streaming reader, parsed by
 `parseTierMap`), which looks up the on-disk
@@ -661,16 +658,15 @@ screens:
   button: pricing / model-list caches stay put.
 - **Reset Info providers** — drops every refreshed pricing/capability
   tier cache (OpenRouter, LiteLLM, models.dev, Helicone, llm-prices,
-  Artificial Analysis, Requesty, llm-stats, genai-prices, TrueFoundry,
-  CloudPrice — 11 sources; see [repositories.md](repositories.md))
+  Artificial Analysis, Requesty, llm-stats, genai-prices, TrueFoundry
+  — 10 sources; see [repositories.md](repositories.md))
   and their per-tier timestamps in `pricing_cache`, plus the
   OpenRouter model-specs files (`model_pricing.json` /
   `model_supported_parameters.json`); each tier then reloads its
   bundled `assets/info-providers/` snapshot (off the main thread) and
   the derived model snapshots are rebuilt. Preserves manual +
-  Together-native pricing. The `huggingface_cache` and
-  `cloudprice_model_cache` prefs files (per-model detail lookups) are
-  *not* touched by this screen.
+  Together-native pricing. The `huggingface_cache` prefs file
+  (per-model detail lookups) is *not* touched by this screen.
 - **Clear all configuration** — wipes provider config, agents,
   prompts, parameters, and overrides. Asks before destructive actions.
 - **assets/\*.json** — six independent "restore to shipped" buttons,

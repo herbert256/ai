@@ -624,7 +624,7 @@ private fun HelpIconTable() {
     }
 }
 
-/** Directory card listing the twelve info providers — same set as the
+/** Directory card listing the eleven info providers — same set as the
  *  Sources card on Model Info. Each row drills into the matching
  *  per-provider help topic via [onNavigateToTopic]. */
 @Composable
@@ -640,8 +640,7 @@ private fun InfoProviderTable(onNavigateToTopic: (String) -> Unit) {
         "info_provider_llm_stats" to "Pricing + benchmark scores (key required)",
         "info_provider_requesty" to "Cross-provider router catalog (keyless)",
         "info_provider_genai_prices" to "Pydantic's curated price catalog (keyless)",
-        "info_provider_truefoundry" to "Community model registry (keyless)",
-        "info_provider_cloudprice" to "Capabilities + context catalog (keyless)"
+        "info_provider_truefoundry" to "Community model registry (keyless)"
     )
     Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground), modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(14.dp)) {
@@ -858,11 +857,6 @@ internal val INFO_PROVIDERS: List<InfoProviderRef> = listOf(
         topicId = "info_provider_truefoundry",
         displayName = "TrueFoundry",
         hostnames = listOf("github.com", "codeload.github.com")
-    ),
-    InfoProviderRef(
-        topicId = "info_provider_cloudprice",
-        displayName = "CloudPrice",
-        hostnames = listOf("ai.cloudprice.net", "cloudprice.net")
     )
 )
 
@@ -875,7 +869,7 @@ private val INFO_FETCH_CATEGORIES = setOf("OpenRouter model specs")
 private fun isInfoFetchCategory(category: String?): Boolean =
     category != null && (category in INFO_FETCH_CATEGORIES || category.startsWith("pricing/"))
 
-/** Resolve a URL to one of the 12 info providers. Matches by host
+/** Resolve a URL to one of the 11 info providers. Matches by host
  *  first, then disambiguates via [InfoProviderRef.urlPathPrefix] for
  *  hosts shared by multiple providers (raw.githubusercontent.com).
  *  Returns null when the URL doesn't belong to any of the 12. */

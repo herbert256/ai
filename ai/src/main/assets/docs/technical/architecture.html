@@ -523,9 +523,9 @@ a single value score — also read-only, no new API calls.</p>
 timestamps and the small manual-override map stay in the
 <code>pricing_cache</code> SharedPreferences.
 <code>DEFAULT_PRICING</code> is <strong>$25 / M input, $75 / M
-output</strong> — not zero. CloudPrice and HuggingFace are
-capabilities-only (no pricing), so they're absent from this chain: 10
-of the 12 info-provider repos participate in <code>getPricing</code>.</p>
+output</strong> — not zero. HuggingFace is capabilities-only (no
+pricing), so it's absent from this chain: 10 of the 11 info-provider
+repos participate in <code>getPricing</code>.</p>
 <div class="callout warn">
 <p>Manual overrides win over every curated source (but still sit
 <strong>below</strong> the two provider-self-report tiers) — putting
@@ -552,8 +552,8 @@ synchronized LiteLLM parse.</p>
 <li>LiteLLM</li>
 <li>models.dev</li>
 <li>Other info-provider capability flags (Requesty / llm-stats /
-TrueFoundry / CloudPrice — exact order and participants vary slightly
-per capability)</li>
+TrueFoundry — exact order and participants vary slightly per
+capability)</li>
 <li>Naming heuristic (<code>ModelType.infer</code>)</li>
 </ol>
 <p>An override flag can only <strong>add</strong> a capability, never
@@ -960,10 +960,10 @@ keys (agents, flocks, swarms, parameters, system prompts, internal
 prompts, provider states, model-state lists, throttle settings, API
 keys, …). The others: <code>provider_registry</code>,
 <code>pricing_cache</code>, <code>dual_chat_prefs</code>,
-<code>huggingface_cache</code>, <code>cloudprice_model_cache</code>,
-<code>model_cooldowns</code>, <code>view_screen_prefs</code>,
-<code>last_report_tracker</code>, <code>provider_field_timestamps</code>,
-<code>update_from_cloud</code>.</p>
+<code>huggingface_cache</code>, <code>model_cooldowns</code>,
+<code>view_screen_prefs</code>, <code>last_report_tracker</code>,
+<code>provider_field_timestamps</code>, <code>update_from_cloud</code>,
+<code>model_test_migration</code>.</p>
 
 <p><code class="path">filesDir</code> holds one subdirectory per
 storage object — <code>reports</code>, <code>secondary</code>,

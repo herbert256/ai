@@ -154,7 +154,6 @@ internal val RELATED_HOME_HELP: Map<String, List<String>> = mapOf(
     "info_provider_llm_stats" to listOf("help_home_info_providers", "help_costs"),
     "info_provider_genai_prices" to listOf("help_home_info_providers", "help_costs"),
     "info_provider_truefoundry" to listOf("help_home_info_providers", "help_costs"),
-    "info_provider_cloudprice" to listOf("help_home_info_providers", "help_costs"),
 
     // ===== Models / model metadata =====
     "models" to listOf("help_home_ai_providers", "help_glossary_blocks"),

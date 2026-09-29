@@ -2047,7 +2047,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     /** Kick off a Refresh-all run on viewModelScope so the work survives
      *  navigation. Idempotent: a call while a run is in flight is a no-op
-     *  (the caller should observe [refreshAllState] instead). The eleven
+     *  (the caller should observe [refreshAllState] instead). The ten
      *  catalog fetches run in parallel with the Workers phase (per-provider
      *  optional model-list fetch → default-model test → default-agent write); both
      *  phases join before the popup-forcing finish flag flips. */
@@ -2078,8 +2078,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             CatalogStep("llmstats", "llm-stats", stepStatus(llmStatsEnabled)),
             CatalogStep("requesty", "Requesty", stepStatus(ipOn(com.ai.data.InfoProvider.REQUESTY))),
             CatalogStep("genaiprices", "genai-prices", stepStatus(ipOn(com.ai.data.InfoProvider.GENAI_PRICES))),
-            CatalogStep("truefoundry", "TrueFoundry", stepStatus(ipOn(com.ai.data.InfoProvider.TRUEFOUNDRY))),
-            CatalogStep("cloudprice", "CloudPrice", stepStatus(ipOn(com.ai.data.InfoProvider.CLOUDPRICE)))
+            CatalogStep("truefoundry", "TrueFoundry", stepStatus(ipOn(com.ai.data.InfoProvider.TRUEFOUNDRY)))
         )
         // Snapshot the testable provider set up-front. The clean-slate
         // step below rewrites flocks/agents, but the testable list is
@@ -2317,17 +2316,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     else setCatalogStep("truefoundry", RefreshStepStatus.Failed("no entries · $prev"))
                 } catch (e: Exception) {
                     setCatalogStep("truefoundry", RefreshStepStatus.Failed("${e.message?.take(60) ?: "failed"} · $prev"))
-                }
-            }
-            if (PricingCache.isInfoProviderEnabled(com.ai.data.InfoProvider.CLOUDPRICE)) jobs += async(Dispatchers.IO) {
-                setCatalogStep("cloudprice", RefreshStepStatus.Running())
-                val prev = previousDetail("cloudprice")
-                try {
-                    val n = PricingCache.fetchCloudPriceOnline(app)
-                    if (n != null && n > 0) setCatalogStep("cloudprice", RefreshStepStatus.Done("$n models"))
-                    else setCatalogStep("cloudprice", RefreshStepStatus.Failed("incomplete or failed · $prev"))
-                } catch (e: Exception) {
-                    setCatalogStep("cloudprice", RefreshStepStatus.Failed("${e.message?.take(60) ?: "failed"} · $prev"))
                 }
             }
             if (llmStatsEnabled) jobs += async(Dispatchers.IO) {

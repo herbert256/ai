@@ -517,47 +517,6 @@ fun ModelInfoScreen(
                         PricingCache.getTrueFoundryRawEntry(context, provider, modelName)
                     }
                 }
-                // CloudPrice — lazy per-model detail lookup, mirroring the
-                // HuggingFace block above: check the per-model cache, else hit
-                // /api/v1/models/{id} live (bare id + dash<->dot variants),
-                // cache the result (incl. a negative cache on 404), and show
-                // the raw JSON. Retrofit-based, so a 404 is a silent
-                // isSuccessful == false — no error toast.
-                val cloudPriceRaw by produceState<String?>(initialValue = null, provider, modelName) {
-                    value = withContext(Dispatchers.IO) {
-                        if (!aiSettings.isInfoProviderEnabled(com.ai.data.InfoProvider.CLOUDPRICE.id)) return@withContext null
-                        com.ai.data.CloudPriceModelCache.get(context, provider.id, modelName)?.let { return@withContext it.json }
-                        val variants = sequenceOf(modelName, modelName.replace('-', '.'), modelName.replace('.', '-')).distinct()
-                        var found: String? = null
-                        for (cand in variants) {
-                            try {
-                                val resp = com.ai.data.withTraceCategory("info/cloudprice") {
-                                    ApiFactory.createCloudPriceApi().getModel(cand)
-                                }
-                                if (resp.isSuccessful) {
-                                    found = resp.body()?.string()?.let { raw ->
-                                        runCatching { com.ai.data.createAppGson(prettyPrint = true).toJson(com.google.gson.JsonParser.parseString(raw)) }.getOrDefault(raw)
-                                    }
-                                    break
-                                }
-                            } catch (_: Exception) {}
-                        }
-                        com.ai.data.CloudPriceModelCache.put(context, provider.id, modelName, found)
-                        found
-                    }
-                }
-                // CloudPrice model description, parsed from the live detail
-                // JSON (data.description). Drives the conditional CloudPrice
-                // "Description" card after the OpenRouter one.
-                val cloudPriceDescription = remember(cloudPriceRaw) {
-                    cloudPriceRaw?.let { raw ->
-                        runCatching {
-                            com.google.gson.JsonParser.parseString(raw).asJsonObject
-                                .getAsJsonObject("data")?.get("description")
-                                ?.takeIf { it.isJsonPrimitive }?.asString
-                        }.getOrNull()?.takeIf { it.isNotBlank() }
-                    }
-                }
                 val tierBreakdown by produceState<PricingCache.TierBreakdown?>(initialValue = null, provider, modelName) {
                     value = withContext(Dispatchers.IO) {
                         PricingCache.getTierBreakdown(context, provider, modelName)
@@ -586,46 +545,6 @@ fun ModelInfoScreen(
                 }
                 val genaiPricesMeta by produceState<PricingCache.GenaiPricesMeta?>(initialValue = null, provider, modelName) {
                     value = withContext(Dispatchers.IO) { PricingCache.getGenaiPricesMeta(provider, modelName) }
-                }
-                // CloudPrice live detail, parsed into label/value detail rows +
-                // capability flags for the two CloudPrice cards.
-                val cloudPriceData = remember(cloudPriceRaw) {
-                    cloudPriceRaw?.let { raw ->
-                        runCatching { com.google.gson.JsonParser.parseString(raw).asJsonObject.getAsJsonObject("data") }.getOrNull()
-                    }
-                }
-                val cloudPriceRows: List<Pair<String, String>> = remember(cloudPriceData) {
-                    val d = cloudPriceData ?: return@remember emptyList()
-                    fun s(k: String) = d.get(k)?.takeIf { it.isJsonPrimitive && !it.isJsonNull }?.asString?.takeIf { it.isNotBlank() }
-                    fun i(k: String) = d.get(k)?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isNumber }?.asInt
-                    buildList {
-                        s("family")?.let { add("Family" to it) }
-                        s("tier")?.let { add("Tier" to it) }
-                        s("version")?.let { add("Version" to it) }
-                        s("type")?.let { add("Type" to it) }
-                        s("tokenizer")?.let { add("Tokenizer" to it) }
-                        (d.getAsJsonObject("modalities"))?.let { m ->
-                            val inp = m.getAsJsonArray("input")?.mapNotNull { e -> e.asString }?.joinToString(", ")
-                            val out = m.getAsJsonArray("output")?.mapNotNull { e -> e.asString }?.joinToString(", ")
-                            if (!inp.isNullOrBlank() && !out.isNullOrBlank()) add("Modalities" to "$inp → $out")
-                        }
-                        i("context_window")?.let { add("Context Window" to formatCompactNumber(it.toLong())) }
-                        i("max_output_tokens")?.let { add("Max Output" to formatCompactNumber(it.toLong())) }
-                        d.getAsJsonArray("supported_reasoning_efforts")?.mapNotNull { it.asString }?.takeIf { it.isNotEmpty() }
-                            ?.let { add("Reasoning efforts" to it.joinToString(", ")) }
-                        s("knowledge_cutoff")?.let { add("Knowledge cutoff" to it) }
-                        s("training_data_cutoff")?.let { add("Training cutoff" to it) }
-                        s("release_date")?.let { add("Released" to it) }
-                        s("earliest_deprecation_date")?.let { add("Earliest deprecation" to it) }
-                        d.get("deprecated")?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isBoolean }?.asBoolean?.let { if (it) add("Deprecated" to "Yes") }
-                        i("provider_count")?.let { add("Providers serving" to it.toString()) }
-                        i("tool_use_system_prompt_tokens")?.let { if (it > 0) add("Tool-use overhead" to "$it tok") }
-                    }
-                }
-                val cloudPriceCaps: List<Pair<String, Boolean>> = remember(cloudPriceData) {
-                    cloudPriceData?.getAsJsonObject("capabilities")?.entrySet()?.mapNotNull { (k, v) ->
-                        if (v.isJsonPrimitive && v.asJsonPrimitive.isBoolean) k to v.asBoolean else null
-                    } ?: emptyList()
                 }
                 val blockedReason = aiSettings.blockedModels
                     .firstOrNull { it.providerId == provider.id && it.model == modelName }?.reason
@@ -1059,17 +978,6 @@ fun ModelInfoScreen(
                         }
                     }
 
-                    // CloudPrice description (conditional — only when the live
-                    // per-model lookup returned a description). Sits right after
-                    // the OpenRouter one.
-                    cloudPriceDescription?.let { desc ->
-                        item {
-                            ModelInfoSection("Description", "CloudPrice", onNavigateToHelpTopic) {
-                                Text(desc, fontSize = 13.sp, color = AppColors.TextSecondary)
-                            }
-                        }
-                    }
-
                     // Technical specs
                     info?.openRouterInfo?.let { or ->
                         item {
@@ -1122,27 +1030,6 @@ fun ModelInfoScreen(
 
                     // ───────── Extra per-info-provider detail cards ─────────
                     // Each hides when its source has no data for this model.
-
-                    // CloudPrice — details (release / cutoff / deprecation dates,
-                    // family / tier / version, tokenizer, modalities, limits).
-                    if (cloudPriceRows.isNotEmpty()) {
-                        item {
-                            ModelInfoSection("CloudPrice details", "CloudPrice", onNavigateToHelpTopic) {
-                                cloudPriceRows.forEach { (label, value) -> ModelInfoRow(label, value) }
-                            }
-                        }
-                    }
-
-                    // CloudPrice — full capability flags.
-                    if (cloudPriceCaps.isNotEmpty()) {
-                        item {
-                            ModelInfoSection("CloudPrice capabilities", "CloudPrice", onNavigateToHelpTopic) {
-                                cloudPriceCaps.forEach { (key, on) ->
-                                    ModelInfoRow(key.replace('_', ' ').replaceFirstChar { it.uppercase() }, if (on) "Yes" else "No")
-                                }
-                            }
-                        }
-                    }
 
                     // Artificial Analysis — benchmark + speed scores.
                     aaMeta?.let { aa ->
@@ -1351,7 +1238,6 @@ fun ModelInfoScreen(
                         val hasLlmStats = llmStatsRaw != null
                         val hasGenaiPrices = genaiPricesRaw != null
                         val hasTrueFoundry = trueFoundryRaw != null
-                        val hasCloudPrice = cloudPriceRaw != null
                         // Info providers the user switched off are hidden, not
                         // shown as empty/red. (Their tier rows in Costs already
                         // drop out because the gated finders return null.)
@@ -1366,7 +1252,6 @@ fun ModelInfoScreen(
                         val enLlmStats = aiSettings.isInfoProviderEnabled("llmstats")
                         val enGenaiPrices = aiSettings.isInfoProviderEnabled("genaiprices")
                         val enTrueFoundry = aiSettings.isInfoProviderEnabled("truefoundry")
-                        val enCloudPrice = aiSettings.isInfoProviderEnabled("cloudprice")
                         // Two rows of buttons in their own card — first the
                         // four catalog sources, then the three additional
                         // pricing tiers (Helicone / llm-prices.com / AA).
@@ -1514,18 +1399,6 @@ fun ModelInfoScreen(
                                         colors = ButtonDefaults.buttonColors(containerColor = if (hasTrueFoundry) AppColors.SuccessAccent else AppColors.DangerAccent),
                                         contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp)
                                     ) { Text("TrueFoundry", fontSize = 11.sp, maxLines = 1, softWrap = false) }
-                                    if (enCloudPrice) Button(
-                                        onClick = {
-                                            rawView = RawView(
-                                                title = "CloudPrice · $modelName", body = cloudPriceRaw ?: "(no CloudPrice data)",
-                                                provider = com.ai.ui.admin.INFO_PROVIDERS_BY_TOPIC["info_provider_cloudprice"],
-                                                calledUrl = "https://ai.cloudprice.net/api/v1/models/$modelName"
-                                            )
-                                        },
-                                        modifier = Modifier.weight(1f),
-                                        colors = ButtonDefaults.buttonColors(containerColor = if (hasCloudPrice) AppColors.SuccessAccent else AppColors.DangerAccent),
-                                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp)
-                                    ) { Text("CloudPrice", fontSize = 11.sp, maxLines = 1, softWrap = false) }
                                 }
                                 Spacer(modifier = Modifier.height(4.dp))
                                 OutlinedButton(
@@ -1544,8 +1417,7 @@ fun ModelInfoScreen(
                                             ("Requesty" to requestyRaw).takeIf { enRequesty },
                                             ("llm-stats" to llmStatsRaw).takeIf { enLlmStats },
                                             ("genai-prices" to genaiPricesRaw).takeIf { enGenaiPrices },
-                                            ("TrueFoundry" to trueFoundryRaw).takeIf { enTrueFoundry },
-                                            ("CloudPrice" to cloudPriceRaw).takeIf { enCloudPrice }
+                                            ("TrueFoundry" to trueFoundryRaw).takeIf { enTrueFoundry }
                                         )
                                         val body = sections.joinToString("\n\n") { (label, raw) ->
                                             "=== $label ===\n${raw ?: "(no $label data)"}"

@@ -392,8 +392,8 @@ per-provider <em>precomputed</em> cache
 <code>recomputeCapabilities</code>) &rarr; a slow layered lookup
 (provider <code>/models</code> self-report &rarr; LiteLLM flag &rarr;
 models.dev &rarr; further catalog flags where the capability has them —
-Requesty / llm-stats / TrueFoundry / CloudPrice, coverage varies per
-capability &rarr; <code>ModelType.infer*</code> naming heuristic). An
+Requesty / llm-stats / TrueFoundry, coverage varies per capability
+&rarr; <code>ModelType.infer*</code> naming heuristic). An
 override flag can only <strong>add</strong> a capability — because each
 lookup returns <code>true</code> early on a positive match, it never
 clears one already implied by the per-provider set or the catalog. This

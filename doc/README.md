@@ -20,9 +20,9 @@ managers (plus the `BatchEngine` / `SecondaryBatchEngine` bases, a
 cloud providers** loaded at runtime from one JSON file per provider
 under `assets/providers/` (88 `OPENAI_COMPATIBLE`, 1 `ANTHROPIC`, 1
 `GOOGLE`, 1 `REPLICATE`) — they are not hardcoded — plus the synthetic on-device
-`AppService.LOCAL`. Twelve external metadata repositories (ten of
-them in the pricing precedence chain, plus CloudPrice and HuggingFace
-which are capabilities-only) plus two provider self-report sources
+`AppService.LOCAL`. Eleven external metadata repositories (ten of
+them in the pricing precedence chain, plus HuggingFace which is
+capabilities-only) plus two provider self-report sources
 and a manual override layer into one resolved view per
 `(provider, model)` pair.
 
@@ -146,10 +146,10 @@ and a manual override layer into one resolved view per
 - **[providers.md](providers.md)** — All 91 cloud providers from the
   per-provider JSON files under `assets/providers/` with base URL,
   admin URL, and non-default fields.
-- **[repositories.md](repositories.md)** — The twelve external metadata
+- **[repositories.md](repositories.md)** — The eleven external metadata
   repositories (LiteLLM, OpenRouter, models.dev, Helicone, llm-prices,
   Artificial Analysis, Requesty, llm-stats, genai-prices, TrueFoundry,
-  CloudPrice, HuggingFace) with endpoints, auth, what they provide, and
+  HuggingFace) with endpoints, auth, what they provide, and
   where the cached data lives.
 - **[persistent.md](persistent.md)** — Exact contents of every
   SharedPreferences file and every persistent JSON file under

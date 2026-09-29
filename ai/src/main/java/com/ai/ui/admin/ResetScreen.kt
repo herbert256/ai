@@ -51,7 +51,7 @@ fun ResetRuntimeDataScreen(
         AlertDialog(
             onDismissRequest = { showConfirm = false },
             title = { Text("Clear runtime data?") },
-            text = { Text("This permanently deletes the app logs, chat history, API traces, AI reports, per-report audit logs, prompt history, usage statistics, and the last \"Test all models\" run. Anything still running on a report (generation, fan-out, tournament, translation, …) is stopped first. Configuration (providers, agents, flocks, swarms, parameters, system + internal + example prompts, API keys), knowledge bases, the eleven Info-provider caches, the per-provider model-list cache, and the local semantic-search embedding cache are all kept.") },
+            text = { Text("This permanently deletes the app logs, chat history, API traces, AI reports, per-report audit logs, prompt history, usage statistics, and the last \"Test all models\" run. Anything still running on a report (generation, fan-out, tournament, translation, …) is stopped first. Configuration (providers, agents, flocks, swarms, parameters, system + internal + example prompts, API keys), knowledge bases, the ten Info-provider caches, the per-provider model-list cache, and the local semantic-search embedding cache are all kept.") },
             confirmButton = {
                 OutlinedButton(
                     onClick = {
@@ -80,7 +80,7 @@ fun ResetRuntimeDataScreen(
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(
-                "Wipes the activity + personal-history surface that accumulates while the app is in use: rolling app logs, chat sessions, API traces, AI reports (incl. their secondary-result rows), prompt history, usage statistics, and the last \"Test all models\" run. Configuration (providers, agents, flocks, swarms, system / internal / example prompts, parameters, API keys), knowledge bases, the eleven Info-provider pricing caches, the per-provider model-list cache, and the local semantic-search embedding cache are all preserved.",
+                "Wipes the activity + personal-history surface that accumulates while the app is in use: rolling app logs, chat sessions, API traces, AI reports (incl. their secondary-result rows), prompt history, usage statistics, and the last \"Test all models\" run. Configuration (providers, agents, flocks, swarms, system / internal / example prompts, parameters, API keys), knowledge bases, the ten Info-provider pricing caches, the per-provider model-list cache, and the local semantic-search embedding cache are all preserved.",
                 fontSize = 12.sp, color = AppColors.TextTertiary
             )
             OutlinedButton(
@@ -111,7 +111,7 @@ fun ResetInfoProvidersScreen(
         AlertDialog(
             onDismissRequest = { showConfirm = false },
             title = { Text("Reset Info providers?") },
-            text = { Text("Drops every refreshed tier of the eleven Info providers (OpenRouter, LiteLLM, models.dev, Helicone, llm-prices, Artificial Analysis, Requesty, llm-stats, genai-prices, TrueFoundry, CloudPrice) and deletes the OpenRouter model-specs cache. Each tier goes back to the snapshot bundled with this app version — what a fresh install uses — until you run Refresh again. Manual cost overrides and Together's native pricing are preserved.") },
+            text = { Text("Drops every refreshed tier of the ten Info providers (OpenRouter, LiteLLM, models.dev, Helicone, llm-prices, Artificial Analysis, Requesty, llm-stats, genai-prices, TrueFoundry) and deletes the OpenRouter model-specs cache. Each tier goes back to the snapshot bundled with this app version — what a fresh install uses — until you run Refresh again. Manual cost overrides and Together's native pricing are preserved.") },
             confirmButton = {
                 OutlinedButton(
                     onClick = {
@@ -139,7 +139,7 @@ fun ResetInfoProvidersScreen(
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(
-                "Drops the refreshed pricing tier blobs and timestamps of the eleven Info providers — OpenRouter, LiteLLM, models.dev, Helicone, llm-prices, Artificial Analysis, Requesty, llm-stats, genai-prices, TrueFoundry, CloudPrice — and deletes the OpenRouter model-specs cache. Each tier then reloads the snapshot bundled with this app version (a fresh install's catalogs; shown as \"never fetched\") until Housekeeping → Refresh fetches current ones, and the model prices / capability flags are rebuilt from them in the background. Manual cost overrides survive (they sit above the Info tiers in the layered lookup) and Together's native self-reported pricing also survives.",
+                "Drops the refreshed pricing tier blobs and timestamps of the ten Info providers — OpenRouter, LiteLLM, models.dev, Helicone, llm-prices, Artificial Analysis, Requesty, llm-stats, genai-prices, TrueFoundry — and deletes the OpenRouter model-specs cache. Each tier then reloads the snapshot bundled with this app version (a fresh install's catalogs; shown as \"never fetched\") until Housekeeping → Refresh fetches current ones, and the model prices / capability flags are rebuilt from them in the background. Manual cost overrides survive (they sit above the Info tiers in the layered lookup) and Together's native self-reported pricing also survives.",
                 fontSize = 12.sp, color = AppColors.TextTertiary
             )
             OutlinedButton(

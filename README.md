@@ -61,10 +61,10 @@ response into another's prompt, and chat with real-time streaming.
 - **Example Prompts** — a curated starter library, importable from
   `assets/examples.json`, surfaced as a one-tap entry on the AI
   Reports hub
-- **Model Search** across every provider with twelve layered metadata
+- **Model Search** across every provider with eleven layered metadata
   sources (LiteLLM, OpenRouter, models.dev, Helicone, llm-prices,
   Artificial Analysis, Requesty, llm-stats, genai-prices, TrueFoundry,
-  CloudPrice, HuggingFace), each with its own per-provider help page
+  HuggingFace), each with its own per-provider help page
   deep-linked from every entry point
 - **Per-(provider, model, kind) Cost Tracking** with breakdown for
   report, rerank, chat-meta, moderate, translate, tournament,
@@ -77,7 +77,7 @@ response into another's prompt, and chat with real-time streaming.
 - **Granular Export / Import** — split bundles for Settings, Model
   lists, Parameters, System prompts, Workers (agents + flocks +
   swarms), Costs CSV, and the All bundle (with or without API keys)
-- **Refresh All** — refreshes all eleven pricing/capability catalog
+- **Refresh All** — refreshes all ten pricing/capability catalog
   sources in parallel (HuggingFace is excluded — it loads lazily on
   demand) alongside a worker phase on a full-screen progress page,
   then shows a manual "Restart application" banner you tap when it
@@ -138,7 +138,7 @@ verified against the current source. The complete set (see
 | [doc/custom-intent.md](doc/custom-intent.md) | `ACTION_NEW_REPORT` contract, instruction tags, and confirmation flow |
 | [doc/backup-restore.md](doc/backup-restore.md) | Backup zip format, two-pass validate-then-write restore |
 | [doc/providers.md](doc/providers.md) | All 91 cloud providers from `assets/providers/` |
-| [doc/repositories.md](doc/repositories.md) | The twelve external metadata sources |
+| [doc/repositories.md](doc/repositories.md) | The eleven external metadata sources |
 | [doc/persistent.md](doc/persistent.md) | Every prefs key and every persistent file |
 | [doc/help.md](doc/help.md) | The in-app Help system: live icon overlay vs help page, per-screen topics, per-provider pages |
 | [doc/applog.md](doc/applog.md) | In-app file logger: levels, rotation, redaction, viewer |
@@ -180,6 +180,6 @@ This project is licensed under the
 - **Document Extraction**: PDFBox-Android
 - **Model Data**: LiteLLM, OpenRouter, models.dev, Helicone,
   llm-prices, Artificial Analysis, Requesty, llm-stats, genai-prices,
-  TrueFoundry, CloudPrice, HuggingFace
+  TrueFoundry, HuggingFace
 - **Android UI**: Jetpack Compose, Material 3
 - **Android Networking**: Retrofit, OkHttp, Gson

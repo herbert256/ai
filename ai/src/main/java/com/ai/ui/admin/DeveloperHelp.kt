@@ -21,7 +21,7 @@ internal val developerHelp: Map<String, HelpContent> = mapOf(
     "refresh_result" to HelpContent(
         title = "Help - Refresh — result",
         cards = listOf(
-            HelpCard("Overview", "Static result screen shown after refreshing ONE catalog from the Info Providers sub-page — OpenRouter, LiteLLM, models.dev, Helicone, llm-prices, Artificial Analysis, Requesty, llm-stats, genai-prices, TrueFoundry or CloudPrice. Replaces the popup result dialogs the page used to show. The bulk \"Refresh all\" run (every catalog plus the per-provider worker pass, in parallel) has its own separate live-updating progress screen."),
+            HelpCard("Overview", "Static result screen shown after refreshing ONE catalog from the Info Providers sub-page — OpenRouter, LiteLLM, models.dev, Helicone, llm-prices, Artificial Analysis, Requesty, llm-stats, genai-prices or TrueFoundry. Replaces the popup result dialogs the page used to show. The bulk \"Refresh all\" run (every catalog plus the per-provider worker pass, in parallel) has its own separate live-updating progress screen."),
             HelpCard("Description block", "Short explanation of what the refresh did and why. Failure states explain what to check (API key, connectivity, etc)."),
             HelpCard("Result rows", "One row per measured value — Status / counts. On failure a \"Kept previous\" row (orange) shows the entry count and age of the cache that's still in use, when one exists. Green = loaded, red = failed, grey = neutral metric."),
             HelpCard("Sample model entries", "Catalog refreshes (OpenRouter / LiteLLM) include up to 8 sample model keys from the cache so you can confirm real data landed."),

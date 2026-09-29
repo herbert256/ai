@@ -51,7 +51,6 @@ import com.ai.data.ApiFactory
 import com.ai.data.AppService
 import com.ai.data.ChatHistoryManager
 import com.ai.data.ChatSession
-import com.ai.data.CloudPriceModelCache
 import com.ai.data.HuggingFaceCache
 import com.ai.data.HuggingFaceModelInfo
 import com.ai.data.OpenRouterModelInfo
@@ -379,54 +378,6 @@ fun ModelInfoViewScreen(
                 PricingCache.getTrueFoundryRawEntry(context, provider, modelName)
             }
         }
-        // CloudPrice — lazy per-model detail lookup, mirroring the
-        // HuggingFace block above: check the per-model cache, else hit
-        // `/api/v1/models/{id}` live (trying dash<->dot id variants),
-        // cache the result (incl. a negative cache on 404), and surface
-        // the raw JSON on the Sources card. Retrofit-based, so a 404 is a
-        // silent `isSuccessful == false` — no error toast.
-        val cloudPriceLive by produceState<String?>(initialValue = null, provider, modelName) {
-            value = withContext(Dispatchers.IO) {
-                if (!aiSettings.isInfoProviderEnabled(com.ai.data.InfoProvider.CLOUDPRICE.id)) return@withContext null
-                CloudPriceModelCache.get(context, provider.id, modelName)?.let { return@withContext it.json }
-                val variants = sequenceOf(modelName, modelName.replace('-', '.'), modelName.replace('.', '-')).distinct()
-                var found: String? = null
-                for (cand in variants) {
-                    try {
-                        val resp = com.ai.data.withTracerTags(category = "info/cloudprice", model = modelName) {
-                            ApiFactory.createCloudPriceApi().getModel(cand)
-                        }
-                        if (resp.isSuccessful) {
-                            found = resp.body()?.string()?.let { raw ->
-                                runCatching { com.ai.data.createAppGson(prettyPrint = true).toJson(com.google.gson.JsonParser.parseString(raw)) }.getOrDefault(raw)
-                            }
-                            break
-                        }
-                    } catch (_: Exception) {}
-                }
-                CloudPriceModelCache.put(context, provider.id, modelName, found)
-                found
-            }
-        }
-        // Whether an info/cloudprice trace exists for this model — drives the
-        // 🐞 link on the CloudPrice source row. Keyed on the live result so it
-        // re-evaluates once the fetch above has recorded its trace.
-        val cpTraceExists by produceState(false, modelName, cloudPriceLive) {
-            value = withContext(Dispatchers.IO) {
-                com.ai.data.ApiTracer.getTraceFiles().any { it.category == "info/cloudprice" && it.model == modelName }
-            }
-        }
-        // CloudPrice model description (data.description from the live detail) —
-        // drives the conditional CloudPrice Description card after OpenRouter's.
-        val cloudPriceDescription = remember(cloudPriceLive) {
-            cloudPriceLive?.let { raw ->
-                runCatching {
-                    com.google.gson.JsonParser.parseString(raw).asJsonObject
-                        .getAsJsonObject("data")?.get("description")
-                        ?.takeIf { it.isJsonPrimitive }?.asString
-                }.getOrNull()?.takeIf { it.isNotBlank() }
-            }
-        }
         val tierBreakdown by produceState<PricingCache.TierBreakdown?>(initialValue = null, provider, modelName) {
             value = withContext(Dispatchers.IO) {
                 PricingCache.getTierBreakdown(context, provider, modelName)
@@ -474,11 +425,9 @@ fun ModelInfoViewScreen(
                     llmStatsRaw = llmStatsRaw,
                     genaiPricesRaw = genaiPricesRaw,
                     trueFoundryRaw = trueFoundryRaw,
-                    cloudPriceRaw = cloudPriceLive,
                     enabled = { aiSettings.isInfoProviderEnabled(it) },
                     hfTrace = if (infoFlags.first) ({ onNavigateToTraceFiltered("info/huggingface", modelName) }) else null,
                     orTrace = if (infoFlags.second) ({ onNavigateToTraceFiltered("info/provider", null) }) else null,
-                    cpTrace = if (cpTraceExists) ({ onNavigateToTraceFiltered("info/cloudprice", modelName) }) else null,
                     onOpen = { name, body, url ->
                         sourceOverlay = SourceOverlayState(name, body, url)
                     }
@@ -494,19 +443,6 @@ fun ModelInfoViewScreen(
             // 5) Description (OpenRouter, conditional).
             orInfo?.description?.let { desc ->
                 item { SectionCard(title = "Description") { Text(desc, fontSize = 13.sp, color = AppColors.TextSecondary) } }
-            }
-
-            // 5b) Description (CloudPrice, conditional) — right after OpenRouter's.
-            cloudPriceDescription?.let { desc ->
-                item {
-                    SectionCard(title = "Description") {
-                        Text(desc, fontSize = 13.sp, color = AppColors.TextSecondary)
-                        Text(
-                            "Source: CloudPrice", fontSize = 10.sp, color = AppColors.TextTertiary,
-                            modifier = Modifier.padding(top = 4.dp)
-                        )
-                    }
-                }
             }
 
             // 6) Technical specs.
@@ -744,12 +680,10 @@ private fun SourcesCard(
     llmStatsRaw: String?,
     genaiPricesRaw: String?,
     trueFoundryRaw: String?,
-    cloudPriceRaw: String?,
     /** Info providers switched off under AI Setup are hidden here. */
     enabled: (String) -> Boolean,
     hfTrace: (() -> Unit)? = null,
     orTrace: (() -> Unit)? = null,
-    cpTrace: (() -> Unit)? = null,
     onOpen: (sourceName: String, body: String, calledUrl: String?) -> Unit
 ) {
     // Vertical list of clickable source rows. Each row carries an
@@ -787,11 +721,8 @@ private fun SourcesCard(
         if (enabled("genaiprices")) SourceRow(com.ai.data.MetadataIconsHolder.current.cost, "genai-prices", genaiPricesRaw) {
             onOpen("genai-prices", genaiPricesRaw ?: "{}", "https://raw.githubusercontent.com/pydantic/genai-prices/main/prices/data_slim.json")
         }
-        if (enabled("truefoundry")) SourceRow(com.ai.data.MetadataIconsHolder.current.packageBox, "TrueFoundry", trueFoundryRaw) {
+        if (enabled("truefoundry")) SourceRow(com.ai.data.MetadataIconsHolder.current.packageBox, "TrueFoundry", trueFoundryRaw, isLast = true) {
             onOpen("TrueFoundry", trueFoundryRaw ?: "{}", "https://github.com/truefoundry/models")
-        }
-        if (enabled("cloudprice")) SourceRow(com.ai.data.MetadataIconsHolder.current.web, "CloudPrice", cloudPriceRaw, isLast = true, onTrace = cpTrace) {
-            onOpen("CloudPrice", cloudPriceRaw ?: "{}", "https://ai.cloudprice.net/api/v1/models")
         }
     }
 }

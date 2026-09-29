@@ -90,7 +90,7 @@ embeddings, usage stats, pricing tier blobs, RAG knowledge bases).
                               ▼
             ┌──────────────────────────────────────────┐
             │  External APIs (91 cloud providers)      │
-            │  + 12 metadata repositories              │
+            │  + 11 metadata repositories              │
             └──────────────────────────────────────────┘
 ```
 
@@ -531,9 +531,9 @@ Two of the most important data flows are layered in fixed order.
   cold window and pick up real values on the next state-driven
   recompose, instead of blocking Compose on the synchronized LiteLLM
   parse. `DEFAULT_PRICING` is `$25 / M` input, `$75 / M` output (not
-  zero). CloudPrice and HuggingFace are capabilities-only (no pricing),
-  so they're absent from this chain — 10 of the 12 info-provider repos
-  participate in `getPricing`.
+  zero). HuggingFace is capabilities-only (no pricing), so it's absent
+  from this chain — 10 of the 11 info-provider repos participate in
+  `getPricing`.
 
 - **Capabilities** (`isVisionCapable`, `isWebSearchCapable`,
   `isReasoningCapable`):
@@ -541,7 +541,7 @@ Two of the most important data flows are layered in fixed order.
   reasoningModels) → manual `ModelTypeOverride` → precomputed snapshot
   → provider's own `/models` capabilities → LiteLLM → models.dev →
   other info-provider capability flags (Requesty / llm-stats /
-  TrueFoundry / CloudPrice — the exact order and participants vary
+  TrueFoundry — the exact order and participants vary
   slightly per capability) → naming heuristic (`ModelType.infer`). An
   override flag can only **add** a capability, never clear one.
 
@@ -859,9 +859,10 @@ is `eval_prefs` (`SettingsPreferences.PREFS_NAME`), holding ~73 `KEY_*`
 keys (agents, flocks, swarms, parameters, system prompts, internal
 prompts, provider states, the model-state lists, throttle settings, API
 keys, …). The others: `provider_registry`, `pricing_cache`,
-`dual_chat_prefs`, `huggingface_cache`, `cloudprice_model_cache`,
-`model_cooldowns`, `view_screen_prefs`, `last_report_tracker`,
-`provider_field_timestamps`, `update_from_cloud`.
+`dual_chat_prefs`, `huggingface_cache`, `model_cooldowns`,
+`view_screen_prefs`, `last_report_tracker`,
+`provider_field_timestamps`, `update_from_cloud`,
+`model_test_migration`.
 
 `filesDir` holds one subdirectory per storage object — `reports`,
 `secondary`, `trace`, `chat-history`, `embeddings`, `knowledge`,
@@ -877,7 +878,7 @@ keys, …). The others: `provider_registry`, `pricing_cache`,
 
 `BackupManager` streams a single `.zip` to a SAF Uri:
 `manifest.json` (version = `MANIFEST_VERSION` = 1), `prefs/<name>.json`
-(8 of the 11 prefs files, type-tagged so `Int` doesn't collapse to
+(7 of the 11 prefs files, type-tagged so `Int` doesn't collapse to
 `Double`) and `files/<mirror of filesDir>/…` (`cacheDir` is transient
 and never archived). The `filesDir` mirror excludes
 `FILES_DIR_BACKUP_EXCLUDES = {"local_llms", "local_models", "native",

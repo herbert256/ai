@@ -158,7 +158,7 @@ screens use the generic `TitleBar`.
 | Flocks | Named groups of agents |
 | Find alternative translation | \<target language\> - \<type\> |
 | Find icon | \<icon target\> |
-| First launch | Start with setup essentials |
+| First launch | Read an example or create your first report |
 | Help | \<per-topic subject\> |
 | Head-to-heads | \<model\> |
 | History | All your saved reports, newest first |
@@ -173,7 +173,7 @@ screens use the generic `TitleBar`.
 | Inaccessible models | Models that returned unreachable |
 | Info prompts | Prompts the app's own flows use |
 | Info provider | \<provider name\> |
-| Info Providers | Eleven pricing & capability catalogs |
+| Info Providers | Ten pricing & capability catalogs |
 | Info providers | Pick which catalogs the app uses |
 | Internal prompts | Prompts the app's own flows use |
 | Internal-prompt icons | Per-(name, title) emoji for internal-prompt rows |

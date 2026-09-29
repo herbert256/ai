@@ -467,7 +467,7 @@ overlay has its own entry. To add one:
 
 Trace ℹ deep-links resolve through `infoProviderForTrace(url,
 category)` in `HelpScreen.kt` (backed by `infoProviderForUrl` + the
-canonical 12-entry `INFO_PROVIDERS` list) — there is **no**
+canonical 11-entry `INFO_PROVIDERS` list) — there is **no**
 `HelpResolver` class.
 
 > Memory rule: **every new screen needs a help topic.** Reusing an
@@ -678,10 +678,9 @@ unit tests verify code correctness, not feature correctness here.
   `prompt_cache/`, `regenerate/`, `knowledge/`, `audit/`, `crash/`)
   minus the **four** `FILES_DIR_BACKUP_EXCLUDES` subdirs
   (`local_llms/`, `local_models/`, `native/`, `applog/`), plus the
-  **8** SharedPreferences files in `PREFS_TO_BACKUP` (`eval_prefs`,
+  **7** SharedPreferences files in `PREFS_TO_BACKUP` (`eval_prefs`,
   `provider_registry`, `pricing_cache`, `dual_chat_prefs`,
-  `huggingface_cache`, `cloudprice_model_cache`, `model_cooldowns`,
-  `view_screen_prefs`); `cacheDir` is never archived (it holds
+  `huggingface_cache`, `model_cooldowns`, `view_screen_prefs`); `cacheDir` is never archived (it holds
   transient exports, including earlier backup zips, and the reset
   flow's plaintext `reset_keys_` temp). A new prefs file
   won't survive a restore unless added to `PREFS_TO_BACKUP`. Restore

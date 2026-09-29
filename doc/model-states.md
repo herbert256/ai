@@ -190,7 +190,7 @@ optional capability flags: `supportsVision` 👁, `supportsWebSearch` 🌐,
   etc., refreshed by `recomputeCapabilities`) → a slow layered lookup
   (provider `/models` self-report → LiteLLM flag → models.dev → further
   catalog flags where the capability has them — Requesty / llm-stats /
-  TrueFoundry / CloudPrice, coverage varies per capability →
+  TrueFoundry, coverage varies per capability →
   `ModelType.infer*` naming heuristic). An override flag can only **add**
   a capability — because each lookup returns `true` early on a positive
   match, it never clears one already implied by the per-provider set or

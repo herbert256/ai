@@ -76,9 +76,9 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
         )
     ),
     "first_launch" to HelpContent(title="Help - First launch",cards=listOf(
+        HelpCard("Import API keys", "Opens a file picker for a JSON file mapping provider names to keys, e.g. {\"OpenAI\": \"sk-...\"}. When the file holds at least one AI-provider key, the keys are applied, Refresh all runs, and the app asks for a restart. A file with only info-provider keys (or none) just shows a message."),
         HelpCard("Try an example", "Open bundled saved answers without a provider key, then explore the reading and conclusion flow."),
-        HelpCard("Connect a provider", "Open AI Setup, add one provider key and select a chat model. Then use Reports → Create report, choose one or two models, and select Answers only at the work review."),
-        HelpCard("Other setup options", "Expand to import API keys, open Housekeeping, Settings or About. These are optional setup paths.")
+        HelpCard("Connect a provider", "Open AI Setup, add one provider key and select a chat model. Then use Reports → Create report, choose one or two models, and select Answers only at the work review.")
     )),
 
     "settings_autostart" to HelpContent(
@@ -212,7 +212,7 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
             HelpCard("Parameters", "Direct CRUD for parameter presets (temperature, max tokens, system prompt, web-search flags, reasoning effort)."),
             HelpCard("Costs", "Opens the manual cost-override list. Count = number of manual override entries currently saved."),
             HelpCard("External Services", "HuggingFace, OpenRouter, Artificial Analysis, and llm-stats API keys. Count = number of those keys that are non-blank."),
-            HelpCard("Info providers", "Enable/disable the twelve external pricing & capability catalogs. Count = how many are currently enabled."),
+            HelpCard("Info providers", "Enable/disable the eleven external pricing & capability catalogs. Count = how many are currently enabled."),
             HelpCard("App settings", "App-wide and report-model default System prompt / Parameters, used when nothing more specific is set."),
         )
     ),
@@ -477,7 +477,7 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
     "info_providers_setup" to HelpContent(
         title = "Help - Info providers",
         cards = listOf(
-            HelpCard("Overview", "Switch each of the twelve external catalogs (LiteLLM, models.dev, llm-prices, Artificial Analysis, llm-stats, OpenRouter, Requesty, genai-prices, TrueFoundry, CloudPrice, Helicone, HuggingFace) on or off. Checked = the app may use it; default is all on. Each toggle saves immediately."),
+            HelpCard("Overview", "Switch each of the eleven external catalogs (LiteLLM, models.dev, llm-prices, Artificial Analysis, llm-stats, OpenRouter, Requesty, genai-prices, TrueFoundry, Helicone, HuggingFace) on or off. Checked = the app may use it; default is all on. Each toggle saves immediately."),
             HelpCard("What 'off' means", "An unchecked source is not consulted ANYWHERE — pricing lookups, capability flags (vision / web-search / reasoning) and context/output-token limits all skip it, and it's skipped on Refresh (no network). On Model Info its Source button + Costs row disappear."),
             HelpCard("Why turn one off", "Drop a catalog you find inaccurate for your models so it stops winning the layered price lookup, or stop a source you don't want the app hitting over the network."),
             HelpCard("OpenRouter nuance", "Turning OpenRouter off disables its cross-provider price/capability catalog. It does NOT change pricing for calls you make THROUGH OpenRouter as your own provider (that's the provider billing its own call)."),
@@ -488,8 +488,8 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
         title = "Help - Refresh",
         cards = listOf(
             HelpCard("Overview", "Bulk refresh hub. Top-level page has three rows: \"Refresh all\" at the top, then NavCards into \"AI Info Providers\" and \"AI Runtime workers\" — each opens a dedicated full screen with its own help."),
-            HelpCard("Refresh all", "Runs every enabled catalog source (OpenRouter, LiteLLM, models.dev, Helicone, llm-prices, Artificial Analysis, llm-stats, Requesty, genai-prices, TrueFoundry, CloudPrice) and the per-provider Workers phase (model list → default-model test → default agent) all in parallel. A Restart application button appears when the run finishes. Successful model-list downloads are cached for 24 hours, including across that restart. Tapping the button routes to the Refresh-all progress screen."),
-            HelpCard("AI Info Providers (sub-page)", "Catalog-source refreshes: OpenRouter, LiteLLM, models.dev, Helicone, llm-prices, Artificial Analysis, llm-stats, Requesty, genai-prices, TrueFoundry, CloudPrice. The page's own \"All info providers\" runs the eleven in parallel without touching per-provider tests."),
+            HelpCard("Refresh all", "Runs every enabled catalog source (OpenRouter, LiteLLM, models.dev, Helicone, llm-prices, Artificial Analysis, llm-stats, Requesty, genai-prices, TrueFoundry) and the per-provider Workers phase (model list → default-model test → default agent) all in parallel. A Restart application button appears when the run finishes. Successful model-list downloads are cached for 24 hours, including across that restart. Tapping the button routes to the Refresh-all progress screen."),
+            HelpCard("AI Info Providers (sub-page)", "Catalog-source refreshes: OpenRouter, LiteLLM, models.dev, Helicone, llm-prices, Artificial Analysis, llm-stats, Requesty, genai-prices, TrueFoundry. The page's own \"All info providers\" runs the ten in parallel without touching per-provider tests."),
             HelpCard("AI Runtime workers (sub-page)", "Per-AppService work: Provider key tests, Model lists, Default agents. The page's own \"All runtime workers\" runs the three sequentially without touching the catalogs."),
             HelpCard("Pitfalls", "OpenRouter and Artificial Analysis buttons inside AI Info Providers disable themselves until you set their keys under External Services."),
         )
@@ -497,8 +497,8 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
     "refresh_info_providers" to HelpContent(
         title = "Help - Info Providers",
         cards = listOf(
-            HelpCard("Overview", "Refresh-screen sub-page for the eleven external metadata catalogs (model pricing, capability flags, supported parameters). They have no per-AppService side effects, so the page's \"All info providers\" runs them in parallel."),
-            HelpCard("All info providers", "Runs OpenRouter (if its key is set), LiteLLM, models.dev, Helicone, llm-prices, Artificial Analysis (if its key is set), llm-stats (if its key is set), Requesty, genai-prices, TrueFoundry, CloudPrice in parallel via the same full-screen progress page Refresh-all uses. Skips Providers / Models / Default agents."),
+            HelpCard("Overview", "Refresh-screen sub-page for the ten external metadata catalogs (model pricing, capability flags, supported parameters). They have no per-AppService side effects, so the page's \"All info providers\" runs them in parallel."),
+            HelpCard("All info providers", "Runs OpenRouter (if its key is set), LiteLLM, models.dev, Helicone, llm-prices, Artificial Analysis (if its key is set), llm-stats (if its key is set), Requesty, genai-prices, TrueFoundry in parallel via the same full-screen progress page Refresh-all uses. Skips Providers / Models / Default agents."),
             HelpCard("OpenRouter", "Pulls the OpenRouter catalog: pricing, capability flags, and supported parameters. Disabled until the OpenRouter External Services key is set."),
             HelpCard("LiteLLM", "Downloads model_prices_and_context_window.json from BerriAI/litellm — primary source for pricing and capability flags."),
             HelpCard("models.dev", "Pulls the models.dev community catalog. LiteLLM fallback for newer models / -latest aliases LiteLLM hasn't picked up yet."),
@@ -509,7 +509,6 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
             HelpCard("llm-stats", "Pulls api.llm-stats.com — per-provider pricing + benchmark scores. Disabled until the llm-stats key is set under External Services (and needs Stats-API onboarding on that account, or the call 403s)."),
             HelpCard("genai-prices", "Pulls Pydantic's genai-prices catalog (raw.githubusercontent.com/pydantic/genai-prices) — curated $/M pricing + context windows. Keyless community fallback after Requesty."),
             HelpCard("TrueFoundry", "Downloads the TrueFoundry model registry (github.com/truefoundry/models) — per-token pricing + capability flags. Keyless; pulls and unpacks the whole-repo archive, so this download is larger than the others."),
-            HelpCard("CloudPrice", "Pulls CloudPrice's catalog (ai.cloudprice.net) — capabilities + context windows only, no pricing. Keyless; feeds the vision / tool / reasoning capability flags. A failed page, invalid pagination, or the 40-page safety limit fails the refresh and retains the previous cache; partial downloads are never published as successful."),
             HelpCard("Snapshot recompute", "Every successful catalog refresh here (and 🔄 on Caches → Pricing tiers) rebuilds each model's precomputed vision / web-search / reasoning flags and resolved price in the background, against your current settings — pricing-only sources (Helicone, llm-prices.com, Artificial Analysis, genai-prices, OpenRouter) included, since the picker prices come from that snapshot. You can leave the screen while it runs."),
             HelpCard("Tips", "Each card has its own ℹ️ button that deep-links to that catalog's per-provider help page (the same one you reach from Model Info → Source button).")
         )
@@ -517,7 +516,7 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
     "refresh_all" to HelpContent(
         title = "Help - Refresh all",
         cards = listOf(
-            HelpCard("Overview", "Refreshes the eleven pricing/spec catalogs (OpenRouter, LiteLLM, models.dev, Helicone, llm-prices, Artificial Analysis, llm-stats, Requesty, genai-prices, TrueFoundry, CloudPrice) AND the per-provider Workers in parallel. The two phases are independent — neither blocks the other."),
+            HelpCard("Overview", "Refreshes the ten pricing/spec catalogs (OpenRouter, LiteLLM, models.dev, Helicone, llm-prices, Artificial Analysis, llm-stats, Requesty, genai-prices, TrueFoundry) AND the per-provider Workers in parallel. The two phases are independent — neither blocks the other."),
             HelpCard("Workers", "For every enabled provider with an API key: fetches the model list first (API sources only), then tests the saved default model. A retired default cannot block discovery of current models. Only a successful model test creates a default agent and adds it to the `default agents` flock. Defaults are never silently replaced. Catalog and model-test outcomes are shown separately."),
             HelpCard("Clean slate", "At the start of the run the `default agents` flock is emptied, then refilled with the workers that pass. Existing default agents (any agent whose name matches its provider id) are kept: a passing worker updates its model in place, keeping its parameters, prompts and membership of other flocks (such as `cheap`), and chats started with it keep working. Custom agents survive untouched."),
             HelpCard("Re-entry", "Tasks continue in the background if you back-gesture out. Open Refresh again while a run is in flight and the live progress screen comes back. Tap the help icon on the progress screen to read this page without stopping anything."),
@@ -733,9 +732,9 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
         title = "Help - Manage data",
         cards = listOf(
             HelpCard("Overview", "The single Housekeeping hub for every wholesale-state operation — it merges the former separate Refresh and Reset screens. Each card is one subject; a subject that can be both updated and cleared shows BOTH buttons (e.g. Info providers → Refresh / Clear). Order is roughly safe → drastic."),
-            HelpCard("Whole app", "Refresh = the Refresh-all chain (eleven catalogs + per-provider workers in parallel, then a restart prompt). Reset = factory-style reset that keeps API keys but wipes everything else and reloads from assets. The Refresh button is disabled until at least one provider has a key."),
+            HelpCard("Whole app", "Refresh = the Refresh-all chain (ten catalogs + per-provider workers in parallel, then a restart prompt). Reset = factory-style reset that keeps API keys but wipes everything else and reloads from assets. The Refresh button is disabled until at least one provider has a key."),
             HelpCard("Providers / models / agents", "Refresh = per-provider key test → model-list fetch → default-agent rewrite (skips the external catalogs). Restore = opens the assets/*.json restore screen where \"back to assets/providers/\" reloads provider definitions. The Refresh button needs at least one keyed provider."),
-            HelpCard("Info providers", "The one fully-paired subject. Refresh opens the eleven-catalog refresh page (OpenRouter, LiteLLM, models.dev, Helicone, llm-prices, Artificial Analysis, llm-stats, Requesty, genai-prices, TrueFoundry, CloudPrice); Clear drops their cached pricing tiers plus the OpenRouter model-specs cache (manual overrides + Together's native pricing survive)."),
+            HelpCard("Info providers", "The one fully-paired subject. Refresh opens the ten-catalog refresh page (OpenRouter, LiteLLM, models.dev, Helicone, llm-prices, Artificial Analysis, llm-stats, Requesty, genai-prices, TrueFoundry); Clear drops their cached pricing tiers plus the OpenRouter model-specs cache (manual overrides + Together's native pricing survive)."),
             HelpCard("Runtime data / Configuration / Bundled assets", "Clear-only subjects. Runtime data wipes logs/chats/traces/reports/prompt-history/usage. Configuration wipes keys/agents/prompts/parameters. Bundled assets/*.json restores providers/prompts/examples/meta/workers from the shipped JSON."),
             HelpCard("Pitfalls", "Each reset action still opens its own confirmation dialog on the next screen — nothing destructive happens straight from this hub. Reset application's confirmation is a plain Reset / Cancel dialog, no type-to-confirm. The Providers \"Restore\" and Bundled-assets \"Restore\" open the same assets/*.json screen."),
         )
@@ -745,7 +744,7 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
         cards = listOf(
             HelpCard("Overview", "Wipes the activity + personal-history surface that accumulates while the app is in use. On confirmation, anything still running on a report (generation, fan-out, tournament, translation, …) is stopped first, then the wipe runs in the background behind a progress dialog; a Toast reports the per-bucket counts when done."),
             HelpCard("What it wipes", "Rolling app logs under <filesDir>/applog/, every chat session, every API trace file, every AI report (the report JSON + its cascaded SecondaryResult rows for rerank / summary / fan-out etc.), per-report audit logs, the prompt-history file, the usage-statistics ledger, and the last \"Test all models\" run."),
-            HelpCard("What it keeps", "Knowledge bases, the local semantic-search embedding cache, the eleven Info-provider pricing caches, and the per-provider model-list cache. Configuration (providers, agents, flocks, swarms, system / internal / example prompts, parameters, API keys, External Services keys) is fully preserved."),
+            HelpCard("What it keeps", "Knowledge bases, the local semantic-search embedding cache, the ten Info-provider pricing caches, and the per-provider model-list cache. Configuration (providers, agents, flocks, swarms, system / internal / example prompts, parameters, API keys, External Services keys) is fully preserved."),
             HelpCard("When to use", "Privacy-driven cleanup — chats, traces, reports and prompt history contain copies of your prompts and the model responses. Also useful when you want to start a clean activity baseline without losing any setup."),
             HelpCard("Pitfalls", "Reports go through SecondaryResultStorage.deleteAllForReport on the way out, so all the fan-out / rerank / summary rows for each report disappear too. The wipe is destructive — Backup & Restore is the only undo path. The Application log viewer goes empty until the app writes new entries."),
         )
@@ -754,7 +753,7 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
         title = "Help - Reset Info providers",
         cards = listOf(
             HelpCard("Overview", "Drops the refreshed pricing / capability tiers the layered lookup reads from and falls back to the snapshots bundled with this app version — the same catalogs a fresh install starts with — until Refresh fetches current ones. The OpenRouter model-specs cache (no bundled copy) is deleted."),
-            HelpCard("What it resets", "Per-tier JSON blobs under <filesDir>/pricing/ and the timestamps in pricing_cache.xml (tiers show \"never fetched\" afterwards); the bundled assets/info-providers/ snapshots are reloaded in the background and every model's derived price / capability flags rebuilt from them. Covers all eleven Info providers: OpenRouter, LiteLLM, models.dev, Helicone, llm-prices, Artificial Analysis, llm-stats, Requesty, genai-prices, TrueFoundry, CloudPrice."),
+            HelpCard("What it resets", "Per-tier JSON blobs under <filesDir>/pricing/ and the timestamps in pricing_cache.xml (tiers show \"never fetched\" afterwards); the bundled assets/info-providers/ snapshots are reloaded in the background and every model's derived price / capability flags rebuilt from them. Covers all ten Info providers: OpenRouter, LiteLLM, models.dev, Helicone, llm-prices, Artificial Analysis, llm-stats, Requesty, genai-prices, TrueFoundry."),
             HelpCard("What it keeps", "Manual cost overrides (they sit above the Info tiers in the layered lookup), Together's native self-reported pricing, every provider's models / API key / endpoints, and everything else outside the pricing surface."),
             HelpCard("When to use", "When a refreshed tier brought in a bad price and you want the shipped catalogs back, or when troubleshooting the layered lookup."),
             HelpCard("Pitfalls", "The bundled snapshots are as old as this app build — models released since then fall through to later tiers or DEFAULT_PRICING until you Refresh."),
@@ -765,7 +764,7 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
         cards = listOf(
             HelpCard("Overview", "Wipes every piece of the app's configuration surface — keys, providers, workers, prompts, and even installed on-device model files — in one shot. Reports, chats, traces, and usage stats are preserved."),
             HelpCard("What it wipes", "Every provider's API key, model list, endpoints; every agent, flock, swarm; every parameter preset; every system prompt, internal prompt, example prompt; HuggingFace / OpenRouter / Artificial Analysis / llm-stats keys; user name + default email. Also deletes every installed Local LLM (.task) and LiteRT embedder (.tflite) file from disk — the confirm toast reports how many of each were removed."),
-            HelpCard("What it keeps", "Reports, chats, traces, usage statistics, the eleven Info-provider pricing caches, the OpenRouter model-specs cache, and the per-provider model-list cache."),
+            HelpCard("What it keeps", "Reports, chats, traces, usage statistics, the ten Info-provider pricing caches, the OpenRouter model-specs cache, and the per-provider model-list cache."),
             HelpCard("When to use", "Starting over with a fresh provider/agent setup while keeping your accumulated reports and chats. Less surgical than the asset-restore options; less destructive than Reset application."),
             HelpCard("Pitfalls", "There is no undo apart from Backup & Restore."),
         )
@@ -958,7 +957,7 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
             HelpCard("Config / Traced", "Config covers configured entries. Traced covers distinct provider/model pairs found in retained traces, including failed calls. Unmapped hosts and missing model IDs are skipped. Both columns use the catalogs loaded now; this is not a historical call-time tier breakdown."),
             HelpCard("API cost enabled", "Models whose provider has API-cost extraction or a cost-ticks divisor enabled are grouped here. This setting does not establish that every call actually returned a cost. Recorded call costs are available in Spend & usage and report Costs."),
             HelpCard("Pricing sources", "Manual override and catalog sources are shown by name. Default estimate is the placeholder used where no catalog price is available: 25 dollars per million input tokens and 75 dollars per million output tokens."),
-            HelpCard("Pricing cache", "Entry count and last retrieval for the pricing/capability catalogs. CloudPrice contributes capabilities only. A trace button appears when the catalog retrieval has a retained trace."),
+            HelpCard("Pricing cache", "Entry count and last retrieval for the pricing/capability catalogs. A trace button appears when the catalog retrieval has a retained trace."),
             HelpCard("Refresh and retention", "A catalog refresh can change both columns. Trace deletion or retention changes the Traced population; disabled tracing limits coverage."),
         )
     ),

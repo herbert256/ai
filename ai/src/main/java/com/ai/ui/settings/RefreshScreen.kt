@@ -81,7 +81,6 @@ fun RefreshScreen(
     var llmStatsResult by rememberSaveable { mutableStateOf<Int?>(null) }
     var genaiPricesResult by rememberSaveable { mutableStateOf<Int?>(null) }
     var trueFoundryResult by rememberSaveable { mutableStateOf<Int?>(null) }
-    var cloudPriceResult by rememberSaveable { mutableStateOf<Int?>(null) }
     var showOpenRouterDialog by rememberSaveable { mutableStateOf(false) }
     var showLiteLLMDialog by rememberSaveable { mutableStateOf(false) }
     var showModelsDevDialog by rememberSaveable { mutableStateOf(false) }
@@ -92,7 +91,6 @@ fun RefreshScreen(
     var showLlmStatsDialog by rememberSaveable { mutableStateOf(false) }
     var showGenaiPricesDialog by rememberSaveable { mutableStateOf(false) }
     var showTrueFoundryDialog by rememberSaveable { mutableStateOf(false) }
-    var showCloudPriceDialog by rememberSaveable { mutableStateOf(false) }
 
     fun launchTask(title: String, initialText: String = "", block: suspend () -> Unit) {
         runningTask?.cancel()
@@ -443,31 +441,6 @@ fun RefreshScreen(
         return
     }
 
-    if (showCloudPriceDialog) {
-        val n = cloudPriceResult
-        val ok = n != null && n > 0
-        val kept = if (!ok) keptPreviousRow("cloudprice") else null
-        RefreshResultScreen(
-            titleText = "CloudPrice",
-            description = when {
-                ok -> "Pulled CloudPrice's model catalog (capabilities + context windows). Capabilities-only — CloudPrice carries no pricing, so it stays out of the cost lookup."
-                kept != null -> "Failed to fetch from ai.cloudprice.net/api/v1/models. The previously fetched catalog is still in use — see the rows below."
-                else -> "Failed to fetch from ai.cloudprice.net/api/v1/models. Check connectivity and try again."
-            },
-            rows = listOfNotNull(
-                RefreshResultRow(
-                    "Status", if (n == null) "failed" else "loaded",
-                    if (n == null) AppColors.DangerAccent else AppColors.SuccessAccent
-                ),
-                RefreshResultRow("Models", "${n ?: 0}", if (ok) AppColors.SuccessAccent else AppColors.TextTertiary),
-                kept
-            ),
-            onBack = { showCloudPriceDialog = false },
-            onNavigateHome = onNavigateHome
-        )
-        return
-    }
-
     // Each per-catalog refresh's core work lives in a suspend lambda
     // that captures the surrounding state. The Boolean parameter controls
     // whether the per-step result dialog opens at the end. Every successful
@@ -549,13 +522,6 @@ fun RefreshScreen(
         if (n != null) onCatalogRefreshed()
         if (showDialogAtEnd) showTrueFoundryDialog = true
     }
-    val runCloudPrice: suspend (Boolean) -> Unit = { showDialogAtEnd ->
-        progressText = "Downloading ai.cloudprice.net/api/v1/models"
-        val n = PricingCache.fetchCloudPriceOnline(context)
-        cloudPriceResult = n
-        if (n != null) onCatalogRefreshed()
-        if (showDialogAtEnd) showCloudPriceDialog = true
-    }
 
     // AI Info Providers sub-page lives as a full-screen overlay reached
     // via a NavCard on the main Refresh screen. Same early-return idiom
@@ -578,7 +544,6 @@ fun RefreshScreen(
             onLlmStats = { launchTask("Refreshing llm-stats") { runLlmStats(true) } },
             onGenaiPrices = { launchTask("Refreshing genai-prices") { runGenaiPrices(true) } },
             onTrueFoundry = { launchTask("Refreshing TrueFoundry") { runTrueFoundry(true) } },
-            onCloudPrice = { launchTask("Refreshing CloudPrice") { runCloudPrice(true) } },
             onNavigateToHelpTopic = onNavigateToHelpTopic,
             // Deep-linked entry has no 3-card parent to fall back to, so Back
             // pops the route (returns to Manage data); normal entry just closes
@@ -600,19 +565,19 @@ fun RefreshScreen(
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
 
-            // Refresh all — runs the eleven catalog sources and the
+            // Refresh all — runs the ten catalog sources and the
             // per-provider Workers phase in parallel. Status renders on
             // a full-screen progress page owned by AppViewModel, so the
             // user can navigate away and come back to a live view.
             if (hasAnyKeyedProvider) {
                 RefreshAction(
                     label = "Refresh all",
-                    description = "Refresh the eleven catalog sources and the per-provider workers (model list, default-model test, default agent) in parallel. Continues in the background if you navigate away.",
+                    description = "Refresh the ten catalog sources and the per-provider workers (model list, default-model test, default agent) in parallel. Continues in the background if you navigate away.",
                     enabled = !isAnyRunning,
                     onClick = { onStartRefreshAll() }
                 )
                 // Worker-only variant: same per-provider feedback as
-                // Refresh-all, but skips the eleven external catalog fetches.
+                // Refresh-all, but skips the ten external catalog fetches.
                 // Useful when the user only wants to re-seed default
                 // agents or re-test keys without paying the catalog
                 // round-trip time / quota.
@@ -627,11 +592,11 @@ fun RefreshScreen(
             // Info Providers sub-page — same RefreshAction shape as the
             // two cards above so the three cards on this screen all
             // read as one column of equal-weight buttons. The button
-            // drills into the sub-page that lists the eleven catalog
+            // drills into the sub-page that lists the ten catalog
             // sources with their own progress rows.
             RefreshAction(
                 label = "Info providers",
-                description = "Catalog-source refreshes (OpenRouter, LiteLLM, models.dev, Helicone, llm-prices, Artificial Analysis, llm-stats, Requesty, genai-prices, TrueFoundry, CloudPrice).",
+                description = "Catalog-source refreshes (OpenRouter, LiteLLM, models.dev, Helicone, llm-prices, Artificial Analysis, llm-stats, Requesty, genai-prices, TrueFoundry).",
                 enabled = !isAnyRunning,
                 onClick = { subPage = RefreshSubPage.INFO_PROVIDERS }
             )
@@ -659,14 +624,13 @@ private fun InfoProvidersRefreshPage(
     onLlmStats: () -> Unit,
     onGenaiPrices: () -> Unit,
     onTrueFoundry: () -> Unit,
-    onCloudPrice: () -> Unit,
     onNavigateToHelpTopic: (String) -> Unit,
     onBack: () -> Unit,
     onNavigateHome: () -> Unit
 ) {
     BackHandler { onBack() }
     Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
-        TitleBar(helpTopic = "refresh_info_providers", title = "Info Providers", subject = "Eleven pricing & capability catalogs", onBackClick = onBack)
+        TitleBar(helpTopic = "refresh_info_providers", title = "Info Providers", subject = "Ten pricing & capability catalogs", onBackClick = onBack)
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             RefreshAction(
                 label = "OpenRouter",
@@ -746,14 +710,6 @@ private fun InfoProvidersRefreshPage(
                 enabled = !isAnyRunning && aiSettings.isInfoProviderEnabled(com.ai.data.InfoProvider.TRUEFOUNDRY.id),
                 onClick = onTrueFoundry,
                 helpTopic = "info_provider_truefoundry",
-                onNavigateToHelpTopic = onNavigateToHelpTopic
-            )
-            RefreshAction(
-                label = "CloudPrice",
-                description = "Pull CloudPrice's catalog (ai.cloudprice.net) — capabilities + context windows only (no pricing). Keyless; feeds the vision / tool / reasoning capability flags.",
-                enabled = !isAnyRunning && aiSettings.isInfoProviderEnabled(com.ai.data.InfoProvider.CLOUDPRICE.id),
-                onClick = onCloudPrice,
-                helpTopic = "info_provider_cloudprice",
                 onNavigateToHelpTopic = onNavigateToHelpTopic
             )
         }

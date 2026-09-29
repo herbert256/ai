@@ -39,8 +39,8 @@ Housekeeping &rarr; Backup &amp; Restore) into a single
 
 <p>All under
 <code class="path">/data/data/com.ai/shared_prefs/&lt;name&gt;.xml</code>.
-<strong>Eight</strong> of the eleven are captured in
-<code>BackupManager.PREFS_TO_BACKUP</code>; the other three are either
+<strong>Seven</strong> of the eleven are captured in
+<code>BackupManager.PREFS_TO_BACKUP</code>; the other four are either
 recomputable caches or device-local pointers that don't make sense to
 graft onto another device. <code>WebViewChromiumPrefs</code> is also
 intentionally excluded. (The old <code>translation_modes</code> prefs
@@ -53,12 +53,12 @@ persisted in their own prefs file.)</p>
 <div><dt>pricing_cache</dt><div class="meta"><code>PricingCache</code> &middot; backed up</div></div>
 <div><dt>dual_chat_prefs</dt><div class="meta"><code>DualChatScreen</code> &middot; backed up</div></div>
 <div><dt>huggingface_cache</dt><div class="meta"><code>HuggingFaceCache</code> &middot; backed up</div></div>
-<div><dt>cloudprice_model_cache</dt><div class="meta"><code>CloudPriceModelCache</code> (per-model CloudPrice detail lookups) &middot; backed up</div></div>
 <div><dt>model_cooldowns</dt><div class="meta"><code>ModelCooldownStore</code> &middot; backed up</div></div>
 <div><dt>view_screen_prefs</dt><div class="meta">View-grid tile order (<code>tile_order</code>) &middot; backed up</div></div>
 <div><dt>provider_field_timestamps</dt><div class="meta"><code>ProviderFieldTimestamps</code> (recomputable) &middot; <strong>not</strong> backed up</div></div>
 <div><dt>last_report_tracker</dt><div class="meta"><code>LastReportTracker</code> (device-local pointer) &middot; <strong>not</strong> backed up</div></div>
 <div><dt>update_from_cloud</dt><div class="meta"><code>UpdateFromCloudScreen</code> (local APK pointer) &middot; <strong>not</strong> backed up</div></div>
+<div><dt>model_test_migration</dt><div class="meta"><code>ModelTestMigration</code> (<code>settled_marker</code>: skip the startup repair while its inputs are unchanged; recomputable) &middot; <strong>not</strong> backed up</div></div>
 </dl>
 
 <details class="entity" open>
@@ -345,7 +345,7 @@ picker &mdash; see <a href="model-states.html">model states</a>.</dd></div>
 <dd>Configurable default secondary/meta items.</dd></div>
 <div><dt>ai_disabled_info_providers</dt><div class="meta">JSON List&lt;String&gt;</div>
 <dd>Info-provider ids (<code>litellm</code>, <code>openrouter</code>,
-<code>cloudprice</code>, &hellip;) the user switched off under AI
+&hellip;) the user switched off under AI
 Setup &rarr; Info providers; a disabled tier is skipped by refresh
 and by <code>PricingCache.getPricing</code>.</dd></div>
 </dl>
@@ -451,8 +451,6 @@ revision.</dd></div>
 <dd>Last genai-prices fetch ms.</dd></div>
 <div><dt>truefoundry_timestamp</dt><div class="meta">Long</div>
 <dd>Last TrueFoundry fetch ms.</dd></div>
-<div><dt>cloudprice_timestamp</dt><div class="meta">Long</div>
-<dd>Last CloudPrice fetch ms.</dd></div>
 <div><dt>manual_pricing</dt><div class="meta">JSON Map&lt;String, ModelPricing&gt;</div>
 <dd>Per-<code>&lt;providerId&gt;:&lt;model&gt;</code> user overrides
 (source <code>"OVERRIDE"</code>). Sits ahead of all curated bulk
@@ -491,25 +489,6 @@ TTL keyed on <code>&lt;providerId&gt;::&lt;modelId&gt;</code>.</p>
 short-circuits the network call until the TTL expires. Concurrent
 load-modify-save is serialised so two simultaneous misses don't tear
 the JSON blob.</p>
-</div>
-</details>
-
-<details class="entity">
-<summary>cloudprice_model_cache</summary>
-<div class="body">
-<p>The direct sibling of <code>huggingface_cache</code>. CloudPrice's
-bulk <code>/models</code> list feeds the capability tier, but Model
-Info also does a live per-model call to
-<code>/api/v1/models/{id}</code> (richer / fresher, resolves aliases
-the bulk keying misses); a 404 is common since many provider/model
-pairs aren't in CloudPrice's catalog, so this cache short-circuits
-repeat misses.</p>
-<dl class="kv">
-<div><dt>entries_json</dt><div class="meta">JSON Map&lt;String, Entry(ts, json?)&gt;</div>
-<dd>Keyed on <code>&lt;providerId&gt;::&lt;modelId&gt;</code>, 7-day
-TTL. <code>json = null</code> is a cached miss (404/error) that
-short-circuits another network call until the TTL expires.</dd></div>
-</dl>
 </div>
 </details>
 
@@ -618,8 +597,6 @@ sidecar</dd></div>
 registry</dd></div>
 <div><dt>truefoundry_meta.json</dt><dd>TrueFoundry capabilities
 sidecar</dd></div>
-<div><dt>cloudprice_meta.json</dt><dd>CloudPrice capabilities +
-context catalog (no pricing &mdash; metadata only)</dd></div>
 </dl>
 <p>Reads go through <code>PricingCache.loadBlob</code>, which looks
 up the on-disk <code class="path">filesDir/pricing/&lt;key&gt;.json</code>
@@ -991,14 +968,14 @@ model-list caches stay put.</dd></div>
 <div><dt>Clear Info providers</dt>
 <dd>Wipes every external pricing/capability tier cache (OpenRouter,
 LiteLLM, models.dev, Helicone, llm-prices, Artificial Analysis,
-Requesty, llm-stats, genai-prices, TrueFoundry, CloudPrice &mdash; 11
+Requesty, llm-stats, genai-prices, TrueFoundry &mdash; 10
 sources; see <a href="repositories.html">repositories</a>) and their
 per-tier timestamps in <code>pricing_cache</code>, plus the
 OpenRouter model-specs files (<code>model_pricing.json</code> /
 <code>model_supported_parameters.json</code>). Preserves manual +
-Together-native pricing. The <code>huggingface_cache</code> and
-<code>cloudprice_model_cache</code> prefs files (per-model detail
-lookups) are <strong>not</strong> touched by this screen.</dd></div>
+Together-native pricing. The <code>huggingface_cache</code> prefs
+file (per-model detail lookups) is <strong>not</strong> touched by
+this screen.</dd></div>
 <div><dt>Clear all configuration</dt>
 <dd>Wipes provider config, agents, prompts, parameters, and
 overrides. Asks before destructive actions.</dd></div>
